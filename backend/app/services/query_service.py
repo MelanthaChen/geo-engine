@@ -1,8 +1,12 @@
 from typing import List
 
+from sqlalchemy.orm import Session
+
 from openai import OpenAI
 
 from app.core.config import OPENAI_API_KEY
+
+from app.repositories.query_repository import create_query
 
 
 client = OpenAI(
@@ -11,12 +15,13 @@ client = OpenAI(
 
 
 def generate_queries(
+    db: Session,
     category: str,
     niche: str
 ) -> List[str]:
 
     prompt = f"""
-You are a GEO (Generative Engine Optimization) query strategist.
+You are a GEO query strategist.
 
 Generate high-quality AI search queries for:
 
@@ -29,7 +34,7 @@ Generate:
 - comparison queries
 - purchase intent queries
 - long-tail queries
-- scenario-based queries
+- scenario queries
 
 Return ONLY a plain list.
 One query per line.
@@ -55,5 +60,14 @@ One query per line.
         for line in content.split("\n")
         if line.strip()
     ]
+
+    for query in queries:
+
+        create_query(
+            db=db,
+            category=category,
+            niche=niche,
+            query_text=query
+        )
 
     return queries

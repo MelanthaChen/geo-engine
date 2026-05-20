@@ -1,4 +1,7 @@
 from fastapi import APIRouter
+from fastapi import Depends
+
+from sqlalchemy.orm import Session
 
 from app.schemas.query_schema import (
     QueryGenerationRequest,
@@ -6,6 +9,8 @@ from app.schemas.query_schema import (
 )
 
 from app.services.query_service import generate_queries
+
+from app.core.deps import get_db
 
 
 router = APIRouter()
@@ -16,10 +21,12 @@ router = APIRouter()
     response_model=QueryGenerationResponse
 )
 async def generate_query_list(
-    request: QueryGenerationRequest
+    request: QueryGenerationRequest,
+    db: Session = Depends(get_db)
 ):
 
     queries = generate_queries(
+        db=db,
         category=request.category,
         niche=request.niche
     )

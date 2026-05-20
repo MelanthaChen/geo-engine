@@ -1,22 +1,42 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.sql import func
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+from sqlalchemy import DateTime
+from sqlalchemy import func
 
-from app.db.database import Base
+from app.core.database import Base
 
 
 class Query(Base):
 
     __tablename__ = "queries"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
-    query_text = Column(String, nullable=False)
+    category = Column(
+        String,
+        nullable=False
+    )
 
-    category = Column(String)
+    niche = Column(
+        String,
+        nullable=False
+    )
 
-    intent = Column(String)
+    query_text = Column(
+        String,
+        nullable=False,
+        unique=True
+    )
 
-    cluster_name = Column(String)
+    query_type = Column(
+        String,
+        nullable=True
+    )
 
     created_at = Column(
         DateTime(timezone=True),

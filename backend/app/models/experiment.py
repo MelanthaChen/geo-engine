@@ -7,7 +7,7 @@ from sqlalchemy import (
 
 from sqlalchemy.sql import func
 
-from app.db.database import Base
+from app.core.database import Base
 
 
 class Experiment(Base):
