@@ -7,6 +7,7 @@ from app.models import *
 
 from app.api.v1.query_routes import router as query_router
 from app.api.v1.content_routes import router as content_router
+from app.api.v1.citation_routes import router as citation_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -47,3 +48,4 @@ app.include_router(
 )
 
 app.include_router(content_router)
+app.include_router(citation_router)

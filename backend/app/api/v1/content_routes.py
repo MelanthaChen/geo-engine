@@ -1,8 +1,11 @@
-from fastapi import APIRouter
-from fastapi import Depends
+from fastapi import (APIRouter, Depends)
 
 from sqlalchemy.orm import Session
 
+from fastapi.responses import HTMLResponse
+
+from app.services.export_service import generate_html_export
+from app.models.content import Content
 from app.core.deps import get_db
 
 from app.schemas.content_schema import (
@@ -45,3 +48,29 @@ def get_content_history(
     contents = fetch_all_contents(db)
 
     return contents
+
+@router.get(
+    "/export/{content_id}",
+    response_class=HTMLResponse
+)
+def export_content(
+    content_id: int,
+    db: Session = Depends(get_db),
+):
+
+    content = (
+        db.query(Content)
+        .filter(Content.id == content_id)
+        .first()
+    )
+
+    if not content:
+
+        return HTMLResponse(
+            content="<h1>Content not found</h1>",
+            status_code=404
+        )
+
+    html = generate_html_export(content)
+
+    return HTMLResponse(content=html)
