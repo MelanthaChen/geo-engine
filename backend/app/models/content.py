@@ -74,4 +74,11 @@ class Content(Base):
         server_default=func.now()
     )
 
+    campaign_id = Column(
+        Integer,
+        ForeignKey("campaigns.id"),
+        nullable=True
+    )
+
     query = relationship("Query")
+    campaign = relationship("Campaign")

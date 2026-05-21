@@ -57,7 +57,8 @@ Return:
         messages=[
             {
                 "role": "system",
-                "content": "You are an expert GEO content generation engine."
+                "content":
+                "You are an expert GEO content generation engine."
             },
             {
                 "role": "user",
@@ -67,15 +68,19 @@ Return:
         temperature=0.7
     )
 
-    generated_content = response.choices[0].message.content
+    generated_content = (
+        response.choices[0]
+        .message
+        .content
+    )
 
-    create_content(
-    db=db,
-    query_id=None,
-    title=query,
-    content_type=content_type,
-    body=generated_content,
-    target_persona=persona,
-)
+    new_content = create_content(
+        db=db,
+        query_id=None,
+        title=query,
+        content_type=content_type,
+        body=generated_content,
+        target_persona=persona,
+    )
 
-    return generated_content
+    return new_content

@@ -37,7 +37,11 @@ def generate_content_route(
 )
 
     return {
-        "generated_content": result
+        "generated_content":
+            result.body,
+
+        "content_id":
+            result.id
     }
 
 @router.get("/history")
