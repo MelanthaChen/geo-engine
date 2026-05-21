@@ -16,6 +16,7 @@ client = OpenAI(
 def run_citation_test(
     db: Session,
     content_id: int,
+    platform: str = "openai",
 ):
 
     content = db.query(Content).filter(
@@ -64,7 +65,7 @@ Give natural recommendation-style answers.
 
     citation_test = CitationTest(
         content_id=content.id,
-        platform="openai",
+        platform=platform,
         query=test_query,
         ai_response=ai_response,
         mentioned=mentioned,

@@ -17,6 +17,9 @@ from app.api.v1.citation_test_routes import (
 from app.api.v1.campaign_routes import (
     router as campaign_router
 )
+from app.api.v1.campaign_runner_routes import (
+    router as campaign_runner_router
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -61,3 +64,4 @@ app.include_router(citation_router)
 app.include_router(publishing_router)
 app.include_router(citation_test_router)
 app.include_router(campaign_router)
+app.include_router(campaign_runner_router)
