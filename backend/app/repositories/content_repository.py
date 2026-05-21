@@ -34,3 +34,36 @@ def get_all_contents(db: Session):
         .order_by(Content.created_at.desc())
         .all()
     )
+
+def get_content_by_id(
+    db,
+    content_id: int,
+):
+
+    return (
+        db.query(Content)
+        .filter(Content.id == content_id)
+        .first()
+    )
+
+def update_content_publish_info(
+    db,
+    content,
+    publish_result,
+):
+
+    content.publish_status = "published"
+
+    content.published_url = (
+        publish_result["url"]
+    )
+
+    content.publish_provider = (
+        publish_result["provider"]
+    )
+
+    db.commit()
+
+    db.refresh(content)
+
+    return content
