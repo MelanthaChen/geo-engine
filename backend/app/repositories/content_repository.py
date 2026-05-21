@@ -26,3 +26,11 @@ def create_content(
     db.refresh(content)
 
     return content
+
+def get_all_contents(db: Session):
+
+    return (
+        db.query(Content)
+        .order_by(Content.created_at.desc())
+        .all()
+    )

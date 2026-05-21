@@ -2,7 +2,12 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.repositories.content_repository import create_content
+from app.repositories.content_repository import (create_content, get_all_contents)
+
+
+def fetch_all_contents(db: Session):
+
+    return get_all_contents(db)
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 

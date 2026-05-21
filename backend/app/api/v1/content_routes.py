@@ -9,7 +9,10 @@ from app.schemas.content_schema import (
     ContentGenerationRequest,
 )
 
-from app.services.content_service import generate_content
+from app.services.content_service import (
+    generate_content,
+    fetch_all_contents
+)
 
 router = APIRouter(
     prefix="/api/v1/content",
@@ -33,3 +36,12 @@ def generate_content_route(
     return {
         "generated_content": result
     }
+
+@router.get("/history")
+def get_content_history(
+    db: Session = Depends(get_db),
+):
+
+    contents = fetch_all_contents(db)
+
+    return contents
