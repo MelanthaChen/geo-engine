@@ -71,7 +71,7 @@ Return:
 
     create_content(
     db=db,
-    query_id=1,
+    query_id=None,
     title=query,
     content_type=content_type,
     body=generated_content,

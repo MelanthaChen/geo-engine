@@ -34,6 +34,41 @@ class Content(Base):
 
     status = Column(String, default="draft")
 
+    publish_status = Column(
+        String,
+        default="draft"
+    )
+
+    published_url = Column(
+        String,
+        nullable=True
+    )
+
+    publish_provider = Column(
+        String,
+        nullable=True
+    )
+
+    published_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    indexed_status = Column(
+        String,
+        default="not_indexed"
+    )
+
+    citation_count = Column(
+        Integer,
+        default=0
+    )
+
+    visibility_score = Column(
+        Integer,
+        default=0
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now()
