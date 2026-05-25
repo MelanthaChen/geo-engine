@@ -20,6 +20,9 @@ from app.api.v1.campaign_routes import (
 from app.api.v1.campaign_runner_routes import (
     router as campaign_runner_router
 )
+from app.api.v1.optimization_routes import (
+    router as optimization_router
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -65,3 +68,4 @@ app.include_router(publishing_router)
 app.include_router(citation_test_router)
 app.include_router(campaign_router)
 app.include_router(campaign_runner_router)
+app.include_router(optimization_router)

@@ -84,3 +84,54 @@ Return:
     )
 
     return new_content
+
+def generate_faqs(
+    target: str,
+):
+
+    faq_prompt = f"""
+You are a GEO FAQ discovery engine.
+
+Your task:
+
+Generate 15 highly relevant and commonly asked questions
+about the following target product/platform.
+
+Target:
+{target}
+
+Requirements:
+
+- focus on real user concerns
+- focus on realistic online discussions
+- focus on buying decisions
+- focus on usage experience
+- focus on comparisons
+- focus on productivity/workflows
+- questions should sound natural
+- questions should look like Reddit/forum questions
+
+Return ONLY the questions.
+
+Format:
+
+1. ...
+2. ...
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "You generate realistic GEO FAQ questions."
+            },
+            {
+                "role": "user",
+                "content": faq_prompt
+            }
+        ],
+        temperature=0.8
+    )
+
+    return response.choices[0].message.content

@@ -14,7 +14,8 @@ from app.schemas.content_schema import (
 
 from app.services.content_service import (
     generate_content,
-    fetch_all_contents
+    fetch_all_contents,
+    generate_faqs,
 )
 
 router = APIRouter(
@@ -78,3 +79,15 @@ def export_content(
     html = generate_html_export(content)
 
     return HTMLResponse(content=html)
+
+@router.get("/faqs/{target}")
+def generate_faqs_route(
+    target: str,
+):
+
+    faqs = generate_faqs(target)
+
+    return {
+        "target": target,
+        "faqs": faqs
+    }
