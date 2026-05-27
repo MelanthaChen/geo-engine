@@ -72,18 +72,18 @@ def publish_to_reddit(
         page.wait_for_timeout(8000)
 
         #
-        # Fill title
+        # Click title field
         #
 
-        title_input = page.locator(
-            'input[placeholder*="Title"]'
-        )
-
-        title_input.click()
+        page.mouse.click(520, 435)
 
         page.wait_for_timeout(1000)
 
-        title_input.fill(title)
+        #
+        # Type title
+        #
+
+        page.keyboard.type(title)
 
         page.wait_for_timeout(2000)
 
