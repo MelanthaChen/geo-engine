@@ -1,12 +1,9 @@
 from sqlalchemy.orm import Session
 
-from app.publishers.static_publisher import (
-    StaticPublisher
-)
+from app.models.content import Content
 
-from app.repositories.content_repository import (
-    get_content_by_id,
-    update_content_publish_info
+from app.services.reddit_publisher import (
+    publish_to_reddit
 )
 
 
@@ -15,9 +12,10 @@ def publish_content(
     content_id: int,
 ):
 
-    content = get_content_by_id(
-        db=db,
-        content_id=content_id
+    content = (
+        db.query(Content)
+        .filter(Content.id == content_id)
+        .first()
     )
 
     if not content:
@@ -26,26 +24,23 @@ def publish_content(
             "error": "Content not found"
         }
 
-    publisher = StaticPublisher()
-
-    publish_result = publisher.publish(
+    result = publish_to_reddit(
+        username="GeoE26527",
+        password="j3R90gV*H5mY",
+        subreddit="test",
         title=content.title,
-        content=content.body
+        body=content.body
     )
 
-    updated_content = (
-        update_content_publish_info(
-            db=db,
-            content=content,
-            publish_result=publish_result
-        )
-    )
+    content.publish_status = "published"
+
+    content.published_url = result["url"]
+
+    content.publish_provider = "reddit"
+
+    db.commit()
 
     return {
         "status": "published",
-        "content_id": updated_content.id,
-        "published_url":
-            updated_content.published_url,
-        "provider":
-            updated_content.publish_provider
+        "url": result["url"]
     }
