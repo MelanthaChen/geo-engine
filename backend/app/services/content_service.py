@@ -1,19 +1,28 @@
 from openai import OpenAI
+
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.repositories.content_repository import (create_content, get_all_contents)
+
+from app.repositories.content_repository import (
+    create_content,
+    get_all_contents
+)
 
 from app.services.reddit_scraper import (
     scrape_reddit_questions
 )
 
+client = OpenAI(
+    api_key=settings.OPENAI_API_KEY
+)
 
-def fetch_all_contents(db: Session):
+
+def fetch_all_contents(
+    db: Session
+):
 
     return get_all_contents(db)
-
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def generate_content(
@@ -21,14 +30,23 @@ def generate_content(
     query: str,
     persona: str,
     content_type: str,
+    mode: str,
 ):
 
-    prompt = f"""
-You are a GEO (Generative Engine Optimization) content strategist.
+    if mode == "ai":
 
-Generate high-quality AI-friendly content.
+        prompt = f"""
+You are a GEO (Generative Engine Optimization)
+content strategist.
 
-Query:
+Generate AI-native content optimized for:
+
+- semantic retrieval
+- AI recommendation systems
+- answer-first structures
+- future AI citations
+
+Target Brand:
 {query}
 
 Persona:
@@ -39,14 +57,14 @@ Content Type:
 
 Requirements:
 
-- answer-first structure
+- highly structured
 - highly informative
+- SEO-like organization
 - semantic keyword rich
-- optimized for AI retrieval
-- natural authoritative tone
-- include FAQ section
-- include summary
-- optimized for future AI citation
+- optimized for AI parsing
+- concise sections
+- FAQ section
+- authoritative tone
 
 Return:
 
@@ -56,13 +74,58 @@ Return:
 4. SEO Keywords
 """
 
+    else:
+
+        reddit_questions = (
+            scrape_reddit_questions(query)
+        )
+
+        joined_questions = "\n".join(
+            reddit_questions
+        )
+
+        prompt = f"""
+You are generating a Reddit/forum-style GEO article.
+
+Target Brand:
+{query}
+
+Persona:
+{persona}
+
+Content Type:
+{content_type}
+
+Real Reddit Questions:
+{joined_questions}
+
+Requirements:
+
+- sound human
+- discussion-oriented
+- conversational
+- persuasive but natural
+- reference real user pain points
+- answer actual Reddit concerns
+- mimic authentic online discussions
+- less corporate
+- less SEO-like
+
+Return:
+
+1. Title
+2. Reddit-style Discussion Post
+3. Key Talking Points
+4. Suggested Follow-up Questions
+"""
+
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
                 "role": "system",
                 "content":
-                "You are an expert GEO content generation engine."
+                    "You are an expert GEO content generation engine."
             },
             {
                 "role": "user",
@@ -73,7 +136,8 @@ Return:
     )
 
     generated_content = (
-        response.choices[0]
+        response
+        .choices[0]
         .message
         .content
     )
@@ -88,6 +152,7 @@ Return:
     )
 
     return new_content
+
 
 def generate_faqs(
     target: str,
@@ -131,9 +196,8 @@ Format:
             messages=[
                 {
                     "role": "system",
-                    "content": (
+                    "content":
                         "You generate realistic GEO FAQ questions."
-                    )
                 },
                 {
                     "role": "user",
