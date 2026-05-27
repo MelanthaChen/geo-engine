@@ -83,11 +83,19 @@ def export_content(
 @router.get("/faqs/{target}")
 def generate_faqs_route(
     target: str,
+    mode: str,
 ):
 
-    faqs = generate_faqs(target)
+    faqs = generate_faqs(
+        target,
+        mode
+    )
+
+    print("FAQ RESULT:")
+    print(faqs)
 
     return {
         "target": target,
+        "mode": mode,
         "faqs": faqs
     }

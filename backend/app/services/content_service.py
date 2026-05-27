@@ -4,6 +4,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.repositories.content_repository import (create_content, get_all_contents)
 
+from app.services.reddit_scraper import (
+    scrape_reddit_questions
+)
+
 
 def fetch_all_contents(db: Session):
 
@@ -87,29 +91,32 @@ Return:
 
 def generate_faqs(
     target: str,
+    mode: str,
 ):
 
-    faq_prompt = f"""
+    if mode == "ai":
+
+        faq_prompt = f"""
 You are a GEO FAQ discovery engine.
 
-Your task:
+Based on your understanding of user behavior
+and common discussions,
 
-Generate 15 highly relevant and commonly asked questions
-about the following target product/platform.
+generate 15 highly realistic and commonly asked
+questions about:
 
-Target:
 {target}
 
 Requirements:
 
-- focus on real user concerns
-- focus on realistic online discussions
-- focus on buying decisions
-- focus on usage experience
-- focus on comparisons
-- focus on productivity/workflows
 - questions should sound natural
-- questions should look like Reddit/forum questions
+- questions should feel like real user concerns
+- focus on usage
+- focus on comparisons
+- focus on workflows
+- focus on productivity
+- focus on student / professional use cases
+- mimic realistic online discussions
 
 Return ONLY the questions.
 
@@ -119,19 +126,34 @@ Format:
 2. ...
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You generate realistic GEO FAQ questions."
-            },
-            {
-                "role": "user",
-                "content": faq_prompt
-            }
-        ],
-        temperature=0.8
-    )
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You generate realistic GEO FAQ questions."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": faq_prompt
+                }
+            ],
+            temperature=0.8
+        )
 
-    return response.choices[0].message.content
+        return response.choices[0].message.content
+
+    else:
+
+        reddit_questions = (
+            scrape_reddit_questions(target)
+        )
+
+        return "\n".join([
+            f"{idx + 1}. {question}"
+            for idx, question in enumerate(
+                reddit_questions
+            )
+        ])
