@@ -6,8 +6,6 @@ import { Card, CardContent } from "../@/components/ui/card";
 import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
-import { publishContent } from "@/api/publishing";
-import { runCitationTest } from "@/api/citation";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -27,10 +25,6 @@ function App() {
   const [platformFaqs, setPlatformFaqs] = useState("");
 
   const [history, setHistory] = useState<any[]>([]);
-
-  const [publishResult, setPublishResult] = useState<any>(null);
-
-  const [citationResult, setCitationResult] = useState<any>(null);
 
   useEffect(() => {
     loadHistory();
