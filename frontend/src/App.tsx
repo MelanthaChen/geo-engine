@@ -4,45 +4,106 @@ import { Button } from "../@/components/ui/button";
 import { Card, CardContent } from "../@/components/ui/card";
 
 import { generateContent } from "@/api/content";
-
-import { fetchContentHistory } from "./services/history";
+import { generateFaqs } from "@/api/faq";
+import { fetchContentHistory } from "@/api/history";
+import { publishContent } from "@/api/publishing";
+import { runCitationTest } from "@/api/citation";
 
 function App() {
   const [query, setQuery] = useState("");
 
-  const [persona, setPersona] = useState("dog owner");
+  const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("blog");
+  const [contentType, setContentType] = useState("reddit");
 
   const [loading, setLoading] = useState(false);
 
-  const [generatedContent, setGeneratedContent] = useState("");
+  const [aiGeneratedContent, setAiGeneratedContent] = useState("");
 
-  const [selectedContent, setSelectedContent] = useState<any>(null);
+  const [platformGeneratedContent, setPlatformGeneratedContent] = useState("");
+
+  const [aiFaqs, setAiFaqs] = useState("");
+
+  const [platformFaqs, setPlatformFaqs] = useState("");
 
   const [history, setHistory] = useState<any[]>([]);
+
+  const [publishResult, setPublishResult] = useState<any>(null);
+
+  const [citationResult, setCitationResult] = useState<any>(null);
 
   useEffect(() => {
     loadHistory();
   }, []);
 
-  async function handleGenerate() {
+  async function handleGenerateAiContent() {
     try {
       setLoading(true);
 
-      const result = await generateContent(query, persona, contentType);
+      const result = await generateContent(query, persona, contentType, "ai");
 
-      setGeneratedContent(result.generated_content);
-
-      setSelectedContent({
-        body: result.generated_content,
-      });
+      setAiGeneratedContent(result.generated_content);
 
       await loadHistory();
     } catch (error) {
       console.error(error);
 
-      alert("Failed to generate content");
+      alert("Failed to generate AI content");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGeneratePlatformContent() {
+    try {
+      setLoading(true);
+
+      const result = await generateContent(
+        query,
+        persona,
+        contentType,
+        "platform",
+      );
+
+      setPlatformGeneratedContent(result.generated_content);
+
+      await loadHistory();
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to generate platform content");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerateAiFaqs() {
+    try {
+      setLoading(true);
+
+      const result = await generateFaqs(query, "ai");
+
+      setAiFaqs(result.faqs);
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to generate AI FAQs");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGeneratePlatformFaqs() {
+    try {
+      setLoading(true);
+
+      const result = await generateFaqs(query, "platform");
+
+      setPlatformFaqs(result.faqs);
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to generate platform FAQs");
     } finally {
       setLoading(false);
     }
@@ -58,134 +119,277 @@ function App() {
     }
   }
 
+  async function handlePublish() {
+    alert("Publish system coming next");
+  }
+
+  async function handleCitationTest() {
+    alert("Citation tracking system coming next");
+  }
+
   return (
     <div className="min-h-screen bg-black text-white p-10">
-      <div className="max-w-7xl mx-auto grid grid-cols-3 gap-8">
-        {/* LEFT PANEL */}
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* TOP ROW */}
 
-        <Card className="bg-zinc-900 border-zinc-800 col-span-1">
-          <CardContent className="p-6 space-y-6">
-            <div>
-              <h1 className="text-4xl font-bold">GEO Engine</h1>
+        <div className="grid grid-cols-2 gap-8">
+          {/* CONTROL PANEL */}
 
-              <p className="text-zinc-400 mt-2">
-                AI-native Generative Engine Optimization Platform
-              </p>
-            </div>
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h1 className="text-4xl font-bold">GEO Engine</h1>
 
-            <div className="space-y-2">
-              <label className="text-sm text-zinc-400">Query</label>
+                <p className="text-zinc-400 mt-2">
+                  AI-native Generative Engine Optimization Platform
+                </p>
+              </div>
 
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="best dog harness for puppies"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3"
-              />
-            </div>
+              <div className="space-y-2">
+                <label className="text-sm text-zinc-400">Target Brand</label>
 
-            <div className="space-y-2">
-              <label className="text-sm text-zinc-400">Persona</label>
-
-              <select
-                value={persona}
-                onChange={(e) => setPersona(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3"
-              >
-                <option>dog owner</option>
-
-                <option>traveler</option>
-
-                <option>student</option>
-
-                <option>engineer</option>
-
-                <option>parent</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-zinc-400">Content Type</label>
-
-              <select
-                value={contentType}
-                onChange={(e) => setContentType(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3"
-              >
-                <option>blog</option>
-
-                <option>faq</option>
-
-                <option>comparison</option>
-
-                <option>review</option>
-              </select>
-            </div>
-
-            <Button
-              onClick={handleGenerate}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? "Generating..." : "Generate GEO Content"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* CENTER PANEL */}
-
-        <Card className="bg-zinc-900 border-zinc-800 col-span-1">
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Generated Content</h2>
-
-            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 h-[700px] overflow-y-auto whitespace-pre-wrap text-sm leading-7">
-              {selectedContent
-                ? selectedContent.body
-                : generatedContent
-                  ? generatedContent
-                  : "No content generated yet."}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* RIGHT PANEL */}
-
-        <Card className="bg-zinc-900 border-zinc-800 col-span-1">
-          <CardContent className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Content History</h2>
-
-            <div className="space-y-4 h-[700px] overflow-y-auto">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedContent(item)}
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Notability"
                   className="
-                   bg-zinc-950
+                    w-full
+                    bg-zinc-950
                     border
-                   border-zinc-800
-                    rounded-xl
-                    p-4
-                    cursor-pointer
-                   hover:border-zinc-600
-                    transition
+                    border-zinc-800
+                    rounded-lg
+                    p-3
+                  "
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-zinc-400">Persona</label>
+
+                <select
+                  value={persona}
+                  onChange={(e) => setPersona(e.target.value)}
+                  className="
+                    w-full
+                    bg-zinc-950
+                    border
+                    border-zinc-800
+                    rounded-lg
+                    p-3
                   "
                 >
-                  <h3 className="font-bold text-lg">{item.title}</h3>
+                  <option>student</option>
+                  <option>engineering student</option>
+                  <option>medical student</option>
+                  <option>productivity enthusiast</option>
+                  <option>researcher</option>
+                </select>
+              </div>
 
-                  <p className="text-zinc-400 text-sm mt-1">
-                    {item.target_persona}
-                    {" • "}
-                    {item.content_type}
-                  </p>
+              <div className="space-y-2">
+                <label className="text-sm text-zinc-400">Content Type</label>
 
-                  <p className="text-zinc-500 text-xs mt-2">
-                    {new Date(item.created_at).toLocaleString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <select
+                  value={contentType}
+                  onChange={(e) => setContentType(e.target.value)}
+                  className="
+                    w-full
+                    bg-zinc-950
+                    border
+                    border-zinc-800
+                    rounded-lg
+                    p-3
+                  "
+                >
+                  <option>reddit</option>
+                  <option>faq</option>
+                  <option>comparison</option>
+                  <option>review</option>
+                </select>
+              </div>
+
+              <Button
+                onClick={handleGenerateAiFaqs}
+                disabled={loading}
+                className="w-full"
+              >
+                Generate AI FAQs
+              </Button>
+
+              <Button
+                onClick={handleGeneratePlatformFaqs}
+                disabled={loading}
+                className="w-full"
+              >
+                Generate Platform FAQs
+              </Button>
+
+              <Button
+                onClick={handleGenerateAiContent}
+                disabled={loading}
+                className="w-full"
+              >
+                Generate AI Content
+              </Button>
+
+              <Button
+                onClick={handleGeneratePlatformContent}
+                disabled={loading}
+                className="w-full"
+              >
+                Generate Platform Content
+              </Button>
+
+              <div className="flex gap-4">
+                <Button onClick={handlePublish} className="flex-1">
+                  Publish
+                </Button>
+
+                <Button onClick={handleCitationTest} className="flex-1">
+                  Citation Test
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* HISTORY */}
+
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">Content History</h2>
+
+              <div
+                className="
+                space-y-4
+                h-[600px]
+                overflow-y-auto
+              "
+              >
+                {history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="
+                      bg-zinc-950
+                      border
+                      border-zinc-800
+                      rounded-xl
+                      p-4
+                    "
+                  >
+                    <h3 className="font-bold text-lg">{item.title}</h3>
+
+                    <p className="text-zinc-400 text-sm mt-1">
+                      {item.target_persona}
+
+                      {" • "}
+
+                      {item.content_type}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* FAQ ROW */}
+
+        <div className="grid grid-cols-2 gap-8">
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">AI-Inferred FAQs</h2>
+
+              <div
+                className="
+                bg-zinc-950
+                border
+                border-zinc-800
+                rounded-xl
+                p-4
+                h-[500px]
+                overflow-y-auto
+                whitespace-pre-wrap
+              "
+              >
+                {aiFaqs || "No AI FAQs yet."}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">
+                Platform / Reddit FAQs
+              </h2>
+
+              <div
+                className="
+                bg-zinc-950
+                border
+                border-zinc-800
+                rounded-xl
+                p-4
+                h-[500px]
+                overflow-y-auto
+                whitespace-pre-wrap
+              "
+              >
+                {platformFaqs || "No platform FAQs yet."}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* CONTENT ROW */}
+
+        <div className="grid grid-cols-2 gap-8">
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">
+                AI-Generated GEO Content
+              </h2>
+
+              <div
+                className="
+                bg-zinc-950
+                border
+                border-zinc-800
+                rounded-xl
+                p-4
+                h-[700px]
+                overflow-y-auto
+                whitespace-pre-wrap
+              "
+              >
+                {aiGeneratedContent || "No AI-generated content yet."}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">
+                Platform-Informed GEO Content
+              </h2>
+
+              <div
+                className="
+                bg-zinc-950
+                border
+                border-zinc-800
+                rounded-xl
+                p-4
+                h-[700px]
+                overflow-y-auto
+                whitespace-pre-wrap
+              "
+              >
+                {platformGeneratedContent ||
+                  "No platform-generated content yet."}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
