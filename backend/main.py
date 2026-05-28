@@ -31,14 +31,30 @@ app = FastAPI(
     version="1.0.0"
 )
 
+#
+# Allowed frontend origins
+#
+
+origins = [
+    "http://localhost:5173",
+    "https://geo-engine-phi.vercel.app",
+]
+
+#
+# Enable CORS
+#
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+#
+# Root route
+#
 
 @app.get("/")
 async def root():
@@ -47,6 +63,9 @@ async def root():
         "message": "GEO Engine API running"
     }
 
+#
+# Health check
+#
 
 @app.get("/health")
 async def health_check():
@@ -55,6 +74,9 @@ async def health_check():
         "status": "healthy"
     }
 
+#
+# Register routers
+#
 
 app.include_router(
     query_router,
