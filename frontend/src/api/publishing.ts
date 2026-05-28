@@ -1,16 +1,12 @@
-import axios from "axios";
-
-const API_BASE =
-  "http://127.0.0.1:8000/api/v1";
-
+import apiClient from "./client"
 
 export async function publishContent(
   contentId: number
 ) {
 
-  const response = await axios.post(
-    `${API_BASE}/publishing/publish/${contentId}`
-  );
+  const response = await apiClient.post(
+    `/api/v1/publishing/publish/${contentId}`
+  )
 
-  return response.data;
+  return response.data
 }

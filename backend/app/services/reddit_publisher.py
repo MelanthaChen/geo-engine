@@ -34,26 +34,36 @@ def publish_to_reddit(
         # Fill username
         #
 
-        page.locator(
+        username_input = page.locator(
             'input[name="username"]'
-        ).fill(username)
+        )
+
+        username_input.click()
+
+        username_input.fill(username)
 
         #
         # Fill password
         #
 
-        page.locator(
+        password_input = page.locator(
             'input[name="password"]'
-        ).fill(password)
+        )
+
+        password_input.click()
+
+        password_input.fill(password)
 
         #
-        # Click login
+        # Click login button
         #
 
-        page.get_by_role(
+        login_button = page.get_by_role(
             "button",
             name="Log In"
-        ).click()
+        )
+
+        login_button.click()
 
         #
         # Wait after login
@@ -62,48 +72,54 @@ def publish_to_reddit(
         page.wait_for_timeout(8000)
 
         #
-        # Open subreddit submit page
+        # Open Reddit submit page
         #
 
         page.goto(
             f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
         )
 
+        #
+        # Wait for page load
+        #
+
         page.wait_for_timeout(8000)
 
         #
-        # Click title field
+        # Fill title
         #
 
-        page.mouse.click(520, 435)
+        title_box = page.locator(
+            'textarea[name="title"]'
+        )
+
+        title_box.wait_for(
+            state="visible",
+            timeout=15000
+        )
+
+        title_box.click()
 
         page.wait_for_timeout(1000)
 
-        #
-        # Type title
-        #
-
-        page.keyboard.type(title)
+        title_box.fill(title)
 
         page.wait_for_timeout(2000)
 
         #
-        # Click body editor
+        # Fill body
         #
 
-        body_editor = page.locator(
-            '[contenteditable="true"]'
-        ).last
+        body_editor = page.get_by_role(
+            "textbox",
+            name="Post body text field"
+        )
 
         body_editor.click()
 
         page.wait_for_timeout(1000)
 
-        #
-        # Type body
-        #
-
-        page.keyboard.type(body)
+        body_editor.fill(body)
 
         page.wait_for_timeout(3000)
 
@@ -114,6 +130,11 @@ def publish_to_reddit(
         post_button = page.get_by_role(
             "button",
             name="Post"
+        )
+
+        post_button.wait_for(
+            state="visible",
+            timeout=15000
         )
 
         post_button.click()
