@@ -1,54 +1,50 @@
 import requests
+from bs4 import BeautifulSoup
 
 
 def scrape_reddit_questions(
-    target: str
+    keyword: str
 ):
 
     url = (
-        f"https://www.reddit.com/search.json?q={target}"
+        f"https://old.reddit.com/search/?q={keyword}"
     )
 
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 GEOEngine/1.0"
+        "User-Agent":
+        (
+            "Mozilla/5.0 "
+            "(Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 "
+            "(KHTML, like Gecko) "
+            "Chrome/136.0.0.0 Safari/537.36"
         )
     }
 
     response = requests.get(
         url,
         headers=headers,
-        timeout=30
+        timeout=20
     )
 
-    data = response.json()
-
-    questions = []
-
-    posts = (
-        data
-        .get("data", {})
-        .get("children", [])
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser"
     )
 
-    for post in posts:
+    results = []
 
-        try:
+    posts = soup.select(
+        "a.search-title"
+    )
 
-            title = (
-                post["data"]["title"]
-            )
+    for post in posts[:15]:
 
-            if len(title.split()) < 4:
-                continue
+        title = post.get_text(
+            strip=True
+        )
 
-            questions.append(title)
+        if title:
+            results.append(title)
 
-            if len(questions) >= 15:
-                break
-
-        except:
-
-            pass
-
-    return questions
+    return results
