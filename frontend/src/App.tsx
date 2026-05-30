@@ -27,6 +27,8 @@ function App() {
 
   const [history, setHistory] = useState<any[]>([]);
 
+  const [selectedHistory, setSelectedHistory] = useState<any>(null);
+
   useEffect(() => {
     loadHistory();
   }, []);
@@ -279,13 +281,17 @@ function App() {
                 {history.map((item) => (
                   <div
                     key={item.id}
-                    className="
-      bg-zinc-950
-      border
-      border-zinc-800
-      rounded-xl
-      p-4
-    "
+                    onClick={() => setSelectedHistory(item)}
+                    className={`
+    bg-zinc-950
+    border
+    rounded-xl
+    p-4
+    cursor-pointer
+    transition
+
+    ${selectedHistory?.id === item.id ? "border-blue-500" : "border-zinc-800"}
+  `}
                   >
                     <h3 className="font-bold text-lg">{item.title}</h3>
 
@@ -294,20 +300,39 @@ function App() {
                       {" • "}
                       {item.content_type}
                     </p>
-
-                    <div className="mt-3">
-                      <Button
-                        onClick={() => handlePublish(item.id)}
-                        className="w-full"
-                      >
-                        Publish
-                      </Button>
-                    </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+          {selectedHistory && (
+            <div
+              className="
+      mt-6
+      bg-zinc-950
+      border
+      border-zinc-800
+      rounded-xl
+      p-4
+      space-y-4
+    "
+            >
+              <h3 className="font-bold text-lg">{selectedHistory.title}</h3>
+
+              <div className="text-zinc-400 text-sm">
+                {selectedHistory.target_persona}
+                {" • "}
+                {selectedHistory.content_type}
+              </div>
+
+              <Button
+                onClick={() => handlePublish(selectedHistory.id)}
+                className="w-full"
+              >
+                Publish Selected Content
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* FAQ ROW */}
