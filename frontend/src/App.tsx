@@ -6,6 +6,7 @@ import { Card, CardContent } from "../@/components/ui/card";
 import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
+import { publishContent } from "@/api/publishing";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -107,14 +108,34 @@ function App() {
     try {
       const data = await fetchContentHistory();
 
-      setHistory(data);
+      console.log("history response:", data);
+
+      if (Array.isArray(data)) {
+        setHistory(data);
+      } else if (Array.isArray(data.history)) {
+        setHistory(data.history);
+      } else {
+        setHistory([]);
+      }
     } catch (error) {
       console.error(error);
     }
   }
 
-  async function handlePublish() {
-    alert("Publish system coming next");
+  async function handlePublish(contentId: number) {
+    try {
+      const result = await publishContent(contentId);
+
+      console.log(result);
+
+      alert("Published successfully!");
+
+      await loadHistory();
+    } catch (error) {
+      console.error(error);
+
+      alert("Publishing failed");
+    }
   }
 
   async function handleCitationTest() {
@@ -235,10 +256,6 @@ function App() {
               </Button>
 
               <div className="flex gap-4">
-                <Button onClick={handlePublish} className="flex-1">
-                  Publish
-                </Button>
-
                 <Button onClick={handleCitationTest} className="flex-1">
                   Citation Test
                 </Button>
@@ -263,22 +280,29 @@ function App() {
                   <div
                     key={item.id}
                     className="
-                      bg-zinc-950
-                      border
-                      border-zinc-800
-                      rounded-xl
-                      p-4
-                    "
+      bg-zinc-950
+      border
+      border-zinc-800
+      rounded-xl
+      p-4
+    "
                   >
                     <h3 className="font-bold text-lg">{item.title}</h3>
 
                     <p className="text-zinc-400 text-sm mt-1">
                       {item.target_persona}
-
                       {" • "}
-
                       {item.content_type}
                     </p>
+
+                    <div className="mt-3">
+                      <Button
+                        onClick={() => handlePublish(item.id)}
+                        className="w-full"
+                      >
+                        Publish
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
