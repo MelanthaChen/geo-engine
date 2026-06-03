@@ -281,7 +281,10 @@ function App() {
                 {history.map((item) => (
                   <div
                     key={item.id}
-                    onClick={() => setSelectedHistory(item)}
+                    onClick={() => {
+                      console.log(item);
+                      setSelectedHistory(item);
+                    }}
                     className={`
     bg-zinc-950
     border
@@ -305,34 +308,6 @@ function App() {
               </div>
             </CardContent>
           </Card>
-          {selectedHistory && (
-            <div
-              className="
-      mt-6
-      bg-zinc-950
-      border
-      border-zinc-800
-      rounded-xl
-      p-4
-      space-y-4
-    "
-            >
-              <h3 className="font-bold text-lg">{selectedHistory.title}</h3>
-
-              <div className="text-zinc-400 text-sm">
-                {selectedHistory.target_persona}
-                {" • "}
-                {selectedHistory.content_type}
-              </div>
-
-              <Button
-                onClick={() => handlePublish(selectedHistory.id)}
-                className="w-full"
-              >
-                Publish Selected Content
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* FAQ ROW */}
