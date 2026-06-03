@@ -349,6 +349,12 @@ function App() {
             <CardContent className="p-6">
               <h2 className="text-2xl font-bold mb-6">
                 AI-Generated GEO Content
+                {selectedHistory && (
+                  <div className="mb-4 text-zinc-400 text-sm">
+                    Viewing History:
+                    {selectedHistory.title}
+                  </div>
+                )}
               </h2>
 
               <div
@@ -363,7 +369,9 @@ function App() {
                 whitespace-pre-wrap
               "
               >
-                {aiGeneratedContent || "No AI-generated content yet."}
+                {selectedHistory
+                  ? selectedHistory.body
+                  : aiGeneratedContent || "No AI-generated content yet."}
               </div>
             </CardContent>
           </Card>
@@ -386,8 +394,10 @@ function App() {
                 whitespace-pre-wrap
               "
               >
-                {platformGeneratedContent ||
-                  "No platform-generated content yet."}
+                {selectedHistory
+                  ? selectedHistory.body
+                  : platformGeneratedContent ||
+                    "No platform-generated content yet."}
               </div>
             </CardContent>
           </Card>
