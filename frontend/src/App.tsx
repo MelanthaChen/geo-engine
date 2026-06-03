@@ -6,6 +6,7 @@ import { Card, CardContent } from "../@/components/ui/card";
 import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
+import { publishContent } from "@/api/publishing";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -28,6 +29,12 @@ function App() {
 
   const [selectedHistory, setSelectedHistory] = useState<any>(null);
 
+  const [aiContentId, setAiContentId] = useState<number | null>(null);
+
+  const [platformContentId, setPlatformContentId] = useState<number | null>(
+    null,
+  );
+
   useEffect(() => {
     loadHistory();
   }, []);
@@ -39,6 +46,8 @@ function App() {
       const result = await generateContent(query, persona, contentType, "ai");
 
       setAiGeneratedContent(result.generated_content);
+
+      setAiContentId(result.content_id);
 
       await loadHistory();
     } catch (error) {
@@ -62,6 +71,8 @@ function App() {
       );
 
       setPlatformGeneratedContent(result.generated_content);
+
+      setPlatformContentId(result.content_id);
 
       await loadHistory();
     } catch (error) {
@@ -102,6 +113,20 @@ function App() {
       alert("Failed to generate platform FAQs");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePublish(contentId: number) {
+    try {
+      const result = await publishContent(contentId);
+
+      console.log(result);
+
+      alert("Published successfully!");
+    } catch (error) {
+      console.error(error);
+
+      alert("Publishing failed");
     }
   }
 
@@ -347,15 +372,17 @@ function App() {
         <div className="grid grid-cols-2 gap-8">
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold mb-6">
-                AI-Generated GEO Content
-                {selectedHistory && (
-                  <div className="mb-4 text-zinc-400 text-sm">
-                    Viewing History:
-                    {selectedHistory.title}
-                  </div>
-                )}
-              </h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">AI-Generated GEO Content</h2>
+
+                <Button
+                  size="sm"
+                  disabled={!aiContentId}
+                  onClick={() => handlePublish(aiContentId!)}
+                >
+                  Publish
+                </Button>
+              </div>
 
               <div
                 className="
@@ -378,9 +405,19 @@ function App() {
 
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold mb-6">
-                Platform-Informed GEO Content
-              </h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">
+                  Platform-Informed GEO Content
+                </h2>
+
+                <Button
+                  size="sm"
+                  disabled={!platformContentId}
+                  onClick={() => handlePublish(platformContentId!)}
+                >
+                  Publish
+                </Button>
+              </div>
 
               <div
                 className="
