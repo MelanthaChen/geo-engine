@@ -124,22 +124,6 @@ function App() {
     }
   }
 
-  async function handlePublish(contentId: number) {
-    try {
-      const result = await publishContent(contentId);
-
-      console.log(result);
-
-      alert("Published successfully!");
-
-      await loadHistory();
-    } catch (error) {
-      console.error(error);
-
-      alert("Publishing failed");
-    }
-  }
-
   async function handleCitationTest() {
     alert("Citation tracking system coming next");
   }
