@@ -29,6 +29,16 @@ def publish_to_reddit(
 
         page.wait_for_timeout(5000)
 
+        print(page.title())
+
+        print(page.url)
+
+        page.screenshot(
+            path="reddit_login.png"
+        )
+
+        print(page.content()[:5000])
+
         #
         # Fill username
         #
