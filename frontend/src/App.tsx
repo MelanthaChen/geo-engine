@@ -266,6 +266,7 @@ function App() {
                     key={item.id}
                     onClick={() => {
                       console.log("Clicked");
+                      console.log(JSON.stringify(item, null, 2));
                       setSelectedHistory(item);
                     }}
                     className={`
