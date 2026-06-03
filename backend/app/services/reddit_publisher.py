@@ -14,8 +14,7 @@ def publish_to_reddit(
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False,
-            slow_mo=500
+            headless=True
         )
 
         page = browser.new_page()
