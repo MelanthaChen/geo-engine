@@ -14,7 +14,7 @@ def publish_to_reddit(
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False
+            headless=True
         )
 
         context = browser.new_context(
@@ -48,10 +48,6 @@ def publish_to_reddit(
             page.locator(
                 '[contenteditable="true"]'
             ).count()
-        )
-
-        input(
-            "Verify login then press Enter..."
         )
 
         #
@@ -133,10 +129,6 @@ def publish_to_reddit(
 
         print(
             "Title and body filled."
-        )
-
-        input(
-            "Press Enter to POST..."
         )
 
         #
