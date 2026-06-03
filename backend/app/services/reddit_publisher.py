@@ -14,85 +14,45 @@ def publish_to_reddit(
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=True
+            headless=False
         )
 
-        page = browser.new_page()
-
-        #
-        # Open Reddit login page
-        #
-
-        page.goto(
-            "https://www.reddit.com/login/"
+        context = browser.new_context(
+            storage_state="reddit_state.json"
         )
 
-        page.wait_for_timeout(5000)
-
-        print(page.title())
-
-        print(page.url)
-
-        page.screenshot(
-            path="reddit_login.png"
-        )
-
-        print(page.content()[:5000])
+        page = context.new_page()
 
         #
-        # Fill username
-        #
-
-        username_input = page.locator(
-            'input[name="username"]'
-        )
-
-        username_input.click()
-
-        username_input.fill(username)
-
-        #
-        # Fill password
-        #
-
-        password_input = page.locator(
-            'input[name="password"]'
-        )
-
-        password_input.click()
-
-        password_input.fill(password)
-
-        #
-        # Click login button
-        #
-
-        login_button = page.get_by_role(
-            "button",
-            name="Log In"
-        )
-
-        login_button.click()
-
-        #
-        # Wait after login
-        #
-
-        page.wait_for_timeout(8000)
-
-        #
-        # Open Reddit submit page
+        # Open submit page
         #
 
         page.goto(
             f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
         )
 
-        #
-        # Wait for page load
-        #
+        page.wait_for_timeout(10000)
 
-        page.wait_for_timeout(8000)
+        print("Current URL:")
+        print(page.url)
+
+        print(
+            "Title count:",
+            page.locator(
+                'textarea[name="title"]'
+            ).count()
+        )
+
+        print(
+            "Editable count:",
+            page.locator(
+                '[contenteditable="true"]'
+            ).count()
+        )
+
+        input(
+            "Verify login then press Enter..."
+        )
 
         #
         # Fill title
@@ -100,11 +60,11 @@ def publish_to_reddit(
 
         title_box = page.locator(
             'textarea[name="title"]'
-        )
+        ).first
 
         title_box.wait_for(
             state="visible",
-            timeout=15000
+            timeout=30000
         )
 
         title_box.click()
@@ -116,13 +76,44 @@ def publish_to_reddit(
         page.wait_for_timeout(2000)
 
         #
-        # Fill body
+        # Find visible editor
         #
 
-        body_editor = page.get_by_role(
-            "textbox",
-            name="Post body text field"
+        editors = page.locator(
+            '[contenteditable="true"]'
         )
+
+        count = editors.count()
+
+        print(
+            f"Found {count} editors"
+        )
+
+        body_editor = None
+
+        for i in range(count):
+
+            editor = editors.nth(i)
+
+            if editor.is_visible():
+
+                print(
+                    f"Using editor #{i}"
+                )
+
+                body_editor = editor
+
+                break
+
+        if body_editor is None:
+
+            raise Exception(
+                "No visible editor found"
+            )
+
+        #
+        # Fill body
+        #
 
         body_editor.click()
 
@@ -133,7 +124,23 @@ def publish_to_reddit(
         page.wait_for_timeout(3000)
 
         #
-        # Click Post button
+        # Screenshot before posting
+        #
+
+        page.screenshot(
+            path="reddit_before_post.png"
+        )
+
+        print(
+            "Title and body filled."
+        )
+
+        input(
+            "Press Enter to POST..."
+        )
+
+        #
+        # Click Post
         #
 
         post_button = page.get_by_role(
@@ -143,18 +150,18 @@ def publish_to_reddit(
 
         post_button.wait_for(
             state="visible",
-            timeout=15000
+            timeout=30000
         )
 
         post_button.click()
 
-        #
-        # Wait after posting
-        #
-
-        page.wait_for_timeout(8000)
+        page.wait_for_timeout(10000)
 
         current_url = page.url
+
+        print(
+            f"Posted URL: {current_url}"
+        )
 
         browser.close()
 
