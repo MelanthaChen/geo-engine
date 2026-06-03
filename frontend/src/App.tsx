@@ -6,7 +6,6 @@ import { Card, CardContent } from "../@/components/ui/card";
 import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
-import { publishContent } from "@/api/publishing";
 
 function App() {
   const [query, setQuery] = useState("");
