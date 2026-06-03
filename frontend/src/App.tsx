@@ -282,7 +282,7 @@ function App() {
                   <div
                     key={item.id}
                     onClick={() => {
-                      console.log(item);
+                      console.log("Clicked");
                       setSelectedHistory(item);
                     }}
                     className={`
