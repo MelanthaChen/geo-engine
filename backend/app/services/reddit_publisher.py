@@ -31,7 +31,20 @@ def publish_to_reddit(
             f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
         )
 
-        page.wait_for_timeout(10000)
+        page.wait_for_timeout(5000)
+
+        page.wait_for_timeout(5000)
+
+        print("CURRENT URL:")
+        print(page.url)
+
+        page.screenshot(
+            path="render_debug.png"
+        )
+
+        print(page.title())
+
+        print(page.content()[:3000])
 
         print("Current URL:")
         print(page.url)
