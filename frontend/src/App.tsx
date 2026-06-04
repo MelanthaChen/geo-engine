@@ -360,6 +360,8 @@ function App() {
                       {item.target_persona}
                       {" • "}
                       {item.content_type}
+                      {" • "}
+                      {item.publish_status}
                     </p>
                   </div>
                 ))}
@@ -382,7 +384,7 @@ function App() {
                 border-zinc-800
                 rounded-xl
                 p-4
-                h-[500px]
+                h-[350px]
                 overflow-y-auto
                 whitespace-pre-wrap
               "
@@ -405,7 +407,7 @@ function App() {
                 border-zinc-800
                 rounded-xl
                 p-4
-                h-[500px]
+                h-[350px]
                 overflow-y-auto
                 whitespace-pre-wrap
               "
@@ -421,55 +423,53 @@ function App() {
         <div className="grid grid-cols-2 gap-8">
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    AI-Generated GEO Content
-                  </h2>
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-3">
+                  AI-Generated GEO Content
+                </h2>
 
-                  <div className="mt-3 flex items-center gap-3">
-                    <span className="text-zinc-400">Status:</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-400">Status:</span>
 
-                    <span
-                      className={`font-bold ${
-                        aiStatus === "published"
-                          ? "text-green-400"
-                          : aiStatus === "queued"
-                            ? "text-yellow-400"
-                            : aiStatus === "pending"
-                              ? "text-blue-400"
-                              : aiStatus === "failed"
-                                ? "text-red-400"
-                                : "text-zinc-400"
-                      }`}
+                  <span
+                    className={`font-bold ${
+                      aiStatus === "published"
+                        ? "text-green-400"
+                        : aiStatus === "queued"
+                          ? "text-yellow-400"
+                          : aiStatus === "pending"
+                            ? "text-blue-400"
+                            : aiStatus === "failed"
+                              ? "text-red-400"
+                              : "text-zinc-400"
+                    }`}
+                  >
+                    {aiStatus.toUpperCase()}
+                  </span>
+
+                  <Button
+                    size="sm"
+                    disabled={!aiContentId}
+                    onClick={() => handlePublish(aiContentId!)}
+                  >
+                    Publish
+                  </Button>
+
+                  {aiUrl && (
+                    <a
+                      href={aiUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="
+          text-blue-400
+          hover:text-blue-300
+          underline
+        "
                     >
-                      {aiStatus.toUpperCase()}
-                    </span>
-
-                    {aiUrl && (
-                      <a
-                        href={aiUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="
-            text-blue-400
-            hover:text-blue-300
-            underline
-          "
-                      >
-                        View Post
-                      </a>
-                    )}
-                  </div>
+                      View Post
+                    </a>
+                  )}
                 </div>
-
-                <Button
-                  size="sm"
-                  disabled={!aiContentId}
-                  onClick={() => handlePublish(aiContentId!)}
-                >
-                  Publish
-                </Button>
               </div>
 
               <div
@@ -479,7 +479,7 @@ function App() {
                 border-zinc-800
                 rounded-xl
                 p-4
-                h-[700px]
+                h-[500px]
                 overflow-y-auto
                 whitespace-pre-wrap
               "
@@ -493,55 +493,53 @@ function App() {
 
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    Platform-Informed GEO Content
-                  </h2>
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-3">
+                  Platform-Informed GEO Content
+                </h2>
 
-                  <div className="mt-3 flex items-center gap-3">
-                    <span className="text-zinc-400">Status:</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-400">Status:</span>
 
-                    <span
-                      className={`font-bold ${
-                        platformStatus === "published"
-                          ? "text-green-400"
-                          : platformStatus === "queued"
-                            ? "text-yellow-400"
-                            : platformStatus === "pending"
-                              ? "text-blue-400"
-                              : platformStatus === "failed"
-                                ? "text-red-400"
-                                : "text-zinc-400"
-                      }`}
+                  <span
+                    className={`font-bold ${
+                      platformStatus === "published"
+                        ? "text-green-400"
+                        : platformStatus === "queued"
+                          ? "text-yellow-400"
+                          : platformStatus === "pending"
+                            ? "text-blue-400"
+                            : platformStatus === "failed"
+                              ? "text-red-400"
+                              : "text-zinc-400"
+                    }`}
+                  >
+                    {platformStatus.toUpperCase()}
+                  </span>
+
+                  <Button
+                    size="sm"
+                    disabled={!platformContentId}
+                    onClick={() => handlePublish(platformContentId!)}
+                  >
+                    Publish
+                  </Button>
+
+                  {platformUrl && (
+                    <a
+                      href={platformUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="
+          text-blue-400
+          hover:text-blue-300
+          underline
+        "
                     >
-                      {platformStatus.toUpperCase()}
-                    </span>
-
-                    {platformUrl && (
-                      <a
-                        href={platformUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="
-            text-blue-400
-            hover:text-blue-300
-            underline
-          "
-                      >
-                        View Post
-                      </a>
-                    )}
-                  </div>
+                      View Post
+                    </a>
+                  )}
                 </div>
-
-                <Button
-                  size="sm"
-                  disabled={!platformContentId}
-                  onClick={() => handlePublish(platformContentId!)}
-                >
-                  Publish
-                </Button>
               </div>
 
               <div
@@ -551,7 +549,7 @@ function App() {
                 border-zinc-800
                 rounded-xl
                 p-4
-                h-[700px]
+                h-[500px]
                 overflow-y-auto
                 whitespace-pre-wrap
               "
