@@ -54,12 +54,6 @@ function App() {
     return () => clearInterval(interval);
   }, [aiContentId, platformContentId]);
 
-  useEffect(() => {
-    const interval = setInterval(refreshStatus, 5000);
-
-    return () => clearInterval(interval);
-  }, [aiContentId, platformContentId]);
-
   async function handleGenerateAiContent() {
     try {
       setLoading(true);
@@ -427,39 +421,46 @@ function App() {
         <div className="grid grid-cols-2 gap-8">
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">AI-Generated GEO Content</h2>
-                <div className="mb-4 text-sm">
-                  <div>
-                    Status:
-                    <span className="ml-2 font-bold">{aiStatus}</span>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    AI-Generated GEO Content
+                  </h2>
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="text-zinc-400">Status:</span>
+
+                    <span
+                      className={`font-bold ${
+                        aiStatus === "published"
+                          ? "text-green-400"
+                          : aiStatus === "queued"
+                            ? "text-yellow-400"
+                            : aiStatus === "pending"
+                              ? "text-blue-400"
+                              : aiStatus === "failed"
+                                ? "text-red-400"
+                                : "text-zinc-400"
+                      }`}
+                    >
+                      {aiStatus.toUpperCase()}
+                    </span>
+
+                    {aiUrl && (
+                      <a
+                        href={aiUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="
+            text-blue-400
+            hover:text-blue-300
+            underline
+          "
+                      >
+                        View Post
+                      </a>
+                    )}
                   </div>
-
-                  {aiUrl && (
-                    <a
-                      href={aiUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-400 underline"
-                    >
-                      View Published Post
-                    </a>
-                  )}
-                </div>
-                <div className="text-sm mt-2">
-                  <div>Status: {aiStatus}</div>
-
-                  {aiUrl && (
-                    <a
-                      href={aiUrl}
-                      target="_blank"
-                      className="
-        text-blue-400
-      "
-                    >
-                      View Published Post
-                    </a>
-                  )}
                 </div>
 
                 <Button
@@ -492,24 +493,46 @@ function App() {
 
           <Card className="bg-zinc-900 border-zinc-800">
             <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">
-                  Platform-Informed GEO Content
-                </h2>
-                <div className="text-sm mt-2">
-                  <div>Status: {platformStatus}</div>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    Platform-Informed GEO Content
+                  </h2>
 
-                  {platformUrl && (
-                    <a
-                      href={platformUrl}
-                      target="_blank"
-                      className="
-        text-blue-400
-      "
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="text-zinc-400">Status:</span>
+
+                    <span
+                      className={`font-bold ${
+                        platformStatus === "published"
+                          ? "text-green-400"
+                          : platformStatus === "queued"
+                            ? "text-yellow-400"
+                            : platformStatus === "pending"
+                              ? "text-blue-400"
+                              : platformStatus === "failed"
+                                ? "text-red-400"
+                                : "text-zinc-400"
+                      }`}
                     >
-                      View Published Post
-                    </a>
-                  )}
+                      {platformStatus.toUpperCase()}
+                    </span>
+
+                    {platformUrl && (
+                      <a
+                        href={platformUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="
+            text-blue-400
+            hover:text-blue-300
+            underline
+          "
+                      >
+                        View Post
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 <Button
