@@ -21,33 +21,74 @@ def publish_to_reddit(
 
         page = context.new_page()
 
+        #
+        # Open submit page
+        #
+
         page.goto(
             f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT",
-            wait_until="networkidle",
+            wait_until="domcontentloaded",
             timeout=60000
         )
 
-        print("=" * 50)
+        #
+        # Give Reddit time to hydrate React
+        #
 
+        page.wait_for_timeout(15000)
+
+        print("=" * 60)
         print("URL:")
         print(page.url)
 
-        print("=" * 50)
-
+        print("=" * 60)
         print("TITLE:")
         print(page.title())
 
-        print("=" * 50)
+        print("=" * 60)
 
-        content = page.content()
+        title_count = page.locator(
+            'textarea[name="title"]'
+        ).count()
 
-        print(content[:5000])
+        editor_count = page.locator(
+            '[contenteditable="true"]'
+        ).count()
 
-        print("=" * 50)
+        print(
+            f"TITLE COUNT: {title_count}"
+        )
+
+        print(
+            f"EDITOR COUNT: {editor_count}"
+        )
+
+        #
+        # Save page source for debugging
+        #
+
+        with open(
+            "/tmp/reddit_page.html",
+            "w",
+            encoding="utf-8"
+        ) as f:
+            f.write(
+                page.content()
+            )
+
+        page.screenshot(
+            path="/tmp/reddit_debug.png"
+        )
+
+        current_url = page.url
+
+        current_title = page.title()
 
         browser.close()
 
         return {
-            "url": page.url,
-            "title": page.title()
+            "url": current_url,
+            "title": current_title,
+            "title_count": title_count,
+            "editor_count": editor_count
         }
