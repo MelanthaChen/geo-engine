@@ -131,6 +131,24 @@ function App() {
     }
   }
 
+  const handleGeneratePackage = async () => {
+    setLoading(true);
+
+    try {
+      await handleGenerateAiFaqs();
+
+      await handleGeneratePlatformFaqs();
+
+      await handleGenerateAiContent();
+
+      await handleGeneratePlatformContent();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   async function handlePublish(contentId: number) {
     try {
       if (contentId === aiContentId) {
@@ -290,39 +308,15 @@ function App() {
               </div>
 
               <Button
-                onClick={handleGenerateAiFaqs}
-                disabled={loading}
                 className="w-full"
-              >
-                Generate AI FAQs
-              </Button>
-
-              <Button
-                onClick={handleGeneratePlatformFaqs}
+                onClick={handleGeneratePackage}
                 disabled={loading}
-                className="w-full"
               >
-                Generate Platform FAQs
-              </Button>
-
-              <Button
-                onClick={handleGenerateAiContent}
-                disabled={loading}
-                className="w-full"
-              >
-                Generate AI Content
-              </Button>
-
-              <Button
-                onClick={handleGeneratePlatformContent}
-                disabled={loading}
-                className="w-full"
-              >
-                Generate Platform Content
+                {loading ? "Generating GEO Package..." : "Generate GEO Package"}
               </Button>
 
               <div className="flex gap-4">
-                <Button onClick={handleCitationTest} className="flex-1">
+                <Button className="w-full mt-4" onClick={handleCitationTest}>
                   Citation Test
                 </Button>
               </div>
@@ -459,18 +453,28 @@ function App() {
             <CardContent
               className="
               p-6
-              h-[450px]
+              h-[500px]
               flex
               flex-col
             "
             >
               <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-3">
-                  AI-Generated GEO Content
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">
+                    AI-Generated GEO Content
+                  </h2>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-400">Status:</span>
+                  <Button
+                    size="sm"
+                    disabled={!aiContentId}
+                    onClick={() => handlePublish(aiContentId!)}
+                  >
+                    Publish
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex items-center gap-3">
+                  <span className="text-zinc-400">Status</span>
 
                   <span
                     className={`font-bold ${
@@ -487,14 +491,6 @@ function App() {
                   >
                     {aiStatus.toUpperCase()}
                   </span>
-
-                  <Button
-                    size="sm"
-                    disabled={!aiContentId}
-                    onClick={() => handlePublish(aiContentId!)}
-                  >
-                    Publish
-                  </Button>
 
                   {aiUrl && (
                     <a
@@ -545,12 +541,22 @@ function App() {
     "
             >
               <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-3">
-                  Platform-Informed GEO Content
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">
+                    Platform-Informed GEO Content
+                  </h2>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-zinc-400">Status:</span>
+                  <Button
+                    size="sm"
+                    disabled={!platformContentId}
+                    onClick={() => handlePublish(platformContentId!)}
+                  >
+                    Publish
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex items-center gap-3">
+                  <span className="text-zinc-400">Status</span>
 
                   <span
                     className={`font-bold ${
@@ -567,14 +573,6 @@ function App() {
                   >
                     {platformStatus.toUpperCase()}
                   </span>
-
-                  <Button
-                    size="sm"
-                    disabled={!platformContentId}
-                    onClick={() => handlePublish(platformContentId!)}
-                  >
-                    Publish
-                  </Button>
 
                   {platformUrl && (
                     <a
