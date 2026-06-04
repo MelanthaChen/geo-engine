@@ -147,11 +147,11 @@ Return:
 
         generated_content += f"""
 
-        --------------------------------------------------
+--------------------------------------------------
 
-        Further Reading
+Further Reading
 
-        {target_url}
+{target_url}
 
         """
 
