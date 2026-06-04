@@ -12,7 +12,7 @@ def publish_to_reddit(
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=True
+            headless=False
         )
 
         context = browser.new_context(
@@ -21,74 +21,93 @@ def publish_to_reddit(
 
         page = context.new_page()
 
-        #
-        # Open submit page
-        #
-
         page.goto(
-            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT",
-            wait_until="domcontentloaded",
-            timeout=60000
+            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
         )
 
+        page.wait_for_timeout(10000)
+
         #
-        # Give Reddit time to hydrate React
+        # Fill title
         #
 
-        page.wait_for_timeout(15000)
-
-        print("=" * 60)
-        print("URL:")
-        print(page.url)
-
-        print("=" * 60)
-        print("TITLE:")
-        print(page.title())
-
-        print("=" * 60)
-
-        title_count = page.locator(
+        title_box = page.locator(
             'textarea[name="title"]'
-        ).count()
+        ).first
 
-        editor_count = page.locator(
+        title_box.wait_for(
+            state="visible",
+            timeout=30000
+        )
+
+        title_box.click()
+
+        title_box.fill(title)
+
+        page.wait_for_timeout(2000)
+
+        #
+        # Find visible editor
+        #
+
+        editors = page.locator(
             '[contenteditable="true"]'
-        ).count()
-
-        print(
-            f"TITLE COUNT: {title_count}"
         )
 
-        print(
-            f"EDITOR COUNT: {editor_count}"
-        )
+        count = editors.count()
 
-        #
-        # Save page source for debugging
-        #
+        body_editor = None
 
-        with open(
-            "/tmp/reddit_page.html",
-            "w",
-            encoding="utf-8"
-        ) as f:
-            f.write(
-                page.content()
+        for i in range(count):
+
+            editor = editors.nth(i)
+
+            if editor.is_visible():
+
+                body_editor = editor
+
+                break
+
+        if body_editor is None:
+
+            raise Exception(
+                "No visible editor found"
             )
 
-        page.screenshot(
-            path="/tmp/reddit_debug.png"
+        #
+        # Fill body
+        #
+
+        body_editor.click()
+
+        page.wait_for_timeout(1000)
+
+        body_editor.fill(body)
+
+        page.wait_for_timeout(3000)
+
+        #
+        # Click Post
+        #
+
+        post_button = page.get_by_role(
+            "button",
+            name="Post"
         )
 
-        current_url = page.url
+        post_button.wait_for(
+            state="visible",
+            timeout=30000
+        )
 
-        current_title = page.title()
+        post_button.click()
+
+        page.wait_for_timeout(10000)
+
+        current_url = page.url
 
         browser.close()
 
         return {
-            "url": current_url,
-            "title": current_title,
-            "title_count": title_count,
-            "editor_count": editor_count
+            "url": current_url
         }
