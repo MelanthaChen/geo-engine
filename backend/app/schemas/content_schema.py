@@ -9,4 +9,6 @@ class ContentGenerationRequest(BaseModel):
 
     content_type: str
 
+    target_url: str | None = None
+
     mode: str

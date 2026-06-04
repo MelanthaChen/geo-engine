@@ -4,6 +4,7 @@ export async function generateContent(
   query: string,
   persona: string,
   contentType: string,
+  targetUrl: string,
   mode: string,
 ) {
 
@@ -13,6 +14,7 @@ export async function generateContent(
       query,
       persona,
       content_type: contentType,
+      target_url: targetUrl,
       mode,
     }
   );

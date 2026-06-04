@@ -30,6 +30,7 @@ def generate_content(
     query: str,
     persona: str,
     content_type: str,
+    target_url: str | None,
     mode: str,
 ):
 
@@ -141,6 +142,18 @@ Return:
         .message
         .content
     )
+
+    if target_url:
+
+        generated_content += f"""
+
+        --------------------------------------------------
+
+        Further Reading
+
+        {target_url}
+
+        """
 
     new_content = create_content(
         db=db,

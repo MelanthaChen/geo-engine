@@ -12,9 +12,11 @@ import { getContentStatus } from "@/api/contentStatus";
 function App() {
   const [query, setQuery] = useState("");
 
+  const [targetUrl, setTargetUrl] = useState("");
+
   const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("reddit");
+  const [contentType, setContentType] = useState("faq");
 
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +46,8 @@ function App() {
 
   const [platformUrl, setPlatformUrl] = useState("");
 
+  const [publishPlatform, setPublishPlatform] = useState("reddit");
+
   useEffect(() => {
     loadHistory();
   }, []);
@@ -58,7 +62,13 @@ function App() {
     try {
       setLoading(true);
 
-      const result = await generateContent(query, persona, contentType, "ai");
+      const result = await generateContent(
+        query,
+        persona,
+        contentType,
+        targetUrl,
+        "ai",
+      );
 
       setAiGeneratedContent(result.generated_content);
 
@@ -82,6 +92,7 @@ function App() {
         query,
         persona,
         contentType,
+        targetUrl,
         "platform",
       );
 
@@ -234,6 +245,7 @@ function App() {
       h-[650px]
       flex
       flex-col
+      gap-4
     "
             >
               <div>
@@ -259,6 +271,24 @@ function App() {
                     rounded-lg
                     p-3
                   "
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-zinc-400">Target URL</label>
+
+                <input
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="
+      w-full
+      bg-zinc-950
+      border
+      border-zinc-800
+      rounded-lg
+      p-3
+    "
                 />
               </div>
 
@@ -292,18 +322,41 @@ function App() {
                   value={contentType}
                   onChange={(e) => setContentType(e.target.value)}
                   className="
-                    w-full
-                    bg-zinc-950
-                    border
-                    border-zinc-800
-                    rounded-lg
-                    p-3
-                  "
+    w-full
+    bg-zinc-950
+    border
+    border-zinc-800
+    rounded-lg
+    p-3
+  "
                 >
-                  <option>reddit</option>
                   <option>faq</option>
                   <option>comparison</option>
                   <option>review</option>
+                  <option>article</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-zinc-400">
+                  Publish Platform
+                </label>
+
+                <select
+                  value={publishPlatform}
+                  onChange={(e) => setPublishPlatform(e.target.value)}
+                  className="
+      w-full
+      bg-zinc-950
+      border
+      border-zinc-800
+      rounded-lg
+      p-3
+    "
+                >
+                  <option>reddit</option>
+                  <option>xiaohongshu</option>
+                  <option>website</option>
                 </select>
               </div>
 
