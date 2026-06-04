@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from app.models.content import Content
 
+from app.core.config import settings
+
 
 def publish_content(
     db: Session,

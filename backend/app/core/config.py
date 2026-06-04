@@ -16,6 +16,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
+    REDDIT_USERNAME: str
+
+    REDDIT_PASSWORD: str
+
     class Config:
         env_file = ".env"
 
