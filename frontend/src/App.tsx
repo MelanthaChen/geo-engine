@@ -210,7 +210,14 @@ function App() {
           {/* CONTROL PANEL */}
 
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6 space-y-6">
+            <CardContent
+              className="
+      p-6
+      h-[650px]
+      flex
+      flex-col
+    "
+            >
               <div>
                 <h1 className="text-4xl font-bold">GEO Engine</h1>
 
@@ -325,7 +332,14 @@ function App() {
           {/* HISTORY */}
 
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6">
+            <CardContent
+              className="
+      p-6
+      h-[650px]
+      flex
+      flex-col
+    "
+            >
               <h2 className="text-2xl font-bold mb-6">Content History</h2>
 
               <div
@@ -374,20 +388,30 @@ function App() {
 
         <div className="grid grid-cols-2 gap-8">
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6">
+            <CardContent
+              className="
+              p-6
+              h-[500px]
+              flex
+              flex-col
+            "
+            >
               <h2 className="text-2xl font-bold mb-6">AI-Inferred FAQs</h2>
 
               <div
                 className="
-                bg-zinc-950
-                border
-                border-zinc-800
-                rounded-xl
-                p-4
-                h-[350px]
-                overflow-y-auto
-                whitespace-pre-wrap
-              "
+    flex-1
+
+    bg-zinc-950
+    border
+    border-zinc-800
+
+    rounded-xl
+    p-4
+
+    overflow-y-auto
+    whitespace-pre-wrap
+  "
               >
                 {aiFaqs || "No AI FAQs yet."}
               </div>
@@ -395,19 +419,29 @@ function App() {
           </Card>
 
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6">
+            <CardContent
+              className="
+      p-6
+      h-[500px]
+      flex
+      flex-col
+    "
+            >
               <h2 className="text-2xl font-bold mb-6">
                 Platform / Reddit FAQs
               </h2>
 
               <div
                 className="
-                bg-zinc-950
+                flex-1
+
+               bg-zinc-950
                 border
-                border-zinc-800
+               border-zinc-800
+
                 rounded-xl
                 p-4
-                h-[350px]
+
                 overflow-y-auto
                 whitespace-pre-wrap
               "
@@ -422,7 +456,14 @@ function App() {
 
         <div className="grid grid-cols-2 gap-8">
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6">
+            <CardContent
+              className="
+              p-6
+              h-[450px]
+              flex
+              flex-col
+            "
+            >
               <div className="mb-6">
                 <h2 className="text-2xl font-bold mb-3">
                   AI-Generated GEO Content
@@ -474,15 +515,18 @@ function App() {
 
               <div
                 className="
-                bg-zinc-950
-                border
-                border-zinc-800
-                rounded-xl
-                p-4
-                h-[500px]
-                overflow-y-auto
-                whitespace-pre-wrap
-              "
+    flex-1
+
+    bg-zinc-950
+    border
+    border-zinc-800
+
+    rounded-xl
+    p-4
+
+    overflow-y-auto
+    whitespace-pre-wrap
+  "
               >
                 {selectedHistory
                   ? selectedHistory.body
@@ -492,7 +536,14 @@ function App() {
           </Card>
 
           <Card className="bg-zinc-900 border-zinc-800">
-            <CardContent className="p-6">
+            <CardContent
+              className="
+      p-6
+      h-[500px]
+      flex
+      flex-col
+    "
+            >
               <div className="mb-6">
                 <h2 className="text-2xl font-bold mb-3">
                   Platform-Informed GEO Content
@@ -544,15 +595,18 @@ function App() {
 
               <div
                 className="
-                bg-zinc-950
-                border
-                border-zinc-800
-                rounded-xl
-                p-4
-                h-[500px]
-                overflow-y-auto
-                whitespace-pre-wrap
-              "
+    flex-1
+
+    bg-zinc-950
+    border
+    border-zinc-800
+
+    rounded-xl
+    p-4
+
+    overflow-y-auto
+    whitespace-pre-wrap
+  "
               >
                 {selectedHistory
                   ? selectedHistory.body
