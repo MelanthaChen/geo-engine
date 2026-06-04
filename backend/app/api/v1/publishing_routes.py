@@ -1,9 +1,15 @@
-from fastapi import APIRouter
-from fastapi import Depends
+from fastapi import (
+    APIRouter,
+    Depends
+)
+
+from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
+
+from app.models.content import Content
 
 from app.services.publishing_service import (
     publish_content
@@ -13,6 +19,13 @@ router = APIRouter(
     prefix="/api/v1/publishing",
     tags=["Publishing Engine"]
 )
+
+
+class PublishCompleteRequest(
+    BaseModel
+):
+    content_id: int
+    url: str
 
 
 @router.post("/publish/{content_id}")
@@ -27,3 +40,65 @@ def publish_content_route(
     )
 
     return result
+
+
+@router.get("/pending")
+def get_pending_publish(
+    db: Session = Depends(get_db),
+):
+
+    content = (
+        db.query(Content)
+        .filter(
+            Content.publish_status == "pending"
+        )
+        .first()
+    )
+
+    if not content:
+
+        return {
+            "task": None
+        }
+
+    return {
+        "task": {
+            "id": content.id,
+            "title": content.title,
+            "body": content.body,
+            "subreddit": "test"
+        }
+    }
+
+
+@router.post("/complete")
+def complete_publish(
+    request: PublishCompleteRequest,
+    db: Session = Depends(get_db),
+):
+
+    content = (
+        db.query(Content)
+        .filter(
+            Content.id == request.content_id
+        )
+        .first()
+    )
+
+    if not content:
+
+        return {
+            "error": "Content not found"
+        }
+
+    content.publish_status = "published"
+
+    content.published_url = request.url
+
+    content.publish_provider = "reddit"
+
+    db.commit()
+
+    return {
+        "status": "success"
+    }
