@@ -41,7 +41,7 @@ def generate_content_route(
         db=db,
         query=request.query,
         persona=request.persona,
-        ontent_type=request.content_type,
+        content_type=request.content_type,
         target_url=request.target_url,
         mode=request.mode
     )
