@@ -7,6 +7,7 @@ import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
 import { publishContent } from "@/api/publishing";
+import { getContentStatus } from "@/api/contentStatus";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -35,9 +36,23 @@ function App() {
     null,
   );
 
+  const [aiStatus, setAiStatus] = useState("draft");
+
+  const [platformStatus, setPlatformStatus] = useState("draft");
+
+  const [aiUrl, setAiUrl] = useState("");
+
+  const [platformUrl, setPlatformUrl] = useState("");
+
   useEffect(() => {
     loadHistory();
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(refreshStatus, 5000);
+
+    return () => clearInterval(interval);
+  }, [aiContentId, platformContentId]);
 
   async function handleGenerateAiContent() {
     try {
@@ -118,15 +133,49 @@ function App() {
 
   async function handlePublish(contentId: number) {
     try {
+      if (contentId === aiContentId) {
+        setAiStatus("queued");
+      }
+
+      if (contentId === platformContentId) {
+        setPlatformStatus("queued");
+      }
+
       const result = await publishContent(contentId);
 
       console.log(result);
-
-      alert("Published successfully!");
     } catch (error) {
       console.error(error);
 
-      alert("Publishing failed");
+      if (contentId === aiContentId) {
+        setAiStatus("failed");
+      }
+
+      if (contentId === platformContentId) {
+        setPlatformStatus("failed");
+      }
+    }
+  }
+
+  async function refreshStatus() {
+    try {
+      if (aiContentId) {
+        const data = await getContentStatus(aiContentId);
+
+        setAiStatus(data.publish_status);
+
+        setAiUrl(data.published_url || "");
+      }
+
+      if (platformContentId) {
+        const data = await getContentStatus(platformContentId);
+
+        setPlatformStatus(data.publish_status);
+
+        setPlatformUrl(data.published_url || "");
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -374,6 +423,21 @@ function App() {
             <CardContent className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">AI-Generated GEO Content</h2>
+                <div className="text-sm mt-2">
+                  <div>Status: {aiStatus}</div>
+
+                  {aiUrl && (
+                    <a
+                      href={aiUrl}
+                      target="_blank"
+                      className="
+        text-blue-400
+      "
+                    >
+                      View Published Post
+                    </a>
+                  )}
+                </div>
 
                 <Button
                   size="sm"
@@ -409,6 +473,21 @@ function App() {
                 <h2 className="text-2xl font-bold">
                   Platform-Informed GEO Content
                 </h2>
+                <div className="text-sm mt-2">
+                  <div>Status: {platformStatus}</div>
+
+                  {platformUrl && (
+                    <a
+                      href={platformUrl}
+                      target="_blank"
+                      className="
+        text-blue-400
+      "
+                    >
+                      View Published Post
+                    </a>
+                  )}
+                </div>
 
                 <Button
                   size="sm"

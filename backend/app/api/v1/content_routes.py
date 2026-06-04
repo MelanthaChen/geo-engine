@@ -110,3 +110,29 @@ def export_content(
     html = generate_html_export(content)
 
     return HTMLResponse(content=html)
+
+@router.get("/{content_id}")
+def get_content_by_id(
+    content_id: int,
+    db: Session = Depends(get_db),
+):
+
+    content = (
+        db.query(Content)
+        .filter(Content.id == content_id)
+        .first()
+    )
+
+    if not content:
+
+        return {
+            "error": "Content not found"
+        }
+
+    return {
+        "id": content.id,
+        "title": content.title,
+        "body": content.body,
+        "publish_status": content.publish_status,
+        "published_url": content.published_url
+    }
