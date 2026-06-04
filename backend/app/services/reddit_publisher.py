@@ -1,6 +1,4 @@
-from playwright.sync_api import (
-    sync_playwright
-)
+from playwright.sync_api import sync_playwright
 
 
 def publish_to_reddit(
@@ -23,153 +21,33 @@ def publish_to_reddit(
 
         page = context.new_page()
 
-        #
-        # Open submit page
-        #
-
         page.goto(
-            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
+            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT",
+            wait_until="networkidle",
+            timeout=60000
         )
 
-        page.wait_for_timeout(5000)
+        print("=" * 50)
 
-        page.wait_for_timeout(5000)
-
-        print("CURRENT URL:")
+        print("URL:")
         print(page.url)
 
-        page.screenshot(
-            path="render_debug.png"
-        )
+        print("=" * 50)
 
+        print("TITLE:")
         print(page.title())
 
-        print(page.content()[:3000])
+        print("=" * 50)
 
-        print("Current URL:")
-        print(page.url)
+        content = page.content()
 
-        print(
-            "Title count:",
-            page.locator(
-                'textarea[name="title"]'
-            ).count()
-        )
+        print(content[:5000])
 
-        print(
-            "Editable count:",
-            page.locator(
-                '[contenteditable="true"]'
-            ).count()
-        )
-
-        #
-        # Fill title
-        #
-
-        title_box = page.locator(
-            'textarea[name="title"]'
-        ).first
-
-        title_box.wait_for(
-            state="visible",
-            timeout=30000
-        )
-
-        title_box.click()
-
-        page.wait_for_timeout(1000)
-
-        title_box.fill(title)
-
-        page.wait_for_timeout(2000)
-
-        #
-        # Find visible editor
-        #
-
-        editors = page.locator(
-            '[contenteditable="true"]'
-        )
-
-        count = editors.count()
-
-        print(
-            f"Found {count} editors"
-        )
-
-        body_editor = None
-
-        for i in range(count):
-
-            editor = editors.nth(i)
-
-            if editor.is_visible():
-
-                print(
-                    f"Using editor #{i}"
-                )
-
-                body_editor = editor
-
-                break
-
-        if body_editor is None:
-
-            raise Exception(
-                "No visible editor found"
-            )
-
-        #
-        # Fill body
-        #
-
-        body_editor.click()
-
-        page.wait_for_timeout(1000)
-
-        body_editor.fill(body)
-
-        page.wait_for_timeout(3000)
-
-        #
-        # Screenshot before posting
-        #
-
-        page.screenshot(
-            path="reddit_before_post.png"
-        )
-
-        print(
-            "Title and body filled."
-        )
-
-        #
-        # Click Post
-        #
-
-        post_button = page.get_by_role(
-            "button",
-            name="Post"
-        )
-
-        post_button.wait_for(
-            state="visible",
-            timeout=30000
-        )
-
-        post_button.click()
-
-        page.wait_for_timeout(10000)
-
-        current_url = page.url
-
-        print(
-            f"Posted URL: {current_url}"
-        )
+        print("=" * 50)
 
         browser.close()
 
         return {
-            "url": current_url
+            "url": page.url,
+            "title": page.title()
         }
