@@ -54,6 +54,12 @@ function App() {
     return () => clearInterval(interval);
   }, [aiContentId, platformContentId]);
 
+  useEffect(() => {
+    const interval = setInterval(refreshStatus, 5000);
+
+    return () => clearInterval(interval);
+  }, [aiContentId, platformContentId]);
+
   async function handleGenerateAiContent() {
     try {
       setLoading(true);
@@ -423,6 +429,23 @@ function App() {
             <CardContent className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">AI-Generated GEO Content</h2>
+                <div className="mb-4 text-sm">
+                  <div>
+                    Status:
+                    <span className="ml-2 font-bold">{aiStatus}</span>
+                  </div>
+
+                  {aiUrl && (
+                    <a
+                      href={aiUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-400 underline"
+                    >
+                      View Published Post
+                    </a>
+                  )}
+                </div>
                 <div className="text-sm mt-2">
                   <div>Status: {aiStatus}</div>
 
