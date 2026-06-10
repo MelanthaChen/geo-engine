@@ -121,6 +121,22 @@ def get_pending_publish_for_account(
 
     content = task.content
 
+    if task.account.platform == "reddit" and (
+        not content.reddit_title
+        or not content.reddit_body
+    ):
+        task.status = "failed"
+        content.publish_status = "failed"
+        db.commit()
+
+        return {
+            "task": None,
+            "error": (
+                "Reddit task missing reddit_title or reddit_body. "
+                "Regenerate as Reddit Discussion content."
+            )
+        }
+
     return {
         "task": {
             "id": task.id,
@@ -136,7 +152,11 @@ def get_pending_publish_for_account(
                     fallback=content.title
                 )
             ),
-            "body": content.reddit_body or content.body,
+            "body": (
+                content.reddit_body
+                if task.account.platform == "reddit"
+                else content.body
+            ),
             "subreddit": "test"
         }
     }

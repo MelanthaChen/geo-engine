@@ -4,6 +4,7 @@ from sqlalchemy import inspect, text
 ADDITIVE_COLUMNS = {
     "contents": {
         "generation_mode": "VARCHAR",
+        "strategy_type": "VARCHAR",
         "reddit_title": "VARCHAR",
         "reddit_body": "TEXT",
         "preview_title": "VARCHAR",

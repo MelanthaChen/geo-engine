@@ -41,6 +41,7 @@ def run_campaign(
     ]
 
     generated_contents = []
+    publishable_contents = []
 
     for query in query_list:
 
@@ -48,14 +49,27 @@ def run_campaign(
             db=db,
             query=query,
             persona="student",
-            content_type="blog",
+            content_type="research_summary",
+            target_url=None,
+            mode="ai",
         )
 
         generated_contents.append(content)
 
+        reddit_content = generate_content(
+            db=db,
+            query=query,
+            persona="student",
+            content_type="reddit_discussion",
+            target_url=None,
+            mode="reddit",
+        )
+
+        publishable_contents.append(reddit_content)
+
     published_results = []
 
-    for content in generated_contents:
+    for content in publishable_contents:
 
         publish_result = publish_content(
             content_id=content.id,

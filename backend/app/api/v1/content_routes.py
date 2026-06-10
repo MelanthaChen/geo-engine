@@ -107,6 +107,12 @@ def generate_content_route(
         "reddit_body":
             result.reddit_body,
 
+        "strategy_type":
+            result.strategy_type,
+
+        "content_type":
+            result.content_type,
+
         "content_id":
             result.id
     }
@@ -140,6 +146,9 @@ def get_content_history(
             ),
             "content_type": (
                 event.content.content_type if event.content else None
+            ),
+            "strategy_type": (
+                event.content.strategy_type if event.content else None
             ),
             "target_persona": (
                 event.content.target_persona if event.content else None
@@ -207,6 +216,7 @@ def get_content_history(
                 "reddit_title": content.reddit_title,
                 "reddit_body": content.reddit_body,
                 "content_type": content.content_type,
+                "strategy_type": content.strategy_type,
                 "target_persona": content.target_persona,
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
@@ -299,6 +309,8 @@ def get_content_by_id(
         "body": content.body,
         "reddit_title": content.reddit_title,
         "reddit_body": content.reddit_body,
+        "content_type": content.content_type,
+        "strategy_type": content.strategy_type,
         "publish_status": content.publish_status,
         **publish_metadata(db, content),
         "preview_title": content.preview_title,

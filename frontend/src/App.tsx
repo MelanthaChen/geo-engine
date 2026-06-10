@@ -15,13 +15,40 @@ import {
 } from "@/api/accounts";
 
 function App() {
+  const contentTypes = [
+    {
+      value: "reddit_discussion",
+      label: "Reddit Discussion",
+    },
+    {
+      value: "personal_experience",
+      label: "Personal Experience",
+    },
+    {
+      value: "comparison_analysis",
+      label: "Comparison Analysis",
+    },
+    {
+      value: "faq",
+      label: "FAQ",
+    },
+    {
+      value: "research_summary",
+      label: "Research Summary",
+    },
+    {
+      value: "expert_commentary",
+      label: "Expert Commentary",
+    },
+  ];
+
   const [query, setQuery] = useState("");
 
   const [targetUrl, setTargetUrl] = useState("");
 
   const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("faq");
+  const [contentType, setContentType] = useState("research_summary");
 
   const [loading, setLoading] = useState(false);
 
@@ -203,9 +230,19 @@ function App() {
 
       const result = await publishContent(contentId);
 
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
       console.log(result);
     } catch (error) {
       console.error(error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to queue content for publishing"
+      );
 
       if (contentId === aiContentId) {
         setAiStatus("failed");
@@ -431,10 +468,11 @@ function App() {
     p-3
   "
                 >
-                  <option>faq</option>
-                  <option>comparison</option>
-                  <option>review</option>
-                  <option>article</option>
+                  {contentTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -588,7 +626,7 @@ function App() {
                     <p className="text-zinc-400 text-sm mt-1">
                       {item.target_persona}
                       {" • "}
-                      {item.content_type}
+                      {item.strategy_type || item.content_type}
                       {" • "}
                       {item.generation_mode || "legacy"}
                       {" • "}
@@ -858,9 +896,7 @@ function App() {
             >
               <div className="mb-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">
-                    AI-Generated GEO Content
-                  </h2>
+                  <h2 className="text-2xl font-bold">Citation Content</h2>
 
                   <Button
                     size="sm"
@@ -942,9 +978,7 @@ function App() {
             >
               <div className="mb-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">
-                    Platform-Informed GEO Content
-                  </h2>
+                  <h2 className="text-2xl font-bold">Reddit Discussion</h2>
 
                   <Button
                     size="sm"

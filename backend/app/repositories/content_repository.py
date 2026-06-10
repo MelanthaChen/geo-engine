@@ -11,6 +11,7 @@ def create_content(
     body: str,
     target_persona: str,
     generation_mode: str | None = None,
+    strategy_type: str | None = None,
     reddit_title: str | None = None,
     reddit_body: str | None = None,
 ):
@@ -18,6 +19,7 @@ def create_content(
         query_id=query_id,
         title=title,
         content_type=content_type,
+        strategy_type=strategy_type,
         generation_mode=generation_mode,
         body=body,
         reddit_title=reddit_title,

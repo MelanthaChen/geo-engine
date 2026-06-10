@@ -28,6 +28,11 @@ class Content(Base):
 
     content_type = Column(String)
 
+    strategy_type = Column(
+        String,
+        nullable=True
+    )
+
     generation_mode = Column(
         String,
         nullable=True

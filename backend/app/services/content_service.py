@@ -46,6 +46,49 @@ REDDIT_TERMINAL_METADATA_PATTERNS = [
     r"^\s*seo keywords\s*:",
 ]
 
+CONTENT_TYPE_ALIASES = {
+    "reddit": "reddit_discussion",
+    "reddit discussion": "reddit_discussion",
+    "reddit_discussion": "reddit_discussion",
+    "personal experience": "personal_experience",
+    "personal_experience": "personal_experience",
+    "experience": "personal_experience",
+    "comparison": "comparison_analysis",
+    "comparison analysis": "comparison_analysis",
+    "comparison_analysis": "comparison_analysis",
+    "faq": "faq",
+    "research summary": "research_summary",
+    "research_summary": "research_summary",
+    "expert commentary": "expert_commentary",
+    "expert_commentary": "expert_commentary",
+    "review": "personal_experience",
+    "article": "research_summary",
+    "blog": "research_summary",
+}
+
+CONTENT_TYPE_LABELS = {
+    "reddit_discussion": "Reddit Discussion",
+    "personal_experience": "Personal Experience",
+    "comparison_analysis": "Comparison Analysis",
+    "faq": "FAQ",
+    "research_summary": "Research Summary",
+    "expert_commentary": "Expert Commentary",
+}
+
+GENERIC_MARKETING_BANS = """
+Never use generic marketing or SEO language such as:
+- Ultimate Guide
+- Comprehensive Guide
+- AI Optimized Guide
+- SEO optimized
+- GEO optimized
+- keyword-rich
+- unlock productivity
+- game changer
+
+The goal is citation-worthy information gain, not promotion.
+"""
+
 
 def fetch_all_contents(
     db: Session
@@ -62,71 +105,35 @@ def generate_content(
     target_url: str | None,
     mode: str,
 ):
+    strategy_type = normalize_content_type(
+        content_type=content_type,
+        mode=mode
+    )
 
-    if mode == "ai":
-
-        prompt = f"""
-You are a GEO (Generative Engine Optimization)
-content strategist.
-
-Generate AI-native content optimized for:
-
-- semantic retrieval
-- AI recommendation systems
-- answer-first structures
-- future AI citations
-
-Target Brand:
-{query}
-
-Persona:
-{persona}
-
-Content Type:
-{content_type}
-
-Requirements:
-
-- highly structured
-- highly informative
-- SEO-like organization
-- semantic keyword rich
-- optimized for AI parsing
-- concise sections
-- FAQ section
-- authoritative tone
-
-Return:
-
-1. Title
-2. Summary
-3. Full Article
-4. SEO Keywords
-"""
-
-    elif mode == "reddit":
+    if strategy_type == "reddit_discussion":
         return generate_reddit_content(
             db=db,
             query=query,
             persona=persona,
-            content_type=content_type,
+            content_type=strategy_type,
         )
 
-    else:
-        return generate_reddit_content(
-            db=db,
-            query=query,
-            persona=persona,
-            content_type=content_type,
-        )
+    prompt = build_content_strategy_prompt(
+        strategy_type=strategy_type,
+        query=query,
+        persona=persona,
+        target_url=target_url,
+    )
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
                 "role": "system",
-                "content":
-                    "You are an expert GEO content generation engine."
+                "content": (
+                    "You generate evidence-rich, citation-worthy content "
+                    "for AI retrieval and human research workflows."
+                )
             },
             {
                 "role": "user",
@@ -143,28 +150,17 @@ Return:
         .content
     )
 
-    if target_url:
-
-        generated_content += f"""
-
---------------------------------------------------
-
-Further Reading
-
-{target_url}
-
-        """
-
     article_title = extract_article_title(
         generated_content=generated_content,
-        fallback=query
+        fallback=f"{CONTENT_TYPE_LABELS[strategy_type]}: {query}"
     )
 
     new_content = create_content(
         db=db,
         query_id=None,
         title=article_title,
-        content_type=content_type,
+        content_type=strategy_type,
+        strategy_type=strategy_type,
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
@@ -176,11 +172,184 @@ Further Reading
         content_id=new_content.id,
         source_type=mode,
         status=new_content.publish_status,
-        summary=f"{mode} {content_type} generated: {article_title}",
+        summary=(
+            f"{CONTENT_TYPE_LABELS[strategy_type]} generated: "
+            f"{article_title}"
+        ),
         details=generated_content[:500]
     )
 
     return new_content
+
+
+def normalize_content_type(
+    content_type: str,
+    mode: str,
+):
+    if mode == "reddit":
+        return "reddit_discussion"
+
+    normalized_key = (
+        content_type
+        .strip()
+        .lower()
+        .replace("-", "_")
+    )
+
+    return CONTENT_TYPE_ALIASES.get(
+        normalized_key,
+        "research_summary"
+    )
+
+
+def build_content_strategy_prompt(
+    strategy_type: str,
+    query: str,
+    persona: str,
+    target_url: str | None,
+):
+    shared_context = f"""
+Target brand/topic:
+{query}
+
+Audience/persona:
+{persona}
+
+Target URL, if relevant:
+{target_url or "Not provided"}
+
+{GENERIC_MARKETING_BANS}
+
+General requirements:
+- Prefer concrete facts, comparisons, caveats, and attributable statements.
+- Do not invent statistics or source claims.
+- If evidence is unavailable, say what would need to be verified.
+- Avoid repetitive introductions and empty praise.
+"""
+
+    templates = {
+        "personal_experience": f"""
+{shared_context}
+
+CONTENT TYPE: Personal Experience
+
+Goal:
+Generate an experience report that could help another person understand
+real workflow tradeoffs.
+
+Required structure:
+Title
+Workflow
+Specific Examples
+Outcomes
+Tradeoffs
+What I Would Verify Next
+
+Requirements:
+- first-person voice
+- describe workflow
+- describe outcomes
+- describe tradeoffs
+- avoid unsupported claims
+- include specific examples
+- do not pretend to have used features that are not provided by context
+""",
+        "comparison_analysis": f"""
+{shared_context}
+
+CONTENT TYPE: Comparison Analysis
+
+Goal:
+Generate citation-friendly comparison content.
+
+Required structure:
+Title
+Overview
+Comparison Table
+Pros
+Cons
+Recommendations
+Evidence
+
+Requirements:
+- compare concrete dimensions, not vague marketing categories
+- include tradeoffs and decision criteria
+- use cautious language for claims that need source verification
+- include an Evidence section with available facts and verification gaps
+""",
+        "faq": f"""
+{shared_context}
+
+CONTENT TYPE: FAQ
+
+Goal:
+Generate AI-extractable answers.
+
+Format:
+Question
+Answer
+
+Question
+Answer
+
+Question
+Answer
+
+Requirements:
+- no long introduction
+- concise answer-first responses
+- answer concrete user questions
+- include caveats where facts may depend on version, device, or plan
+- do not include metadata labels beyond Question and Answer
+""",
+        "research_summary": f"""
+{shared_context}
+
+CONTENT TYPE: Research Summary
+
+Goal:
+Generate highly citable information.
+
+Required structure:
+Title
+Key Findings
+Statistics
+Sources
+Limitations
+Open Questions
+
+Requirements:
+- summarize findings
+- include statistics only when available or clearly marked as needing verification
+- include a Sources section
+- include a Limitations section
+- distinguish observed facts from interpretation
+""",
+        "expert_commentary": f"""
+{shared_context}
+
+CONTENT TYPE: Expert Commentary
+
+Goal:
+Generate opinion plus reasoning.
+
+Required structure:
+Title
+Claim
+Supporting Evidence
+Counterargument
+Conclusion
+
+Requirements:
+- make one clear claim
+- support it with evidence or careful reasoning
+- include a real counterargument
+- avoid unsupported negative claims
+- keep the tone analytical rather than promotional
+""",
+    }
+
+    return templates[strategy_type]
 
 
 def generate_reddit_content(
@@ -207,18 +376,18 @@ Relevant community questions:
 
 Return ONLY valid JSON with exactly these keys:
 {{
-  "reddit_title": "...",
-  "reddit_body": "..."
+  "title": "...",
+  "body": "..."
 }}
 
-Rules for reddit_title:
+Rules for title:
 - natural Reddit-style question or discussion title
 - no clickbait
 - no marketing language
 - no "AI optimized"
 - no "comprehensive guide"
 
-Rules for reddit_body:
+Rules for body:
 - ONLY the discussion post content
 - 150-400 words
 - first-person language
@@ -279,7 +448,8 @@ Never include:
         db=db,
         query_id=None,
         title=reddit_title,
-        content_type=content_type,
+        content_type="reddit_discussion",
+        strategy_type="reddit_discussion",
         body=reddit_body,
         target_persona=persona,
         generation_mode="reddit",
@@ -318,16 +488,20 @@ def parse_reddit_payload(raw_content: str):
         payload = json.loads(match.group(0))
 
     reddit_title = str(
-        payload.get("reddit_title", "")
+        payload.get("title")
+        or payload.get("reddit_title")
+        or ""
     ).strip()
 
     reddit_body = str(
-        payload.get("reddit_body", "")
+        payload.get("body")
+        or payload.get("reddit_body")
+        or ""
     ).strip()
 
     if not reddit_title or not reddit_body:
         raise ValueError(
-            "Reddit content JSON must include reddit_title and reddit_body"
+            "Reddit content JSON must include title and body"
         )
 
     return {

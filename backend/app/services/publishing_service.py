@@ -41,11 +41,25 @@ def publish_content(
             "error": "No active publishing account found"
         }
 
+    if account.platform == "reddit" and (
+        not content.reddit_title
+        or not content.reddit_body
+    ):
+        return {
+            "error": (
+                "Reddit publishing requires Reddit Discussion content. "
+                "Generate content with mode=reddit before queueing."
+            )
+        }
+
     content.publish_status = "pending"
 
-    article_title = extract_article_title(
-        generated_content=content.body,
-        fallback=content.title
+    article_title = (
+        content.reddit_title
+        or extract_article_title(
+            generated_content=content.body,
+            fallback=content.title
+        )
     )
 
     publish_task = PublishTask(
