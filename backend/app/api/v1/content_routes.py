@@ -24,6 +24,9 @@ from app.services.content_service import (
     fetch_all_contents,
     generate_faqs
 )
+from app.repositories.history_repository import (
+    get_recent_history_events
+)
 
 router = APIRouter(
     prefix="/api/v1/content",
@@ -62,7 +65,73 @@ def get_content_history(
 
     contents = fetch_all_contents(db)
 
-    return contents
+    events = get_recent_history_events(db)
+
+    event_rows = [
+        {
+            "id": f"event-{event.id}",
+            "event_id": event.id,
+            "content_id": event.content_id,
+            "title": event.content.title if event.content else "System event",
+            "body": event.content.body if event.content else event.details,
+            "content_type": (
+                event.content.content_type if event.content else None
+            ),
+            "target_persona": (
+                event.content.target_persona if event.content else None
+            ),
+            "generation_mode": (
+                event.content.generation_mode
+                if event.content
+                else event.source_type
+            ),
+            "publish_status": (
+                event.content.publish_status if event.content else event.status
+            ),
+            "published_url": (
+                event.content.published_url if event.content else None
+            ),
+            "citation_count": (
+                event.content.citation_count if event.content else 0
+            ),
+            "visibility_score": (
+                event.content.visibility_score if event.content else 0
+            ),
+            "event_type": event.event_type,
+            "event_summary": event.summary,
+            "event_status": event.status,
+            "created_at": event.created_at,
+        }
+        for event in events
+    ]
+
+    if event_rows:
+        return {
+            "history": event_rows
+        }
+
+    return {
+        "history": [
+            {
+                "id": content.id,
+                "content_id": content.id,
+                "title": content.title,
+                "body": content.body,
+                "content_type": content.content_type,
+                "target_persona": content.target_persona,
+                "generation_mode": content.generation_mode,
+                "publish_status": content.publish_status,
+                "published_url": content.published_url,
+                "citation_count": content.citation_count,
+                "visibility_score": content.visibility_score,
+                "event_type": "legacy_content",
+                "event_summary": "Legacy generated content",
+                "event_status": content.publish_status,
+                "created_at": content.created_at,
+            }
+            for content in contents
+        ]
+    }
 
 
 @router.get("/faqs/{target}")

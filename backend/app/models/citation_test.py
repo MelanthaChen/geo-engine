@@ -30,9 +30,19 @@ class CitationTest(Base):
 
     query = Column(String)
 
+    source_type = Column(String, default="published_content")
+
+    citation_target = Column(Text)
+
     ai_response = Column(Text)
 
     mentioned = Column(Boolean)
+
+    evidence_found = Column(Boolean, default=False)
+
+    citation_type = Column(String)
+
+    confidence_score = Column(Integer)
 
     visibility_score = Column(Integer)
 

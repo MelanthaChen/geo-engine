@@ -10,11 +10,13 @@ def create_content(
     content_type: str,
     body: str,
     target_persona: str,
+    generation_mode: str | None = None,
 ):
     content = Content(
         query_id=query_id,
         title=title,
         content_type=content_type,
+        generation_mode=generation_mode,
         body=body,
         target_persona=target_persona,
     )

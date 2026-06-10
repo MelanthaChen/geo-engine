@@ -28,6 +28,11 @@ class Content(Base):
 
     content_type = Column(String)
 
+    generation_mode = Column(
+        String,
+        nullable=True
+    )
+
     body = Column(Text)
 
     target_persona = Column(String)

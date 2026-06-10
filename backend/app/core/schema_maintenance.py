@@ -1,0 +1,41 @@
+from sqlalchemy import inspect, text
+
+
+ADDITIVE_COLUMNS = {
+    "contents": {
+        "generation_mode": "VARCHAR",
+    },
+    "citation_tests": {
+        "source_type": "VARCHAR",
+        "citation_target": "TEXT",
+        "evidence_found": "BOOLEAN DEFAULT FALSE",
+        "citation_type": "VARCHAR",
+        "confidence_score": "INTEGER",
+    },
+}
+
+
+def ensure_additive_columns(engine):
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+
+    with engine.begin() as connection:
+        for table_name, columns in ADDITIVE_COLUMNS.items():
+            if table_name not in existing_tables:
+                continue
+
+            existing_columns = {
+                column["name"]
+                for column in inspector.get_columns(table_name)
+            }
+
+            for column_name, column_type in columns.items():
+                if column_name in existing_columns:
+                    continue
+
+                connection.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        f"ADD COLUMN {column_name} {column_type}"
+                    )
+                )

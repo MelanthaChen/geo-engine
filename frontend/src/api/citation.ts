@@ -1,15 +1,18 @@
-import axios from "axios";
-
-const API_BASE =
-  "http://127.0.0.1:8000/api/v1";
-
+import apiClient from "./client";
 
 export async function runCitationTest(
-  contentId: number
+  contentId: number,
+  sourceType = "published_content",
 ) {
 
-  const response = await axios.post(
-    `${API_BASE}/citation-tests/run/${contentId}`
+  const response = await apiClient.post(
+    `/api/v1/citation-tests/run/${contentId}`,
+    null,
+    {
+      params: {
+        source_type: sourceType,
+      },
+    }
   );
 
   return response.data;

@@ -8,6 +8,9 @@ from app.repositories.content_repository import (
     create_content,
     get_all_contents
 )
+from app.repositories.history_repository import (
+    create_history_event
+)
 
 from app.services.reddit_scraper import (
     scrape_reddit_questions
@@ -162,6 +165,17 @@ Further Reading
         content_type=content_type,
         body=generated_content,
         target_persona=persona,
+        generation_mode=mode,
+    )
+
+    create_history_event(
+        db=db,
+        event_type="content_created",
+        content_id=new_content.id,
+        source_type=mode,
+        status=new_content.publish_status,
+        summary=f"{mode} {content_type} generated for {query}",
+        details=generated_content[:500]
     )
 
     return new_content

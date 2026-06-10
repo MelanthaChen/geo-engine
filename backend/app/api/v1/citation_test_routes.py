@@ -19,12 +19,14 @@ router = APIRouter(
 @router.post("/run/{content_id}")
 def run_test(
     content_id: int,
+    source_type: str = "published_content",
     db: Session = Depends(get_db),
 ):
 
     result = run_citation_test(
         db=db,
-        content_id=content_id
+        content_id=content_id,
+        source_type=source_type
     )
 
     if not result:
@@ -38,8 +40,12 @@ def run_test(
         "content_id": result.content_id,
         "platform": result.platform,
         "mentioned": result.mentioned,
+        "evidence_found": result.evidence_found,
+        "citation_type": result.citation_type,
+        "confidence_score": result.confidence_score,
         "visibility_score":
             result.visibility_score,
         "matched_keywords":
             result.matched_keywords,
+        "ai_response": result.ai_response,
     }

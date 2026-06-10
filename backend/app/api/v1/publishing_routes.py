@@ -14,6 +14,9 @@ from app.models.content import Content
 from app.services.publishing_service import (
     publish_content
 )
+from app.repositories.history_repository import (
+    create_history_event
+)
 
 router = APIRouter(
     prefix="/api/v1/publishing",
@@ -98,6 +101,16 @@ def complete_publish(
     content.publish_provider = "reddit"
 
     db.commit()
+
+    create_history_event(
+        db=db,
+        event_type="published",
+        content_id=content.id,
+        source_type=content.generation_mode,
+        status=content.publish_status,
+        summary=f"Published {content.title}",
+        details=request.url
+    )
 
     return {
         "status": "success"

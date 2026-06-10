@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import Base, engine
+from app.core.schema_maintenance import ensure_additive_columns
 from app.models import *
 
 from app.api.v1.query_routes import router as query_router
@@ -23,8 +24,12 @@ from app.api.v1.campaign_runner_routes import (
 from app.api.v1.optimization_routes import (
     router as optimization_router
 )
+from app.api.v1.account_routes import (
+    router as account_router
+)
 
 Base.metadata.create_all(bind=engine)
+ensure_additive_columns(engine)
 
 app = FastAPI(
     title="GEO Engine API",
@@ -91,3 +96,4 @@ app.include_router(citation_test_router)
 app.include_router(campaign_router)
 app.include_router(campaign_runner_router)
 app.include_router(optimization_router)
+app.include_router(account_router)

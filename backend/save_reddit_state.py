@@ -15,7 +15,7 @@ with sync_playwright() as p:
     )
 
     print(
-        "Login successful，bacl to terminal Enter"
+        "Login to Reddit in the browser, then press Enter here."
     )
 
     input()

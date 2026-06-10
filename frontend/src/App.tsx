@@ -8,6 +8,11 @@ import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
 import { publishContent } from "@/api/publishing";
 import { getContentStatus } from "@/api/contentStatus";
+import { runCitationTest } from "@/api/citation";
+import {
+  fetchAccounts,
+  updateAccountStage,
+} from "@/api/accounts";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -48,8 +53,17 @@ function App() {
 
   const [publishPlatform, setPublishPlatform] = useState("reddit");
 
+  const [citationSourceType, setCitationSourceType] = useState(
+    "published_content",
+  );
+
+  const [citationResult, setCitationResult] = useState<any>(null);
+
+  const [accounts, setAccounts] = useState<any[]>([]);
+
   useEffect(() => {
     loadHistory();
+    loadAccounts();
   }, []);
 
   useEffect(() => {
@@ -227,7 +241,60 @@ function App() {
   }
 
   async function handleCitationTest() {
-    alert("Citation tracking system coming next");
+    const contentId =
+      selectedHistory?.content_id ||
+      selectedHistory?.id ||
+      platformContentId ||
+      aiContentId;
+
+    if (!contentId) {
+      alert("Generate or select content before running a citation test");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const result = await runCitationTest(
+        Number(contentId),
+        citationSourceType,
+      );
+
+      setCitationResult(result);
+
+      await loadHistory();
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to run citation test");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadAccounts() {
+    try {
+      const data = await fetchAccounts();
+
+      setAccounts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function handleAccountStage(
+    accountId: number,
+    lifecycleStage: string,
+  ) {
+    try {
+      await updateAccountStage(accountId, lifecycleStage);
+
+      await loadAccounts();
+    } catch (error) {
+      console.error(error);
+
+      alert("Failed to update account stage");
+    }
   }
 
   return (
@@ -369,10 +436,61 @@ function App() {
               </Button>
 
               <div className="flex gap-4">
-                <Button className="w-full mt-4" onClick={handleCitationTest}>
+                <select
+                  value={citationSourceType}
+                  onChange={(e) => setCitationSourceType(e.target.value)}
+                  className="
+                    mt-4
+                    w-full
+                    bg-zinc-950
+                    border
+                    border-zinc-800
+                    rounded-lg
+                    p-3
+                  "
+                >
+                  <option value="published_content">Published content</option>
+                  <option value="personal_comment">Personal comment</option>
+                </select>
+
+                <Button
+                  className="w-full mt-4"
+                  onClick={handleCitationTest}
+                  disabled={loading}
+                >
                   Citation Test
                 </Button>
               </div>
+
+              {citationResult && (
+                <div
+                  className="
+                    bg-zinc-950
+                    border
+                    border-zinc-800
+                    rounded-lg
+                    p-3
+                    text-sm
+                    space-y-2
+                  "
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400">Citation</span>
+                    <span className="font-bold">
+                      {citationResult.citation_type}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400">Confidence</span>
+                    <span>{citationResult.confidence_score || 0}</span>
+                  </div>
+
+                  <p className="text-zinc-400 line-clamp-3">
+                    {citationResult.ai_response}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -415,21 +533,131 @@ function App() {
     ${selectedHistory?.id === item.id ? "border-blue-500" : "border-zinc-800"}
   `}
                   >
-                    <h3 className="font-bold text-lg">{item.title}</h3>
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-bold text-lg">{item.title}</h3>
+
+                      <span
+                        className="
+                          rounded
+                          border
+                          border-zinc-700
+                          px-2
+                          py-1
+                          text-xs
+                          text-zinc-300
+                        "
+                      >
+                        {item.event_type || "content"}
+                      </span>
+                    </div>
 
                     <p className="text-zinc-400 text-sm mt-1">
                       {item.target_persona}
                       {" • "}
                       {item.content_type}
                       {" • "}
+                      {item.generation_mode || "legacy"}
+                      {" • "}
                       {item.publish_status}
                     </p>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <div className="bg-zinc-900 rounded p-2">
+                        <p className="text-zinc-500">Visibility</p>
+                        <p className="font-bold">
+                          {item.visibility_score || 0}
+                        </p>
+                      </div>
+
+                      <div className="bg-zinc-900 rounded p-2">
+                        <p className="text-zinc-500">Citations</p>
+                        <p className="font-bold">
+                          {item.citation_count || 0}
+                        </p>
+                      </div>
+                    </div>
+
+                    {item.event_summary && (
+                      <p className="text-zinc-500 text-sm mt-3">
+                        {item.event_summary}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* ACCOUNT LIFECYCLE ROW */}
+
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Account Lifecycle</h2>
+
+              <Button size="sm" onClick={loadAccounts}>
+                Refresh
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="
+                    bg-zinc-950
+                    border
+                    border-zinc-800
+                    rounded-xl
+                    p-4
+                    space-y-3
+                  "
+                >
+                  <div>
+                    <h3 className="font-bold truncate">{account.handle}</h3>
+                    <p className="text-sm text-zinc-400">
+                      {account.platform} • {account.persona}
+                    </p>
+                  </div>
+
+                  <div className="text-sm">
+                    <p className="text-zinc-500">Topic</p>
+                    <p>{account.assigned_topic}</p>
+                  </div>
+
+                  <select
+                    value={account.lifecycle_stage}
+                    onChange={(e) =>
+                      handleAccountStage(account.id, e.target.value)
+                    }
+                    className="
+                      w-full
+                      bg-zinc-900
+                      border
+                      border-zinc-800
+                      rounded
+                      p-2
+                      text-sm
+                    "
+                  >
+                    <option value="created">created</option>
+                    <option value="warming">warming</option>
+                    <option value="ready">ready</option>
+                    <option value="publishing">publishing</option>
+                    <option value="monitoring">monitoring</option>
+                    <option value="paused">paused</option>
+                    <option value="blocked">blocked</option>
+                  </select>
+
+                  <p className="text-xs text-zinc-500">
+                    {account.health_status} • {account.last_action}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* FAQ ROW */}
 
