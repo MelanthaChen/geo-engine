@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     PUBLISH_DRY_RUN: bool = True
 
+    ACCOUNT_ID: int | None = None
+
+    AGENT_NAME: str | None = None
+
     class Config:
         env_file = ".env"
 

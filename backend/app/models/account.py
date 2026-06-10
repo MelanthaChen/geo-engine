@@ -2,6 +2,7 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
+    Boolean,
     DateTime
 )
 
@@ -17,6 +18,14 @@ class Account(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     handle = Column(String, unique=True, nullable=False)
+
+    account_key = Column(String, unique=True, nullable=True)
+
+    agent_name = Column(String, nullable=True)
+
+    state_identifier = Column(String, nullable=True)
+
+    is_active = Column(Boolean, default=True)
 
     platform = Column(String, nullable=False)
 

@@ -590,6 +590,44 @@ function App() {
                         {item.event_summary}
                       </p>
                     )}
+
+                    {(item.published_account ||
+                      item.published_platform ||
+                      item.published_url) && (
+                      <div className="mt-3 text-sm text-zinc-400 space-y-1">
+                        <p>
+                          Content{" "}
+                          <span className="text-zinc-200">
+                            #{item.content_id}
+                          </span>
+                        </p>
+
+                        <p>
+                          Published Account{" "}
+                          <span className="text-zinc-200">
+                            {item.published_account || "Unassigned"}
+                          </span>
+                        </p>
+
+                        <p>
+                          Published Platform{" "}
+                          <span className="text-zinc-200">
+                            {item.published_platform || "Not selected"}
+                          </span>
+                        </p>
+
+                        {item.published_url && (
+                          <a
+                            href={item.published_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-400 underline"
+                          >
+                            Published URL
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -627,11 +665,37 @@ function App() {
                     <p className="text-sm text-zinc-400">
                       {account.platform} • {account.persona}
                     </p>
+                    <p className="text-xs text-zinc-500 truncate">
+                      {account.account_key || `account-${account.id}`}
+                    </p>
                   </div>
 
                   <div className="text-sm">
                     <p className="text-zinc-500">Topic</p>
                     <p>{account.assigned_topic}</p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                    <div className="bg-zinc-900 rounded p-2">
+                      <p className="text-zinc-500">Assigned</p>
+                      <p className="font-bold">
+                        {account.assigned_tasks || 0}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-900 rounded p-2">
+                      <p className="text-zinc-500">Published</p>
+                      <p className="font-bold">
+                        {account.published_tasks || 0}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-900 rounded p-2">
+                      <p className="text-zinc-500">Failed</p>
+                      <p className="font-bold">
+                        {account.failed_tasks || 0}
+                      </p>
+                    </div>
                   </div>
 
                   <select
@@ -659,6 +723,8 @@ function App() {
                   </select>
 
                   <p className="text-xs text-zinc-500">
+                    {account.is_active ? "active" : "inactive"} •{" "}
+                    {account.agent_name || "no agent"} •{" "}
                     {account.health_status} • {account.last_action}
                   </p>
                 </div>

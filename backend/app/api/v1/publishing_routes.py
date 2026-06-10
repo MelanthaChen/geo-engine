@@ -12,8 +12,11 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db
 
 from app.models.content import Content
+from app.models.publish_task import PublishTask
 
 from app.services.publishing_service import (
+    claim_pending_task,
+    mark_task_failed,
     publish_content
 )
 from app.repositories.history_repository import (
@@ -34,6 +37,7 @@ class PublishCompleteRequest(
 ):
     content_id: int
     url: str
+    publish_task_id: int | None = None
     dry_run: bool = False
     preview_title: str | None = None
     preview_subreddit: str | None = None
@@ -41,15 +45,23 @@ class PublishCompleteRequest(
     preview_timestamp: datetime | None = None
 
 
+class PublishFailedRequest(
+    BaseModel
+):
+    publish_task_id: int
+
+
 @router.post("/publish/{content_id}")
 def publish_content_route(
     content_id: int,
+    account_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
     result = publish_content(
         db=db,
-        content_id=content_id
+        content_id=content_id,
+        account_id=account_id
     )
 
     return result
@@ -59,24 +71,55 @@ def publish_content_route(
 def get_pending_publish(
     db: Session = Depends(get_db),
 ):
-
-    content = (
-        db.query(Content)
-        .filter(
-            Content.publish_status == "pending"
-        )
+    task = (
+        db.query(PublishTask)
+        .filter(PublishTask.status == "pending")
+        .order_by(PublishTask.created_at.asc())
         .first()
     )
 
-    if not content:
+    if not task:
+        return {
+            "task": None
+        }
+
+    return get_pending_publish_for_account(
+        account_id=task.account_id,
+        db=db
+    )
+
+
+@router.get("/pending/{account_id}")
+def get_pending_publish_for_account(
+    account_id: int,
+    agent_name: str | None = None,
+    db: Session = Depends(get_db),
+):
+    task = claim_pending_task(
+        db=db,
+        account_id=account_id
+    )
+
+    if not task:
 
         return {
             "task": None
         }
 
+    if agent_name:
+        task.account.agent_name = agent_name
+        db.commit()
+
+    content = task.content
+
     return {
         "task": {
-            "id": content.id,
+            "id": task.id,
+            "publish_task_id": task.id,
+            "content_id": content.id,
+            "account_id": task.account_id,
+            "account_handle": task.account.handle,
+            "platform": task.account.platform,
             "title": extract_article_title(
                 generated_content=content.body,
                 fallback=content.title
@@ -87,11 +130,40 @@ def get_pending_publish(
     }
 
 
+@router.post("/failed")
+def fail_publish_task(
+    request: PublishFailedRequest,
+    db: Session = Depends(get_db),
+):
+    task = mark_task_failed(
+        db=db,
+        publish_task_id=request.publish_task_id
+    )
+
+    if not task:
+        return {
+            "error": "Publish task not found"
+        }
+
+    return {
+        "status": "failed",
+        "publish_task_id": task.id
+    }
+
+
 @router.post("/complete")
 def complete_publish(
     request: PublishCompleteRequest,
     db: Session = Depends(get_db),
 ):
+    publish_task = None
+
+    if request.publish_task_id:
+        publish_task = (
+            db.query(PublishTask)
+            .filter(PublishTask.id == request.publish_task_id)
+            .first()
+        )
 
     content = (
         db.query(Content)
@@ -106,6 +178,9 @@ def complete_publish(
         return {
             "error": "Content not found"
         }
+
+    if publish_task:
+        publish_task.status = "published"
 
     article_title = extract_article_title(
         generated_content=content.body,
@@ -136,6 +211,11 @@ def complete_publish(
         event_type = "published"
         event_summary = f"Published {article_title}"
 
+    if publish_task:
+        event_summary = (
+            f"{event_summary} via {publish_task.account.handle}"
+        )
+
     create_history_event(
         db=db,
         event_type=event_type,
@@ -148,6 +228,8 @@ def complete_publish(
 
     return {
         "status": "success",
+        "publish_task_id": publish_task.id if publish_task else None,
+        "account_id": publish_task.account_id if publish_task else None,
         "dry_run": request.dry_run,
         "publish_status": content.publish_status,
     }

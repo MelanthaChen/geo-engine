@@ -9,6 +9,12 @@ ADDITIVE_COLUMNS = {
         "preview_screenshot": "VARCHAR",
         "preview_timestamp": "TIMESTAMP WITH TIME ZONE",
     },
+    "accounts": {
+        "account_key": "VARCHAR",
+        "agent_name": "VARCHAR",
+        "state_identifier": "VARCHAR",
+        "is_active": "BOOLEAN DEFAULT TRUE",
+    },
     "citation_tests": {
         "source_type": "VARCHAR",
         "citation_target": "TEXT",

@@ -12,6 +12,7 @@ from app.services.export_service import (
 )
 
 from app.models.content import Content
+from app.models.publish_task import PublishTask
 
 from app.core.deps import get_db
 
@@ -42,6 +43,40 @@ def content_title(content: Content):
         generated_content=content.body,
         fallback=content.title
     )
+
+
+def latest_publish_task(
+    db: Session,
+    content_id: int,
+):
+    return (
+        db.query(PublishTask)
+        .filter(PublishTask.content_id == content_id)
+        .order_by(PublishTask.created_at.desc())
+        .first()
+    )
+
+
+def publish_metadata(
+    db: Session,
+    content: Content,
+):
+    task = latest_publish_task(
+        db=db,
+        content_id=content.id
+    )
+
+    return {
+        "publish_task_id": task.id if task else None,
+        "published_account": task.account.handle if task else None,
+        "published_account_id": task.account_id if task else None,
+        "published_platform": (
+            task.account.platform
+            if task
+            else content.publish_provider
+        ),
+        "published_url": content.published_url,
+    }
 
 
 @router.post("/generate")
@@ -105,8 +140,16 @@ def get_content_history(
             "publish_status": (
                 event.content.publish_status if event.content else event.status
             ),
-            "published_url": (
-                event.content.published_url if event.content else None
+            **(
+                publish_metadata(db, event.content)
+                if event.content
+                else {
+                    "publish_task_id": None,
+                    "published_account": None,
+                    "published_account_id": None,
+                    "published_platform": None,
+                    "published_url": None,
+                }
             ),
             "preview_title": (
                 event.content.preview_title if event.content else None
@@ -150,7 +193,7 @@ def get_content_history(
                 "target_persona": content.target_persona,
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
-                "published_url": content.published_url,
+                **publish_metadata(db, content),
                 "preview_title": content.preview_title,
                 "preview_subreddit": content.preview_subreddit,
                 "preview_screenshot": content.preview_screenshot,
@@ -237,7 +280,7 @@ def get_content_by_id(
         "title": content_title(content),
         "body": content.body,
         "publish_status": content.publish_status,
-        "published_url": content.published_url,
+        **publish_metadata(db, content),
         "preview_title": content.preview_title,
         "preview_subreddit": content.preview_subreddit,
         "preview_screenshot": content.preview_screenshot,

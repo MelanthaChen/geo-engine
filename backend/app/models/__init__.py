@@ -6,3 +6,4 @@ from app.models.citation_test import CitationTest
 from app.models.campaign import Campaign
 from app.models.content_history import ContentHistoryEvent
 from app.models.account import Account
+from app.models.publish_task import PublishTask

@@ -14,9 +14,24 @@ BACKEND_URL = (
 while True:
 
     try:
+        if settings.ACCOUNT_ID:
+            pending_url = (
+                f"{BACKEND_URL}/api/v1/publishing/pending/"
+                f"{settings.ACCOUNT_ID}"
+            )
+
+            params = (
+                {"agent_name": settings.AGENT_NAME}
+                if settings.AGENT_NAME
+                else None
+            )
+        else:
+            pending_url = f"{BACKEND_URL}/api/v1/publishing/pending"
+            params = None
 
         response = requests.get(
-            f"{BACKEND_URL}/api/v1/publishing/pending"
+            pending_url,
+            params=params
         )
 
         data = response.json()
@@ -26,30 +41,43 @@ while True:
         if task:
 
             print(
-                f"Publishing content {task['id']}"
+                f"Publishing task {task['publish_task_id']} "
+                f"for account {task['account_id']}"
             )
 
-            result = publish_to_reddit(
-                username="",
-                password="",
-                subreddit=task["subreddit"],
-                title=task["title"],
-                body=task["body"],
-                dry_run=settings.PUBLISH_DRY_RUN
-            )
+            try:
+                result = publish_to_reddit(
+                    username="",
+                    password="",
+                    subreddit=task["subreddit"],
+                    title=task["title"],
+                    body=task["body"],
+                    dry_run=settings.PUBLISH_DRY_RUN
+                )
 
-            requests.post(
-                f"{BACKEND_URL}/api/v1/publishing/complete",
-                json={
-                    "content_id": task["id"],
-                    "url": result["url"],
-                    "dry_run": result.get("dry_run", False),
-                    "preview_title": result.get("preview_title"),
-                    "preview_subreddit": result.get("preview_subreddit"),
-                    "preview_screenshot": result.get("preview_screenshot"),
-                    "preview_timestamp": result.get("preview_timestamp"),
-                }
-            )
+                requests.post(
+                    f"{BACKEND_URL}/api/v1/publishing/complete",
+                    json={
+                        "content_id": task["content_id"],
+                        "publish_task_id": task["publish_task_id"],
+                        "url": result["url"],
+                        "dry_run": result.get("dry_run", False),
+                        "preview_title": result.get("preview_title"),
+                        "preview_subreddit": result.get("preview_subreddit"),
+                        "preview_screenshot": result.get("preview_screenshot"),
+                        "preview_timestamp": result.get("preview_timestamp"),
+                    }
+                )
+
+            except Exception:
+                requests.post(
+                    f"{BACKEND_URL}/api/v1/publishing/failed",
+                    json={
+                        "publish_task_id": task["publish_task_id"]
+                    }
+                )
+
+                raise
 
             if result.get("dry_run"):
                 print("Draft prepared successfully")
