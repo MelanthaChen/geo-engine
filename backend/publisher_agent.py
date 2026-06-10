@@ -1,6 +1,7 @@
 import time
 import requests
 
+from app.core.config import settings
 from app.services.reddit_publisher import (
     publish_to_reddit
 )
@@ -33,20 +34,27 @@ while True:
                 password="",
                 subreddit=task["subreddit"],
                 title=task["title"],
-                body=task["body"]
+                body=task["body"],
+                dry_run=settings.PUBLISH_DRY_RUN
             )
 
             requests.post(
                 f"{BACKEND_URL}/api/v1/publishing/complete",
                 json={
                     "content_id": task["id"],
-                    "url": result["url"]
+                    "url": result["url"],
+                    "dry_run": result.get("dry_run", False),
+                    "preview_title": result.get("preview_title"),
+                    "preview_subreddit": result.get("preview_subreddit"),
+                    "preview_screenshot": result.get("preview_screenshot"),
+                    "preview_timestamp": result.get("preview_timestamp"),
                 }
             )
 
-            print(
-                "Published successfully"
-            )
+            if result.get("dry_run"):
+                print("Draft prepared successfully")
+            else:
+                print("Published successfully")
 
         else:
 

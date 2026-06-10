@@ -3,6 +3,8 @@ from fastapi import (
     Depends
 )
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
@@ -32,6 +34,11 @@ class PublishCompleteRequest(
 ):
     content_id: int
     url: str
+    dry_run: bool = False
+    preview_title: str | None = None
+    preview_subreddit: str | None = None
+    preview_screenshot: str | None = None
+    preview_timestamp: datetime | None = None
 
 
 @router.post("/publish/{content_id}")
@@ -100,29 +107,47 @@ def complete_publish(
             "error": "Content not found"
         }
 
-    content.publish_status = "published"
-
-    content.published_url = request.url
-
-    content.publish_provider = "reddit"
-
     article_title = extract_article_title(
         generated_content=content.body,
         fallback=content.title
     )
 
+    if request.dry_run:
+        content.publish_status = "draft_prepared"
+    else:
+        content.publish_status = "published"
+
+    if not request.dry_run:
+        content.published_url = request.url
+
+    content.publish_provider = "reddit"
+
+    content.preview_title = request.preview_title
+    content.preview_subreddit = request.preview_subreddit
+    content.preview_screenshot = request.preview_screenshot
+    content.preview_timestamp = request.preview_timestamp
+
     db.commit()
+
+    if request.dry_run:
+        event_type = "draft_prepared"
+        event_summary = f"Draft Prepared for {article_title}"
+    else:
+        event_type = "published"
+        event_summary = f"Published {article_title}"
 
     create_history_event(
         db=db,
-        event_type="published",
+        event_type=event_type,
         content_id=content.id,
         source_type=content.generation_mode,
         status=content.publish_status,
-        summary=f"Published {article_title}",
-        details=request.url
+        summary=event_summary,
+        details=request.preview_screenshot or request.url
     )
 
     return {
-        "status": "success"
+        "status": "success",
+        "dry_run": request.dry_run,
+        "publish_status": content.publish_status,
     }

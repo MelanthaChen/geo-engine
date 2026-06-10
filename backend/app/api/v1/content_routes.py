@@ -108,6 +108,18 @@ def get_content_history(
             "published_url": (
                 event.content.published_url if event.content else None
             ),
+            "preview_title": (
+                event.content.preview_title if event.content else None
+            ),
+            "preview_subreddit": (
+                event.content.preview_subreddit if event.content else None
+            ),
+            "preview_screenshot": (
+                event.content.preview_screenshot if event.content else None
+            ),
+            "preview_timestamp": (
+                event.content.preview_timestamp if event.content else None
+            ),
             "citation_count": (
                 event.content.citation_count if event.content else 0
             ),
@@ -139,6 +151,10 @@ def get_content_history(
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
                 "published_url": content.published_url,
+                "preview_title": content.preview_title,
+                "preview_subreddit": content.preview_subreddit,
+                "preview_screenshot": content.preview_screenshot,
+                "preview_timestamp": content.preview_timestamp,
                 "citation_count": content.citation_count,
                 "visibility_score": content.visibility_score,
                 "event_type": "legacy_content",
@@ -221,5 +237,9 @@ def get_content_by_id(
         "title": content_title(content),
         "body": content.body,
         "publish_status": content.publish_status,
-        "published_url": content.published_url
+        "published_url": content.published_url,
+        "preview_title": content.preview_title,
+        "preview_subreddit": content.preview_subreddit,
+        "preview_screenshot": content.preview_screenshot,
+        "preview_timestamp": content.preview_timestamp
     }

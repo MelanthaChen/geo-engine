@@ -59,6 +59,26 @@ class Content(Base):
         nullable=True
     )
 
+    preview_title = Column(
+        String,
+        nullable=True
+    )
+
+    preview_subreddit = Column(
+        String,
+        nullable=True
+    )
+
+    preview_screenshot = Column(
+        String,
+        nullable=True
+    )
+
+    preview_timestamp = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
     indexed_status = Column(
         String,
         default="not_indexed"

@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 
@@ -7,6 +10,7 @@ def publish_to_reddit(
     subreddit: str,
     title: str,
     body: str,
+    dry_run: bool = True,
 ):
 
     with sync_playwright() as p:
@@ -86,6 +90,45 @@ def publish_to_reddit(
 
         page.wait_for_timeout(3000)
 
+        if dry_run:
+            print("[DRY RUN] Preparing Reddit submission")
+
+            preview_dir = Path("publishing_previews")
+
+            preview_dir.mkdir(
+                exist_ok=True
+            )
+
+            preview_timestamp = datetime.now(
+                timezone.utc
+            )
+
+            screenshot_path = (
+                preview_dir /
+                f"reddit_preview_{preview_timestamp.strftime('%Y%m%d_%H%M%S')}.png"
+            )
+
+            page.screenshot(
+                path=str(screenshot_path),
+                full_page=True
+            )
+
+            print("[DRY RUN] Screenshot saved")
+            print("[DRY RUN] Post submission skipped")
+
+            current_url = page.url
+
+            browser.close()
+
+            return {
+                "url": current_url,
+                "dry_run": True,
+                "preview_title": title,
+                "preview_subreddit": subreddit,
+                "preview_screenshot": str(screenshot_path),
+                "preview_timestamp": preview_timestamp.isoformat(),
+            }
+
         #
         # Click Post
         #
@@ -109,5 +152,6 @@ def publish_to_reddit(
         browser.close()
 
         return {
-            "url": current_url
+            "url": current_url,
+            "dry_run": False,
         }

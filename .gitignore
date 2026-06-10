@@ -23,6 +23,9 @@ build/
 reddit_state.json
 backend/reddit_state.json
 
+# Local publishing previews
+backend/publishing_previews/
+
 # Database
 *.sqlite3
 

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     REDDIT_PASSWORD: str
 
+    PUBLISH_DRY_RUN: bool = True
+
     class Config:
         env_file = ".env"
 

@@ -4,6 +4,10 @@ from sqlalchemy import inspect, text
 ADDITIVE_COLUMNS = {
     "contents": {
         "generation_mode": "VARCHAR",
+        "preview_title": "VARCHAR",
+        "preview_subreddit": "VARCHAR",
+        "preview_screenshot": "VARCHAR",
+        "preview_timestamp": "TIMESTAMP WITH TIME ZONE",
     },
     "citation_tests": {
         "source_type": "VARCHAR",

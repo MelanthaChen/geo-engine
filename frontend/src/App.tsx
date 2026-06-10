@@ -61,6 +61,14 @@ function App() {
 
   const [accounts, setAccounts] = useState<any[]>([]);
 
+  function formatPublishStatus(status: string) {
+    if (status === "draft_prepared") {
+      return "Draft Prepared";
+    }
+
+    return status;
+  }
+
   useEffect(() => {
     loadHistory();
     loadAccounts();
@@ -558,7 +566,7 @@ function App() {
                       {" • "}
                       {item.generation_mode || "legacy"}
                       {" • "}
-                      {item.publish_status}
+                      {formatPublishStatus(item.publish_status)}
                     </p>
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -761,7 +769,9 @@ function App() {
                     className={`font-bold ${
                       aiStatus === "published"
                         ? "text-green-400"
-                        : aiStatus === "queued"
+                        : aiStatus === "draft_prepared"
+                          ? "text-emerald-300"
+                          : aiStatus === "queued"
                           ? "text-yellow-400"
                           : aiStatus === "pending"
                             ? "text-blue-400"
@@ -770,7 +780,7 @@ function App() {
                               : "text-zinc-400"
                     }`}
                   >
-                    {aiStatus.toUpperCase()}
+                    {formatPublishStatus(aiStatus).toUpperCase()}
                   </span>
 
                   {aiUrl && (
@@ -843,7 +853,9 @@ function App() {
                     className={`font-bold ${
                       platformStatus === "published"
                         ? "text-green-400"
-                        : platformStatus === "queued"
+                        : platformStatus === "draft_prepared"
+                          ? "text-emerald-300"
+                          : platformStatus === "queued"
                           ? "text-yellow-400"
                           : platformStatus === "pending"
                             ? "text-blue-400"
@@ -852,7 +864,7 @@ function App() {
                               : "text-zinc-400"
                     }`}
                   >
-                    {platformStatus.toUpperCase()}
+                    {formatPublishStatus(platformStatus).toUpperCase()}
                   </span>
 
                   {platformUrl && (
