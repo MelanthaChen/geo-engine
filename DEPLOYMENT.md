@@ -60,7 +60,7 @@ The publisher agent lives in the backend directory because it imports backend pu
 
 ```bash
 python3 --version
-python3 -m venv .venv
+python3 -m venv venv
 ```
 
 Confirm that the Python version is 3.12 or newer.
@@ -68,10 +68,10 @@ Confirm that the Python version is 3.12 or newer.
 ## 4. Activate Virtual Environment
 
 ```bash
-source .venv/bin/activate
+source venv/bin/activate
 ```
 
-After activation, the terminal prompt usually shows `(.venv)`.
+After activation, the terminal prompt usually shows `(venv)`.
 
 ## 5. Install Dependencies
 
@@ -159,7 +159,7 @@ Recommended manual start command:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python publisher_agent.py
 ```
 
@@ -170,7 +170,7 @@ Example `tmux` workflow:
 ```bash
 tmux new -s geo-publisher
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python publisher_agent.py
 ```
 

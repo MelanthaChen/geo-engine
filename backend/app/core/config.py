@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     REDDIT_PASSWORD: str
 
+    PUBLISH_DRY_RUN: bool = True
+
     ACCOUNT_ID: int | None = None
 
     AGENT_NAME: str | None = None

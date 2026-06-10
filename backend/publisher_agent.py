@@ -6,6 +6,8 @@ from app.services.reddit_publisher import (
     publish_to_reddit
 )
 
+print("[TRACE] entering publisher_agent")
+
 BACKEND_URL = (
     "https://geo-engine.onrender.com"
 )

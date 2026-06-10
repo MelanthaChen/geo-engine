@@ -2,7 +2,7 @@
 
 This guide lists common deployment problems for the GEO Publisher Agent and how to fix them. Run all commands from the repository unless a step says otherwise.
 
-## Issue: `source .venv/bin/activate` Fails
+## Issue: `source venv/bin/activate` Fails
 
 ### Cause
 
@@ -14,11 +14,11 @@ Go to the backend directory and create the virtual environment again:
 
 ```bash
 cd /path/to/geo-engine/backend
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-After activation, verify Python is coming from `.venv`:
+After activation, verify Python is coming from `venv`:
 
 ```bash
 which python
@@ -28,7 +28,7 @@ python --version
 Expected path shape:
 
 ```text
-/path/to/geo-engine/backend/.venv/bin/python
+/path/to/geo-engine/backend/venv/bin/python
 ```
 
 ## Issue: `BrowserType.launch: Executable doesn't exist`
@@ -43,7 +43,7 @@ Activate the virtual environment and install Chromium through Python:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python -m playwright install chromium
 ```
 
@@ -53,13 +53,13 @@ Do not use only `playwright install`; it may run a different Playwright executab
 
 ### Cause
 
-This indicates a virtual environment mismatch. Python may be running from the project `.venv`, while the `playwright` command may be coming from a global installation or another Python environment.
+This indicates a virtual environment mismatch. Python may be running from the project `venv`, while the `playwright` command may be coming from a global installation or another Python environment.
 
 Example mismatch:
 
 ```text
 which python
-/path/to/geo-engine/backend/.venv/bin/python
+/path/to/geo-engine/backend/venv/bin/python
 
 which playwright
 /opt/homebrew/bin/playwright
@@ -71,7 +71,7 @@ Use Playwright through the active Python environment:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python -m playwright install chromium
 ```
 
@@ -93,7 +93,7 @@ Generate the state file:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python save_reddit_state.py
 ```
 
@@ -117,7 +117,7 @@ Regenerate the state file:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python save_reddit_state.py
 ```
 
@@ -173,7 +173,7 @@ Start the publisher agent locally:
 
 ```bash
 cd /path/to/geo-engine/backend
-source .venv/bin/activate
+source venv/bin/activate
 python publisher_agent.py
 ```
 

@@ -15,6 +15,9 @@ def publish_to_reddit(
     title: str,
     body: str,
 ):
+    print("[TRACE] entering publish_to_reddit")
+    print("[TRACE] entering review mode")
+
     playwright = sync_playwright().start()
 
     browser = playwright.chromium.launch(
@@ -141,12 +144,16 @@ def wait_for_manual_browser_close(
     browser,
     page,
 ):
+    print("[TRACE] entering wait_for_manual_browser_close")
+
     while True:
         try:
             if page.is_closed():
+                print("[TRACE] leaving wait_for_manual_browser_close")
                 return
 
             if not browser.is_connected():
+                print("[TRACE] leaving wait_for_manual_browser_close")
                 return
 
             open_pages = [
@@ -157,9 +164,11 @@ def wait_for_manual_browser_close(
             ]
 
             if not open_pages:
+                print("[TRACE] leaving wait_for_manual_browser_close")
                 return
 
         except Exception:
+            print("[TRACE] leaving wait_for_manual_browser_close")
             return
 
         time.sleep(2)
