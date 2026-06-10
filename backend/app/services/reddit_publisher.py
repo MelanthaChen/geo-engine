@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+import time
 
 from playwright.sync_api import sync_playwright
 
@@ -105,8 +106,11 @@ def publish_to_reddit(
         full_page=True
     )
 
+    preview_url = page.url
+
     print("[REVIEW MODE] Screenshot captured")
-    print("[REVIEW MODE] Waiting for human review")
+    print("[REVIEW MODE] Submission prepared")
+    print("[REVIEW MODE] Waiting for human action")
     print("[REVIEW MODE] Browser intentionally left open")
 
     ACTIVE_REVIEW_SESSIONS.append({
@@ -117,12 +121,45 @@ def publish_to_reddit(
         "screenshot_path": str(screenshot_path),
     })
 
+    wait_for_manual_browser_close(
+        browser=browser,
+        page=page
+    )
+
     return {
         "status": "review_ready",
-        "url": page.url,
+        "url": preview_url,
         "preview_title": title,
         "preview_subreddit": subreddit,
-        "preview_url": page.url,
+        "preview_url": preview_url,
         "preview_screenshot": str(screenshot_path),
         "preview_timestamp": preview_timestamp.isoformat(),
     }
+
+
+def wait_for_manual_browser_close(
+    browser,
+    page,
+):
+    while True:
+        try:
+            if page.is_closed():
+                return
+
+            if not browser.is_connected():
+                return
+
+            open_pages = [
+                browser_page
+                for context in browser.contexts
+                for browser_page in context.pages
+                if not browser_page.is_closed()
+            ]
+
+            if not open_pages:
+                return
+
+        except Exception:
+            return
+
+        time.sleep(2)
