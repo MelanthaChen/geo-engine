@@ -35,6 +35,16 @@ class Content(Base):
 
     body = Column(Text)
 
+    reddit_title = Column(
+        String,
+        nullable=True
+    )
+
+    reddit_body = Column(
+        Text,
+        nullable=True
+    )
+
     target_persona = Column(String)
 
     status = Column(String, default="draft")

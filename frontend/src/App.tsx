@@ -122,10 +122,12 @@ function App() {
         persona,
         contentType,
         targetUrl,
-        "platform",
+        "reddit",
       );
 
-      setPlatformGeneratedContent(result.generated_content);
+      setPlatformGeneratedContent(
+        result.reddit_body || result.generated_content
+      );
 
       setPlatformContentId(result.content_id);
 

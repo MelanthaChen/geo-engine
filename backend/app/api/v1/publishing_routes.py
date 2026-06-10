@@ -129,11 +129,14 @@ def get_pending_publish_for_account(
             "account_id": task.account_id,
             "account_handle": task.account.handle,
             "platform": task.account.platform,
-            "title": extract_article_title(
-                generated_content=content.body,
-                fallback=content.title
+            "title": (
+                content.reddit_title
+                or extract_article_title(
+                    generated_content=content.body,
+                    fallback=content.title
+                )
             ),
-            "body": content.body,
+            "body": content.reddit_body or content.body,
             "subreddit": "test"
         }
     }
