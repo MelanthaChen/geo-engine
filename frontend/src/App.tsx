@@ -62,12 +62,19 @@ function App() {
   const [accounts, setAccounts] = useState<any[]>([]);
 
   function formatPublishStatus(status: string) {
-    if (status === "draft_prepared") {
-      return "Draft Prepared";
+    if (status === "review_ready") {
+      return "Review Ready";
     }
 
     return status;
   }
+
+  const hasReviewReadyTask =
+    aiStatus === "review_ready" ||
+    platformStatus === "review_ready" ||
+    history.some(
+      (item) => item.publish_status === "review_ready"
+    );
 
   useEffect(() => {
     loadHistory();
@@ -308,6 +315,23 @@ function App() {
   return (
     <div className="min-h-screen bg-black text-white p-10">
       <div className="max-w-7xl mx-auto space-y-8">
+        {hasReviewReadyTask && (
+          <div
+            className="
+              border
+              border-emerald-500
+              bg-emerald-950
+              text-emerald-100
+              rounded-lg
+              px-5
+              py-4
+              font-bold
+            "
+          >
+            Human Review Required
+          </div>
+        )}
+
         {/* TOP ROW */}
 
         <div className="grid grid-cols-2 gap-8">
@@ -626,6 +650,23 @@ function App() {
                             Published URL
                           </a>
                         )}
+
+                        {!item.published_url && item.preview_url && (
+                          <a
+                            href={item.preview_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-emerald-300 underline"
+                          >
+                            Review Preview
+                          </a>
+                        )}
+
+                        {item.publish_status === "review_ready" && (
+                          <p className="text-emerald-300 font-bold">
+                            Human Review Required
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -835,7 +876,7 @@ function App() {
                     className={`font-bold ${
                       aiStatus === "published"
                         ? "text-green-400"
-                        : aiStatus === "draft_prepared"
+                        : aiStatus === "review_ready"
                           ? "text-emerald-300"
                           : aiStatus === "queued"
                           ? "text-yellow-400"
@@ -919,7 +960,7 @@ function App() {
                     className={`font-bold ${
                       platformStatus === "published"
                         ? "text-green-400"
-                        : platformStatus === "draft_prepared"
+                        : platformStatus === "review_ready"
                           ? "text-emerald-300"
                           : platformStatus === "queued"
                           ? "text-yellow-400"

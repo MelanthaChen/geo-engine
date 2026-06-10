@@ -160,6 +160,9 @@ def get_content_history(
             "preview_screenshot": (
                 event.content.preview_screenshot if event.content else None
             ),
+            "preview_url": (
+                event.content.preview_url if event.content else None
+            ),
             "preview_timestamp": (
                 event.content.preview_timestamp if event.content else None
             ),
@@ -197,6 +200,7 @@ def get_content_history(
                 "preview_title": content.preview_title,
                 "preview_subreddit": content.preview_subreddit,
                 "preview_screenshot": content.preview_screenshot,
+                "preview_url": content.preview_url,
                 "preview_timestamp": content.preview_timestamp,
                 "citation_count": content.citation_count,
                 "visibility_score": content.visibility_score,
@@ -284,5 +288,6 @@ def get_content_by_id(
         "preview_title": content.preview_title,
         "preview_subreddit": content.preview_subreddit,
         "preview_screenshot": content.preview_screenshot,
+        "preview_url": content.preview_url,
         "preview_timestamp": content.preview_timestamp
     }

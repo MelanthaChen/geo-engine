@@ -31,6 +31,14 @@ router = APIRouter(
     tags=["Publishing Engine"]
 )
 
+PUBLISH_TASK_STATUSES = {
+    "pending",
+    "processing",
+    "review_ready",
+    "published",
+    "failed",
+}
+
 
 class PublishCompleteRequest(
     BaseModel
@@ -38,9 +46,10 @@ class PublishCompleteRequest(
     content_id: int
     url: str
     publish_task_id: int | None = None
-    dry_run: bool = False
+    status: str = "review_ready"
     preview_title: str | None = None
     preview_subreddit: str | None = None
+    preview_url: str | None = None
     preview_screenshot: str | None = None
     preview_timestamp: datetime | None = None
 
@@ -156,6 +165,11 @@ def complete_publish(
     request: PublishCompleteRequest,
     db: Session = Depends(get_db),
 ):
+    if request.status not in PUBLISH_TASK_STATUSES:
+        return {
+            "error": "Invalid publish task status"
+        }
+
     publish_task = None
 
     if request.publish_task_id:
@@ -180,36 +194,37 @@ def complete_publish(
         }
 
     if publish_task:
-        publish_task.status = "published"
+        publish_task.status = request.status
 
     article_title = extract_article_title(
         generated_content=content.body,
         fallback=content.title
     )
 
-    if request.dry_run:
-        content.publish_status = "draft_prepared"
-    else:
-        content.publish_status = "published"
+    content.publish_status = request.status
 
-    if not request.dry_run:
+    if request.status == "published":
         content.published_url = request.url
 
     content.publish_provider = "reddit"
 
     content.preview_title = request.preview_title
     content.preview_subreddit = request.preview_subreddit
+    content.preview_url = request.preview_url or request.url
     content.preview_screenshot = request.preview_screenshot
     content.preview_timestamp = request.preview_timestamp
 
     db.commit()
 
-    if request.dry_run:
-        event_type = "draft_prepared"
-        event_summary = f"Draft Prepared for {article_title}"
-    else:
+    if request.status == "review_ready":
+        event_type = "review_ready"
+        event_summary = f"Review Ready for {article_title}"
+    elif request.status == "published":
         event_type = "published"
         event_summary = f"Published {article_title}"
+    else:
+        event_type = request.status
+        event_summary = f"{request.status} for {article_title}"
 
     if publish_task:
         event_summary = (
@@ -230,6 +245,5 @@ def complete_publish(
         "status": "success",
         "publish_task_id": publish_task.id if publish_task else None,
         "account_id": publish_task.account_id if publish_task else None,
-        "dry_run": request.dry_run,
         "publish_status": content.publish_status,
     }

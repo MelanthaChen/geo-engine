@@ -51,8 +51,7 @@ while True:
                     password="",
                     subreddit=task["subreddit"],
                     title=task["title"],
-                    body=task["body"],
-                    dry_run=settings.PUBLISH_DRY_RUN
+                    body=task["body"]
                 )
 
                 requests.post(
@@ -61,9 +60,10 @@ while True:
                         "content_id": task["content_id"],
                         "publish_task_id": task["publish_task_id"],
                         "url": result["url"],
-                        "dry_run": result.get("dry_run", False),
+                        "status": result.get("status", "review_ready"),
                         "preview_title": result.get("preview_title"),
                         "preview_subreddit": result.get("preview_subreddit"),
+                        "preview_url": result.get("preview_url"),
                         "preview_screenshot": result.get("preview_screenshot"),
                         "preview_timestamp": result.get("preview_timestamp"),
                     }
@@ -79,10 +79,7 @@ while True:
 
                 raise
 
-            if result.get("dry_run"):
-                print("Draft prepared successfully")
-            else:
-                print("Published successfully")
+            print("Review ready for human decision")
 
         else:
 

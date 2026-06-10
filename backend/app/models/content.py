@@ -69,6 +69,11 @@ class Content(Base):
         nullable=True
     )
 
+    preview_url = Column(
+        String,
+        nullable=True
+    )
+
     preview_screenshot = Column(
         String,
         nullable=True

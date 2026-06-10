@@ -6,6 +6,7 @@ ADDITIVE_COLUMNS = {
         "generation_mode": "VARCHAR",
         "preview_title": "VARCHAR",
         "preview_subreddit": "VARCHAR",
+        "preview_url": "VARCHAR",
         "preview_screenshot": "VARCHAR",
         "preview_timestamp": "TIMESTAMP WITH TIME ZONE",
     },
