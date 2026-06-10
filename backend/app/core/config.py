@@ -16,9 +16,9 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
-    REDDIT_USERNAME: str
+    REDDIT_USERNAME: str | None = None
 
-    REDDIT_PASSWORD: str
+    REDDIT_PASSWORD: str | None = None
 
     PUBLISH_DRY_RUN: bool = True
 
