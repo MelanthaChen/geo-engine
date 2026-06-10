@@ -27,11 +27,21 @@ from app.services.content_service import (
 from app.repositories.history_repository import (
     get_recent_history_events
 )
+from app.utils.title_extractor import (
+    extract_article_title
+)
 
 router = APIRouter(
     prefix="/api/v1/content",
     tags=["Content Engine"]
 )
+
+
+def content_title(content: Content):
+    return extract_article_title(
+        generated_content=content.body,
+        fallback=content.title
+    )
 
 
 @router.post("/generate")
@@ -53,6 +63,9 @@ def generate_content_route(
         "generated_content":
             result.body,
 
+        "title":
+            result.title,
+
         "content_id":
             result.id
     }
@@ -72,7 +85,11 @@ def get_content_history(
             "id": f"event-{event.id}",
             "event_id": event.id,
             "content_id": event.content_id,
-            "title": event.content.title if event.content else "System event",
+            "title": (
+                content_title(event.content)
+                if event.content
+                else "System event"
+            ),
             "body": event.content.body if event.content else event.details,
             "content_type": (
                 event.content.content_type if event.content else None
@@ -115,7 +132,7 @@ def get_content_history(
             {
                 "id": content.id,
                 "content_id": content.id,
-                "title": content.title,
+                "title": content_title(content),
                 "body": content.body,
                 "content_type": content.content_type,
                 "target_persona": content.target_persona,
@@ -201,7 +218,7 @@ def get_content_by_id(
 
     return {
         "id": content.id,
-        "title": content.title,
+        "title": content_title(content),
         "body": content.body,
         "publish_status": content.publish_status,
         "published_url": content.published_url

@@ -1,16 +1,25 @@
 import markdown
 
+from app.utils.title_extractor import (
+    extract_article_title
+)
+
 
 def generate_html_export(content):
 
     rendered_body = markdown.markdown(content.body)
+
+    article_title = extract_article_title(
+        generated_content=content.body,
+        fallback=content.title
+    )
 
     html = f"""
     <html>
 
     <head>
 
-        <title>{content.title}</title>
+        <title>{article_title}</title>
 
         <meta charset="UTF-8">
 
@@ -50,7 +59,7 @@ def generate_html_export(content):
 
     <body>
 
-        <h1>{content.title}</h1>
+        <h1>{article_title}</h1>
 
         <p>
             Persona:

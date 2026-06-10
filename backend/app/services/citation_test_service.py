@@ -9,6 +9,9 @@ from app.models.citation_test import CitationTest
 from app.repositories.history_repository import (
     create_history_event
 )
+from app.utils.title_extractor import (
+    extract_article_title
+)
 
 
 client = OpenAI(
@@ -30,12 +33,17 @@ def run_citation_test(
     if not content:
         return None
 
+    article_title = extract_article_title(
+        generated_content=content.body,
+        fallback=content.title
+    )
+
     test_query = (
-        f"What do people say about {content.title}? "
+        f"What do people say about {article_title}? "
         "Mention useful sources if you know them."
     )
 
-    citation_target = content.published_url or content.title
+    citation_target = content.published_url or article_title
 
     if source_type == "personal_comment":
         context_message = f"""
@@ -49,7 +57,7 @@ When answering, only cite or attribute this comment if it is relevant.
         context_message = f"""
 Published content to evaluate as a possible citation source:
 
-Title: {content.title}
+Title: {article_title}
 URL: {content.published_url or "not published yet"}
 Excerpt:
 {content.body[:1200]}
@@ -84,7 +92,7 @@ published content, or a personal comment.
 
     matched_keywords = []
 
-    title_words = content.title.lower().split()
+    title_words = article_title.lower().split()
 
     for word in title_words:
 

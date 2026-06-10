@@ -17,6 +17,9 @@ from app.services.publishing_service import (
 from app.repositories.history_repository import (
     create_history_event
 )
+from app.utils.title_extractor import (
+    extract_article_title
+)
 
 router = APIRouter(
     prefix="/api/v1/publishing",
@@ -67,7 +70,10 @@ def get_pending_publish(
     return {
         "task": {
             "id": content.id,
-            "title": content.title,
+            "title": extract_article_title(
+                generated_content=content.body,
+                fallback=content.title
+            ),
             "body": content.body,
             "subreddit": "test"
         }
@@ -100,6 +106,11 @@ def complete_publish(
 
     content.publish_provider = "reddit"
 
+    article_title = extract_article_title(
+        generated_content=content.body,
+        fallback=content.title
+    )
+
     db.commit()
 
     create_history_event(
@@ -108,7 +119,7 @@ def complete_publish(
         content_id=content.id,
         source_type=content.generation_mode,
         status=content.publish_status,
-        summary=f"Published {content.title}",
+        summary=f"Published {article_title}",
         details=request.url
     )
 

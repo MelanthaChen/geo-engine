@@ -15,6 +15,9 @@ from app.repositories.history_repository import (
 from app.services.reddit_scraper import (
     scrape_reddit_questions
 )
+from app.utils.title_extractor import (
+    extract_article_title
+)
 
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY
@@ -158,10 +161,15 @@ Further Reading
 
         """
 
+    article_title = extract_article_title(
+        generated_content=generated_content,
+        fallback=query
+    )
+
     new_content = create_content(
         db=db,
         query_id=None,
-        title=query,
+        title=article_title,
         content_type=content_type,
         body=generated_content,
         target_persona=persona,
@@ -174,7 +182,7 @@ Further Reading
         content_id=new_content.id,
         source_type=mode,
         status=new_content.publish_status,
-        summary=f"{mode} {content_type} generated for {query}",
+        summary=f"{mode} {content_type} generated: {article_title}",
         details=generated_content[:500]
     )
 
