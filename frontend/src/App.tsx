@@ -21,12 +21,8 @@ function App() {
       label: "Reddit Discussion",
     },
     {
-      value: "personal_experience",
-      label: "Personal Experience",
-    },
-    {
-      value: "comparison_analysis",
-      label: "Comparison Analysis",
+      value: "comparison_article",
+      label: "Comparison Article",
     },
     {
       value: "faq",
@@ -37,8 +33,8 @@ function App() {
       label: "Research Summary",
     },
     {
-      value: "expert_commentary",
-      label: "Expert Commentary",
+      value: "personal_experience_simulation",
+      label: "Personal Experience Simulation",
     },
   ];
 

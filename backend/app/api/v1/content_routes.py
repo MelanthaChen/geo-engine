@@ -3,6 +3,8 @@ from fastapi import (
     Depends
 )
 
+import json
+
 from sqlalchemy.orm import Session
 
 from fastapi.responses import HTMLResponse
@@ -39,10 +41,23 @@ router = APIRouter(
 
 
 def content_title(content: Content):
+    if content.reddit_title:
+        return content.reddit_title
+
     return extract_article_title(
         generated_content=content.body,
         fallback=content.title
     )
+
+
+def content_evidence(content: Content):
+    if not content.evidence_json:
+        return None
+
+    try:
+        return json.loads(content.evidence_json)
+    except Exception:
+        return None
 
 
 def latest_publish_task(
@@ -113,6 +128,12 @@ def generate_content_route(
         "content_type":
             result.content_type,
 
+        "target_url":
+            result.target_url,
+
+        "evidence":
+            content_evidence(result),
+
         "content_id":
             result.id
     }
@@ -152,6 +173,12 @@ def get_content_history(
             ),
             "target_persona": (
                 event.content.target_persona if event.content else None
+            ),
+            "target_url": (
+                event.content.target_url if event.content else None
+            ),
+            "evidence": (
+                content_evidence(event.content) if event.content else None
             ),
             "generation_mode": (
                 event.content.generation_mode
@@ -218,6 +245,8 @@ def get_content_history(
                 "content_type": content.content_type,
                 "strategy_type": content.strategy_type,
                 "target_persona": content.target_persona,
+                "target_url": content.target_url,
+                "evidence": content_evidence(content),
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
                 **publish_metadata(db, content),
@@ -311,6 +340,8 @@ def get_content_by_id(
         "reddit_body": content.reddit_body,
         "content_type": content.content_type,
         "strategy_type": content.strategy_type,
+        "target_url": content.target_url,
+        "evidence": content_evidence(content),
         "publish_status": content.publish_status,
         **publish_metadata(db, content),
         "preview_title": content.preview_title,

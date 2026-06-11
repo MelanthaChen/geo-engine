@@ -38,6 +38,16 @@ class Content(Base):
         nullable=True
     )
 
+    target_url = Column(
+        String,
+        nullable=True
+    )
+
+    evidence_json = Column(
+        Text,
+        nullable=True
+    )
+
     body = Column(Text)
 
     reddit_title = Column(

@@ -157,6 +157,7 @@ def get_pending_publish_for_account(
                 if task.account.platform == "reddit"
                 else content.body
             ),
+            "target_url": content.target_url,
             "subreddit": "test"
         }
     }

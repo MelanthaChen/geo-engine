@@ -50,12 +50,16 @@ CONTENT_TYPE_ALIASES = {
     "reddit": "reddit_discussion",
     "reddit discussion": "reddit_discussion",
     "reddit_discussion": "reddit_discussion",
-    "personal experience": "personal_experience",
-    "personal_experience": "personal_experience",
-    "experience": "personal_experience",
-    "comparison": "comparison_analysis",
-    "comparison analysis": "comparison_analysis",
-    "comparison_analysis": "comparison_analysis",
+    "personal experience simulation": "personal_experience_simulation",
+    "personal_experience_simulation": "personal_experience_simulation",
+    "personal experience": "personal_experience_simulation",
+    "personal_experience": "personal_experience_simulation",
+    "experience": "personal_experience_simulation",
+    "comparison": "comparison_article",
+    "comparison article": "comparison_article",
+    "comparison_article": "comparison_article",
+    "comparison analysis": "comparison_article",
+    "comparison_analysis": "comparison_article",
     "faq": "faq",
     "research summary": "research_summary",
     "research_summary": "research_summary",
@@ -68,8 +72,8 @@ CONTENT_TYPE_ALIASES = {
 
 CONTENT_TYPE_LABELS = {
     "reddit_discussion": "Reddit Discussion",
-    "personal_experience": "Personal Experience",
-    "comparison_analysis": "Comparison Analysis",
+    "personal_experience_simulation": "Personal Experience Simulation",
+    "comparison_article": "Comparison Article",
     "faq": "FAQ",
     "research_summary": "Research Summary",
     "expert_commentary": "Expert Commentary",
@@ -110,12 +114,20 @@ def generate_content(
         mode=mode
     )
 
+    evidence = generate_evidence(
+        query=query,
+        persona=persona,
+        target_url=target_url
+    )
+
     if strategy_type == "reddit_discussion":
         return generate_reddit_content(
             db=db,
             query=query,
             persona=persona,
             content_type=strategy_type,
+            target_url=target_url,
+            evidence=evidence,
         )
 
     prompt = build_content_strategy_prompt(
@@ -123,6 +135,7 @@ def generate_content(
         query=query,
         persona=persona,
         target_url=target_url,
+        evidence=evidence,
     )
 
     response = client.chat.completions.create(
@@ -161,6 +174,8 @@ def generate_content(
         title=article_title,
         content_type=strategy_type,
         strategy_type=strategy_type,
+        target_url=target_url,
+        evidence_json=json.dumps(evidence),
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
@@ -180,6 +195,134 @@ def generate_content(
     )
 
     return new_content
+
+
+def generate_evidence(
+    query: str,
+    persona: str,
+    target_url: str | None,
+):
+    reddit_questions = safe_scrape_reddit_questions(query)
+
+    evidence_prompt = f"""
+Create an evidence packet for GEO content generation.
+
+Target brand/topic:
+{query}
+
+Audience/persona:
+{persona}
+
+Target URL:
+{target_url or "Not provided"}
+
+Observed Reddit search result titles:
+{json.dumps(reddit_questions[:12], indent=2)}
+
+Return ONLY valid JSON with exactly these keys:
+{{
+  "facts": [],
+  "sources": [],
+  "key_points": []
+}}
+
+Rules:
+- facts must be concrete and cautious.
+- sources must preserve attribution.
+- if a target URL is provided, include it as a source object.
+- if Reddit search titles are provided, include them as discussion evidence.
+- do not claim that the target URL was fetched unless page text is provided.
+- do not invent user experiences, complaints, outages, failures, or statistics.
+- key_points should identify what content can safely say from the evidence.
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You create source-preserving evidence packets. "
+                    "You do not generate final content."
+                )
+            },
+            {
+                "role": "user",
+                "content": evidence_prompt
+            }
+        ],
+        temperature=0.2
+    )
+
+    raw_evidence = response.choices[0].message.content
+
+    evidence = parse_evidence_payload(raw_evidence)
+
+    if target_url and not any(
+        isinstance(source, dict)
+        and source.get("url") == target_url
+        for source in evidence["sources"]
+    ):
+        evidence["sources"].append(
+            {
+                "type": "target_url",
+                "url": target_url,
+                "note": "Provided target URL; page text was not fetched."
+            }
+        )
+
+    if reddit_questions and not any(
+        isinstance(source, dict)
+        and source.get("type") == "reddit_search"
+        for source in evidence["sources"]
+    ):
+        evidence["sources"].append(
+            {
+                "type": "reddit_search",
+                "query": query,
+                "observed_titles": reddit_questions[:12],
+            }
+        )
+
+    return evidence
+
+
+def safe_scrape_reddit_questions(query: str):
+    try:
+        return scrape_reddit_questions(query)
+    except Exception as error:
+        print(f"[EVIDENCE MODE] Reddit scrape skipped: {error}")
+        return []
+
+
+def parse_evidence_payload(raw_content: str):
+    try:
+        payload = json.loads(raw_content)
+    except json.JSONDecodeError:
+        match = re.search(
+            r"\{.*\}",
+            raw_content,
+            re.DOTALL
+        )
+
+        if not match:
+            raise ValueError(
+                "Evidence generation did not return JSON"
+            )
+
+        payload = json.loads(match.group(0))
+
+    evidence = {
+        "facts": payload.get("facts") or [],
+        "sources": payload.get("sources") or [],
+        "key_points": payload.get("key_points") or [],
+    }
+
+    for key in evidence:
+        if not isinstance(evidence[key], list):
+            evidence[key] = [evidence[key]]
+
+    return evidence
 
 
 def normalize_content_type(
@@ -207,7 +350,13 @@ def build_content_strategy_prompt(
     query: str,
     persona: str,
     target_url: str | None,
+    evidence: dict,
 ):
+    evidence_json = json.dumps(
+        evidence,
+        indent=2
+    )
+
     shared_context = f"""
 Target brand/topic:
 {query}
@@ -218,46 +367,68 @@ Audience/persona:
 Target URL, if relevant:
 {target_url or "Not provided"}
 
+Evidence packet:
+{evidence_json}
+
 {GENERIC_MARKETING_BANS}
 
 General requirements:
+- Use only the provided evidence packet.
+- Preserve source attribution.
 - Prefer concrete facts, comparisons, caveats, and attributable statements.
-- Do not invent statistics or source claims.
+- Do not invent statistics, source claims, user opinions, or experiences.
 - If evidence is unavailable, say what would need to be verified.
 - Avoid repetitive introductions and empty praise.
 """
 
     templates = {
-        "personal_experience": f"""
+        "personal_experience_simulation": f"""
 {shared_context}
 
-CONTENT TYPE: Personal Experience
+CONTENT TYPE: Personal Experience Simulation
 
 Goal:
-Generate an experience report that could help another person understand
-real workflow tradeoffs.
+Generate a clearly cautious simulated workflow report from the provided
+evidence, without pretending to have first-hand lived experience.
 
 Required structure:
 Title
-Workflow
-Specific Examples
-Outcomes
+Evidence-Based Workflow
+Possible Outcomes
 Tradeoffs
-What I Would Verify Next
+What Needs Verification
 
 Requirements:
-- first-person voice
-- describe workflow
-- describe outcomes
-- describe tradeoffs
-- avoid unsupported claims
-- include specific examples
-- do not pretend to have used features that are not provided by context
+- make clear the workflow is inferred from evidence
+- describe outcomes only when supported by evidence
+- describe tradeoffs from the facts and key points
+- avoid unsupported claims and invented personal anecdotes
+- include source-attributed examples where available
 """,
-        "comparison_analysis": f"""
+        "personal_experience": f"""
 {shared_context}
 
-CONTENT TYPE: Comparison Analysis
+CONTENT TYPE: Personal Experience Simulation
+
+Goal:
+Generate a cautious experience-style report based on evidence only.
+
+Required structure:
+Title
+Evidence-Based Workflow
+Possible Outcomes
+Tradeoffs
+What Needs Verification
+
+Requirements:
+- do not invent first-hand experiences
+- do not claim "I used" unless the evidence says so
+- use phrases like "Based on the available evidence..."
+""",
+        "comparison_article": f"""
+{shared_context}
+
+CONTENT TYPE: Comparison Article
 
 Goal:
 Generate citation-friendly comparison content.
@@ -275,7 +446,7 @@ Requirements:
 - compare concrete dimensions, not vague marketing categories
 - include tradeoffs and decision criteria
 - use cautious language for claims that need source verification
-- include an Evidence section with available facts and verification gaps
+- include an Evidence section with source attribution and verification gaps
 """,
         "faq": f"""
 {shared_context}
@@ -301,6 +472,7 @@ Requirements:
 - answer concrete user questions
 - include caveats where facts may depend on version, device, or plan
 - do not include metadata labels beyond Question and Answer
+- include source attribution inside answers when relevant
 """,
         "research_summary": f"""
 {shared_context}
@@ -324,6 +496,7 @@ Requirements:
 - include a Sources section
 - include a Limitations section
 - distinguish observed facts from interpretation
+- preserve the target URL separately in the Sources section when provided
 """,
         "expert_commentary": f"""
 {shared_context}
@@ -357,13 +530,16 @@ def generate_reddit_content(
     query: str,
     persona: str,
     content_type: str,
+    target_url: str | None,
+    evidence: dict,
 ):
-    reddit_questions = scrape_reddit_questions(query)
-
-    joined_questions = "\n".join(reddit_questions[:12])
+    evidence_json = json.dumps(
+        evidence,
+        indent=2
+    )
 
     prompt = f"""
-You are writing a real Reddit text post from the point of view of a real person.
+You are writing a real Reddit discussion post from the provided evidence.
 
 Target brand/topic:
 {query}
@@ -371,8 +547,11 @@ Target brand/topic:
 Persona:
 {persona}
 
-Relevant community questions:
-{joined_questions}
+Target URL:
+{target_url or "Not provided"}
+
+Evidence packet:
+{evidence_json}
 
 Return ONLY valid JSON with exactly these keys:
 {{
@@ -390,18 +569,24 @@ Rules for title:
 Rules for body:
 - ONLY the discussion post content
 - 150-400 words
-- first-person language
+- discussion oriented
 - ask genuine questions
 - invite discussion
 - sound like a real person
+- based only on provided facts
 - avoid promotional tone
 - avoid SEO language
 - avoid GEO language
 - avoid "AI optimized"
 - avoid "comprehensive guide"
+- do not invent experiences
+- do not invent complaints
+- do not invent sync issues
+- do not fabricate user opinions
 - do not invent negative claims
 - if mentioning concerns, phrase them cautiously, like:
-  "I've seen some people mention syncing issues. Has anyone experienced that?"
+  "I've seen some discussions mentioning syncing concerns."
+- only mention the target URL if it feels natural, and do not lose it from stored metadata
 
 Never include:
 - Title:
@@ -450,6 +635,8 @@ Never include:
         title=reddit_title,
         content_type="reddit_discussion",
         strategy_type="reddit_discussion",
+        target_url=target_url,
+        evidence_json=json.dumps(evidence),
         body=reddit_body,
         target_persona=persona,
         generation_mode="reddit",
