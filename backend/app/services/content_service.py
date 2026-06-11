@@ -15,8 +15,20 @@ from app.repositories.history_repository import (
     create_history_event
 )
 
-from app.services.reddit_scraper import (
-    scrape_reddit_questions
+from app.services.content.content_generator import (
+    insert_natural_link,
+    normalize_content_type as registry_normalize_content_type,
+    persist_generated_content,
+)
+from app.services.faq_discovery.ai_faq_service import (
+    discover_ai_faqs,
+)
+from app.services.faq_discovery.platform_faq_service import (
+    discover_platform_faqs,
+)
+from app.services.history.faq_history_service import (
+    get_faq_set,
+    serialize_faq_set,
 )
 from app.utils.title_extractor import (
     extract_article_title
@@ -26,43 +38,6 @@ client = OpenAI(
     api_key=settings.OPENAI_API_KEY
 )
 
-
-CONTENT_TYPE_ALIASES = {
-    "publishable article": "publishable_article",
-    "publishable_article": "publishable_article",
-    "article": "publishable_article",
-    "citation": "publishable_article",
-    "citation content": "publishable_article",
-    "citation_content": "publishable_article",
-    "reddit": "publishable_article",
-    "reddit discussion": "publishable_article",
-    "reddit_discussion": "publishable_article",
-    "blog": "publishable_article",
-    "blog landing": "publishable_article",
-    "blog / landing": "publishable_article",
-    "blog_landing": "publishable_article",
-    "landing": "publishable_article",
-    "personal experience simulation": "publishable_article",
-    "personal_experience_simulation": "publishable_article",
-    "personal experience": "publishable_article",
-    "personal_experience": "publishable_article",
-    "experience": "publishable_article",
-    "comparison": "publishable_article",
-    "comparison article": "publishable_article",
-    "comparison_article": "publishable_article",
-    "comparison analysis": "publishable_article",
-    "comparison_analysis": "publishable_article",
-    "faq": "publishable_article",
-    "research summary": "publishable_article",
-    "research_summary": "publishable_article",
-    "expert commentary": "publishable_article",
-    "expert_commentary": "publishable_article",
-    "review": "publishable_article",
-}
-
-CONTENT_TYPE_LABELS = {
-    "publishable_article": "Publishable Article",
-}
 
 GENERIC_MARKETING_BANS = """
 Never use generic marketing or SEO language such as:
@@ -96,15 +71,42 @@ def generate_content(
     ai_faq: str | None = None,
     platform_faq: str | None = None,
     faq_source: str | None = None,
+    source_faq_set_id: int | None = None,
 ):
     normalized_faq_source = normalize_faq_source(
         faq_source=faq_source,
         mode=mode
     )
 
-    strategy_type = normalize_content_type(
+    strategy_type = registry_normalize_content_type(
         content_type=content_type
     )
+
+    source_faq_set = (
+        get_faq_set(db, source_faq_set_id)
+        if source_faq_set_id
+        else None
+    )
+
+    if source_faq_set:
+        normalized_faq_source = (
+            "ai_faq"
+            if source_faq_set.faq_source == "AI"
+            else "platform_faq"
+        )
+        source_questions = "\n".join(
+            f"{faq.rank}. {faq.question}"
+            for faq in sorted(
+                source_faq_set.faqs,
+                key=lambda item: item.rank
+            )
+        )
+        ai_faq = source_questions if normalized_faq_source == "ai_faq" else ""
+        platform_faq = (
+            source_questions
+            if normalized_faq_source == "platform_faq"
+            else ""
+        )
 
     evidence = generate_evidence(
         query=query,
@@ -149,9 +151,14 @@ def generate_content(
         .content
     )
 
+    generated_content = insert_natural_link(
+        body=generated_content,
+        website_url=target_url,
+    )
+
     article_title = extract_article_title(
         generated_content=generated_content,
-        fallback=f"{CONTENT_TYPE_LABELS[strategy_type]}: {query}"
+        fallback=f"{strategy_type}: {query}"
     )
 
     new_content = create_content(
@@ -181,11 +188,18 @@ def generate_content(
         source_type=mode,
         status=new_content.publish_status,
         summary=(
-            f"{CONTENT_TYPE_LABELS[strategy_type]} "
+            f"{strategy_type} "
             f"from {normalized_faq_source} generated: "
             f"{article_title}"
         ),
         details=generated_content[:500]
+    )
+
+    persist_generated_content(
+        db=db,
+        category=query,
+        content=new_content,
+        source_faq_set_id=source_faq_set_id,
     )
 
     return new_content
@@ -320,60 +334,6 @@ def normalize_faq_source(
     return "ai_faq"
 
 
-def safe_scrape_reddit_questions(query: str):
-    try:
-        return scrape_reddit_questions(query)
-    except Exception as error:
-        print(f"[EVIDENCE MODE] Reddit scrape skipped: {error}")
-        return []
-
-
-def parse_evidence_payload(raw_content: str):
-    try:
-        payload = json.loads(raw_content)
-    except json.JSONDecodeError:
-        match = re.search(
-            r"\{.*\}",
-            raw_content,
-            re.DOTALL
-        )
-
-        if not match:
-            raise ValueError(
-                "Evidence generation did not return JSON"
-            )
-
-        payload = json.loads(match.group(0))
-
-    evidence = {
-        "facts": payload.get("facts") or [],
-        "sources": payload.get("sources") or [],
-        "key_points": payload.get("key_points") or [],
-    }
-
-    for key in evidence:
-        if not isinstance(evidence[key], list):
-            evidence[key] = [evidence[key]]
-
-    return evidence
-
-
-def normalize_content_type(
-    content_type: str,
-):
-    normalized_key = (
-        content_type
-        .strip()
-        .lower()
-        .replace("-", "_")
-    )
-
-    return CONTENT_TYPE_ALIASES.get(
-        normalized_key,
-        "publishable_article"
-    )
-
-
 def build_content_strategy_prompt(
     strategy_type: str,
     query: str,
@@ -388,7 +348,7 @@ def build_content_strategy_prompt(
     )
 
     shared_context = f"""
-Target brand/topic:
+Category:
 {query}
 
 Audience/persona:
@@ -414,19 +374,22 @@ General requirements:
 - Write 500-1000 words.
 - Write natural human-readable prose.
 - Include the target URL naturally when relevant.
+- Useful even if the website link is removed.
 - Do not use Question/Answer blocks.
 - Do not dump the FAQ list.
 - Do not include Key Findings, Research Summary, or SEO Keywords sections.
 - Do not use "AI optimized" wording.
 - Do not use "ultimate guide" wording.
+- Do not say the target website is amazing, best, or recommended.
+- Do not include a direct sales call to action.
 - Do not invent facts beyond the selected FAQ source.
 """
 
-    templates = {
-        "publishable_article": f"""
+    return f"""
 {shared_context}
 
-CONTENT TYPE: Publishable Article
+CONTENT TYPE:
+{strategy_type}
 
 Goal:
 Create one full publishable content piece from the selected FAQ source.
@@ -446,6 +409,7 @@ Requirements:
 - publishable
 - human sounding
 - evidence-based
+- follow the requested content type: {strategy_type}
 - no FAQ dump
 - no Question/Answer blocks
 - no Key Findings section
@@ -454,76 +418,41 @@ Requirements:
 - no AI optimized wording
 - no generic marketing tone
 - include the target URL naturally and in References when provided
-""",
-    }
-
-    return templates[strategy_type]
+"""
 
 
 def generate_faqs(
     target: str,
     mode: str,
+    db: Session | None = None,
+    content_type: str = "comparison",
+    website_url: str | None = None,
 ):
+    if db is None:
+        raise ValueError("Database session is required for FAQ discovery")
 
     if mode == "ai":
-
-        faq_prompt = f"""
-You are a GEO FAQ discovery engine.
-
-Based on your understanding of user behavior
-and common discussions,
-
-generate 15 highly realistic and commonly asked
-questions about:
-
-{target}
-
-Requirements:
-
-- questions should sound natural
-- questions should feel like real user concerns
-- focus on usage
-- focus on comparisons
-- focus on workflows
-- focus on productivity
-- focus on student / professional use cases
-- mimic realistic online discussions
-
-Return ONLY the questions.
-
-Format:
-
-1. ...
-2. ...
-"""
-
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content":
-                        "You generate realistic GEO FAQ questions."
-                },
-                {
-                    "role": "user",
-                    "content": faq_prompt
-                }
-            ],
-            temperature=0.8
+        faq_set = discover_ai_faqs(
+            db=db,
+            category=target,
+            content_type=content_type,
         )
-
-        return response.choices[0].message.content
 
     else:
-
-        reddit_questions = (
-            scrape_reddit_questions(target)
+        faq_set = discover_platform_faqs(
+            db=db,
+            category=target,
+            website_url=website_url,
         )
 
-        return "\n".join([
-            f"{idx + 1}. {question}"
-            for idx, question in enumerate(
-                reddit_questions
-            )
-        ])
+    questions = [
+        f"{idx + 1}. {question}"
+        for idx, question in enumerate(
+            serialize_faq_set(faq_set)["questions"]
+        )
+    ]
+
+    return {
+        "faq_set": serialize_faq_set(faq_set),
+        "text": "\n".join(questions),
+    }

@@ -19,4 +19,6 @@ class ContentGenerationRequest(BaseModel):
 
     faq_source: str | None = None
 
+    source_faq_set_id: int | None = None
+
     mode: str

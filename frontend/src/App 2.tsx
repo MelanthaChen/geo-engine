@@ -16,19 +16,10 @@ import {
 
 function App() {
   const contentTypes = [
-    { value: "comparison", label: "comparison" },
-    { value: "educational", label: "educational" },
-    { value: "discussion", label: "discussion" },
-    { value: "guide", label: "guide" },
-    { value: "opinion", label: "opinion" },
-    { value: "reddit_post", label: "reddit_post" },
-    { value: "faq_post", label: "faq_post" },
-    { value: "blog_post", label: "blog_post" },
-    { value: "review", label: "review" },
-    { value: "case_study", label: "case_study" },
-    { value: "buying_guide", label: "buying_guide" },
-    { value: "alternatives", label: "alternatives" },
-    { value: "best_of", label: "best_of" },
+    {
+      value: "publishable_article",
+      label: "Publishable Article",
+    },
   ];
 
   const [query, setQuery] = useState("");
@@ -37,7 +28,7 @@ function App() {
 
   const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("comparison");
+  const [contentType, setContentType] = useState("publishable_article");
 
   const [loading, setLoading] = useState(false);
 
@@ -107,28 +98,17 @@ function App() {
     try {
       setLoading(true);
 
-      const result = await generateFaqs(
-        query,
-        "ai",
-        contentType,
-        targetUrl,
-      );
+      const result = await generateFaqs(query, "ai");
 
       setAiFaqs(result.faqs);
 
-      return {
-        faqs: result.faqs,
-        faqSetId: result.faq_set_id || null,
-      };
+      return result.faqs;
     } catch (error) {
       console.error(error);
 
       alert("Failed to generate AI FAQs");
 
-      return {
-        faqs: "",
-        faqSetId: null,
-      };
+      return "";
     } finally {
       setLoading(false);
     }
@@ -138,28 +118,17 @@ function App() {
     try {
       setLoading(true);
 
-      const result = await generateFaqs(
-        query,
-        "platform",
-        contentType,
-        targetUrl,
-      );
+      const result = await generateFaqs(query, "platform");
 
       setPlatformFaqs(result.faqs);
 
-      return {
-        faqs: result.faqs,
-        faqSetId: result.faq_set_id || null,
-      };
+      return result.faqs;
     } catch (error) {
       console.error(error);
 
       alert("Failed to generate platform FAQs");
 
-      return {
-        faqs: "",
-        faqSetId: null,
-      };
+      return "";
     } finally {
       setLoading(false);
     }
@@ -179,10 +148,9 @@ function App() {
         contentType,
         targetUrl,
         "ai",
-        aiFaqResult.faqs,
+        aiFaqResult,
         "",
         "ai_faq",
-        aiFaqResult.faqSetId,
       );
 
       setAiGeneratedContent(citationResult.generated_content);
@@ -196,9 +164,8 @@ function App() {
         targetUrl,
         "platform",
         "",
-        platformFaqResult.faqs,
+        platformFaqResult,
         "platform_faq",
-        platformFaqResult.faqSetId,
       );
 
       setPlatformGeneratedContent(
@@ -392,12 +359,12 @@ function App() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Category</label>
+                <label className="text-sm text-zinc-400">Target Brand</label>
 
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="AI Resume Builder"
+                  placeholder="Notability"
                   className="
                     w-full
                     bg-zinc-950
@@ -410,7 +377,7 @@ function App() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Website URL</label>
+                <label className="text-sm text-zinc-400">Target URL</label>
 
                 <input
                   value={targetUrl}
@@ -825,7 +792,7 @@ function App() {
               flex-col
             "
             >
-              <h2 className="text-2xl font-bold mb-6">AI FAQs</h2>
+              <h2 className="text-2xl font-bold mb-6">AI-Inferred FAQs</h2>
 
               <div
                 className="
@@ -857,7 +824,7 @@ function App() {
     "
             >
               <h2 className="text-2xl font-bold mb-6">
-                Platform FAQs
+                Platform / Reddit FAQs
               </h2>
 
               <div

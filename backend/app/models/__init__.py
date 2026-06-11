@@ -7,3 +7,6 @@ from app.models.campaign import Campaign
 from app.models.content_history import ContentHistoryEvent
 from app.models.account import Account
 from app.models.publish_task import PublishTask
+from app.models.faq_set import FaqSet
+from app.models.faq import Faq
+from app.models.generated_content import GeneratedContent

@@ -14,6 +14,8 @@ from app.services.export_service import (
 )
 
 from app.models.content import Content
+from app.models.faq_set import FaqSet
+from app.models.generated_content import GeneratedContent
 from app.models.publish_task import PublishTask
 
 from app.core.deps import get_db
@@ -94,6 +96,16 @@ def publish_metadata(
     }
 
 
+def empty_publish_metadata():
+    return {
+        "publish_task_id": None,
+        "published_account": None,
+        "published_account_id": None,
+        "published_platform": None,
+        "published_url": None,
+    }
+
+
 @router.post("/generate")
 def generate_content_route(
     request: ContentGenerationRequest,
@@ -110,6 +122,7 @@ def generate_content_route(
         ai_faq=request.ai_faq,
         platform_faq=request.platform_faq,
         faq_source=request.faq_source,
+        source_faq_set_id=request.source_faq_set_id,
     )
 
     return {
@@ -212,13 +225,7 @@ def get_content_history(
             **(
                 publish_metadata(db, event.content)
                 if event.content
-                else {
-                    "publish_task_id": None,
-                    "published_account": None,
-                    "published_account_id": None,
-                    "published_platform": None,
-                    "published_url": None,
-                }
+                else empty_publish_metadata()
             ),
             "preview_title": (
                 event.content.preview_title if event.content else None
@@ -249,9 +256,105 @@ def get_content_history(
         for event in events
     ]
 
-    if event_rows:
+    faq_rows = [
+        {
+            "id": f"faq-set-{faq_set.id}",
+            "content_id": None,
+            "title": f"{faq_set.faq_source} FAQ Discovery: {faq_set.category}",
+            "body": "\n".join(
+                f"{faq.rank}. {faq.question}"
+                for faq in sorted(
+                    faq_set.faqs,
+                    key=lambda item: item.rank
+                )
+            ),
+            "reddit_title": None,
+            "reddit_body": None,
+            "content_type": faq_set.content_type,
+            "strategy_type": faq_set.content_type,
+            "target_persona": faq_set.category,
+            "target_url": faq_set.website_url,
+            "evidence": None,
+            "ai_faq": None,
+            "platform_faq": None,
+            "faq_source": faq_set.faq_source,
+            "generation_mode": "faq_discovery",
+            "publish_status": "discovered",
+            **empty_publish_metadata(),
+            "preview_title": None,
+            "preview_subreddit": None,
+            "preview_screenshot": None,
+            "preview_url": None,
+            "preview_timestamp": None,
+            "citation_count": 0,
+            "visibility_score": 0,
+            "event_type": "faq_discovery",
+            "event_summary": (
+                f"{faq_set.faq_source} FAQ set discovered for "
+                f"{faq_set.category}"
+            ),
+            "event_status": "discovered",
+            "created_at": faq_set.created_at,
+        }
+        for faq_set in (
+            db.query(FaqSet)
+            .order_by(FaqSet.created_at.desc())
+            .all()
+        )
+    ]
+
+    generated_rows = [
+        {
+            "id": f"generated-content-{content.id}",
+            "content_id": content.content_id,
+            "title": content.title,
+            "body": content.body,
+            "reddit_title": None,
+            "reddit_body": None,
+            "content_type": content.content_type,
+            "strategy_type": content.content_type,
+            "target_persona": content.category,
+            "target_url": content.website_url,
+            "evidence": None,
+            "ai_faq": None,
+            "platform_faq": None,
+            "faq_source": content.faq_source,
+            "generation_mode": "content_generation",
+            "publish_status": "generated",
+            **empty_publish_metadata(),
+            "preview_title": None,
+            "preview_subreddit": None,
+            "preview_screenshot": None,
+            "preview_url": None,
+            "preview_timestamp": None,
+            "citation_count": 0,
+            "visibility_score": 0,
+            "event_type": "generated_content",
+            "event_summary": (
+                f"{content.content_type} generated from "
+                f"{content.faq_source} FAQ set"
+            ),
+            "event_status": "generated",
+            "created_at": content.created_at,
+        }
+        for content in (
+            db.query(GeneratedContent)
+            .order_by(GeneratedContent.created_at.desc())
+            .all()
+        )
+    ]
+
+    history_rows = event_rows + faq_rows + generated_rows
+
+    history_rows = sorted(
+        history_rows,
+        key=lambda item: item["created_at"],
+        reverse=True
+    )
+
+    if history_rows:
         return {
-            "history": event_rows
+            "history": history_rows
         }
 
     return {
@@ -295,20 +398,28 @@ def get_content_history(
 def generate_faqs_route(
     target: str,
     mode: str,
+    content_type: str = "comparison",
+    website_url: str | None = None,
+    db: Session = Depends(get_db),
 ):
 
-    faqs = generate_faqs(
-        target,
-        mode
+    result = generate_faqs(
+        target=target,
+        mode=mode,
+        db=db,
+        content_type=content_type,
+        website_url=website_url,
     )
 
     print("FAQ RESULT:")
-    print(faqs)
+    print(result["text"])
 
     return {
         "target": target,
         "mode": mode,
-        "faqs": faqs
+        "faqs": result["text"],
+        "faq_set": result["faq_set"],
+        "faq_set_id": result["faq_set"]["id"],
     }
 
 
