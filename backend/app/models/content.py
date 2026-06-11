@@ -48,6 +48,16 @@ class Content(Base):
         nullable=True
     )
 
+    ai_faq = Column(
+        Text,
+        nullable=True
+    )
+
+    platform_faq = Column(
+        Text,
+        nullable=True
+    )
+
     body = Column(Text)
 
     reddit_title = Column(

@@ -17,24 +17,12 @@ import {
 function App() {
   const contentTypes = [
     {
-      value: "reddit_discussion",
-      label: "Reddit Discussion",
+      value: "citation_content",
+      label: "Citation Content",
     },
     {
-      value: "comparison_article",
-      label: "Comparison Article",
-    },
-    {
-      value: "faq",
-      label: "FAQ",
-    },
-    {
-      value: "research_summary",
-      label: "Research Summary",
-    },
-    {
-      value: "personal_experience_simulation",
-      label: "Personal Experience Simulation",
+      value: "blog_landing",
+      label: "Blog / Landing Content",
     },
   ];
 
@@ -44,7 +32,7 @@ function App() {
 
   const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("research_summary");
+  const [contentType, setContentType] = useState("citation_content");
 
   const [loading, setLoading] = useState(false);
 
@@ -110,60 +98,6 @@ function App() {
     return () => clearInterval(interval);
   }, [aiContentId, platformContentId]);
 
-  async function handleGenerateAiContent() {
-    try {
-      setLoading(true);
-
-      const result = await generateContent(
-        query,
-        persona,
-        contentType,
-        targetUrl,
-        "ai",
-      );
-
-      setAiGeneratedContent(result.generated_content);
-
-      setAiContentId(result.content_id);
-
-      await loadHistory();
-    } catch (error) {
-      console.error(error);
-
-      alert("Failed to generate AI content");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGeneratePlatformContent() {
-    try {
-      setLoading(true);
-
-      const result = await generateContent(
-        query,
-        persona,
-        contentType,
-        targetUrl,
-        "reddit",
-      );
-
-      setPlatformGeneratedContent(
-        result.reddit_body || result.generated_content
-      );
-
-      setPlatformContentId(result.content_id);
-
-      await loadHistory();
-    } catch (error) {
-      console.error(error);
-
-      alert("Failed to generate platform content");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleGenerateAiFaqs() {
     try {
       setLoading(true);
@@ -171,10 +105,14 @@ function App() {
       const result = await generateFaqs(query, "ai");
 
       setAiFaqs(result.faqs);
+
+      return result.faqs;
     } catch (error) {
       console.error(error);
 
       alert("Failed to generate AI FAQs");
+
+      return "";
     } finally {
       setLoading(false);
     }
@@ -187,10 +125,14 @@ function App() {
       const result = await generateFaqs(query, "platform");
 
       setPlatformFaqs(result.faqs);
+
+      return result.faqs;
     } catch (error) {
       console.error(error);
 
       alert("Failed to generate platform FAQs");
+
+      return "";
     } finally {
       setLoading(false);
     }
@@ -200,13 +142,41 @@ function App() {
     setLoading(true);
 
     try {
-      await handleGenerateAiFaqs();
+      const aiFaqResult = await handleGenerateAiFaqs();
 
-      await handleGeneratePlatformFaqs();
+      const platformFaqResult = await handleGeneratePlatformFaqs();
 
-      await handleGenerateAiContent();
+      const citationResult = await generateContent(
+        query,
+        persona,
+        contentType,
+        targetUrl,
+        "ai",
+        aiFaqResult,
+        platformFaqResult,
+      );
 
-      await handleGeneratePlatformContent();
+      setAiGeneratedContent(citationResult.generated_content);
+
+      setAiContentId(citationResult.content_id);
+
+      const redditResult = await generateContent(
+        query,
+        persona,
+        "reddit_discussion",
+        targetUrl,
+        "reddit",
+        aiFaqResult,
+        platformFaqResult,
+      );
+
+      setPlatformGeneratedContent(
+        redditResult.reddit_body || redditResult.generated_content
+      );
+
+      setPlatformContentId(redditResult.content_id);
+
+      await loadHistory();
     } catch (error) {
       console.error(error);
     } finally {

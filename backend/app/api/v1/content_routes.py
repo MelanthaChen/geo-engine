@@ -105,8 +105,10 @@ def generate_content_route(
         query=request.query,
         persona=request.persona,
         content_type=request.content_type,
-        target_url=request.target_url,
-        mode=request.mode
+        target_url=request.product_url or request.target_url,
+        mode=request.mode,
+        ai_faq=request.ai_faq,
+        platform_faq=request.platform_faq,
     )
 
     return {
@@ -133,6 +135,12 @@ def generate_content_route(
 
         "evidence":
             content_evidence(result),
+
+        "ai_faq":
+            result.ai_faq,
+
+        "platform_faq":
+            result.platform_faq,
 
         "content_id":
             result.id
@@ -179,6 +187,12 @@ def get_content_history(
             ),
             "evidence": (
                 content_evidence(event.content) if event.content else None
+            ),
+            "ai_faq": (
+                event.content.ai_faq if event.content else None
+            ),
+            "platform_faq": (
+                event.content.platform_faq if event.content else None
             ),
             "generation_mode": (
                 event.content.generation_mode
@@ -247,6 +261,8 @@ def get_content_history(
                 "target_persona": content.target_persona,
                 "target_url": content.target_url,
                 "evidence": content_evidence(content),
+                "ai_faq": content.ai_faq,
+                "platform_faq": content.platform_faq,
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
                 **publish_metadata(db, content),
@@ -342,6 +358,8 @@ def get_content_by_id(
         "strategy_type": content.strategy_type,
         "target_url": content.target_url,
         "evidence": content_evidence(content),
+        "ai_faq": content.ai_faq,
+        "platform_faq": content.platform_faq,
         "publish_status": content.publish_status,
         **publish_metadata(db, content),
         "preview_title": content.preview_title,

@@ -14,6 +14,8 @@ def create_content(
     strategy_type: str | None = None,
     target_url: str | None = None,
     evidence_json: str | None = None,
+    ai_faq: str | None = None,
+    platform_faq: str | None = None,
     reddit_title: str | None = None,
     reddit_body: str | None = None,
 ):
@@ -25,6 +27,8 @@ def create_content(
         generation_mode=generation_mode,
         target_url=target_url,
         evidence_json=evidence_json,
+        ai_faq=ai_faq,
+        platform_faq=platform_faq,
         body=body,
         reddit_title=reddit_title,
         reddit_body=reddit_body,

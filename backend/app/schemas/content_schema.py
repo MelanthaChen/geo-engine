@@ -9,6 +9,12 @@ class ContentGenerationRequest(BaseModel):
 
     content_type: str
 
+    product_url: str | None = None
+
     target_url: str | None = None
+
+    ai_faq: str | None = None
+
+    platform_faq: str | None = None
 
     mode: str

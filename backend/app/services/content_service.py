@@ -47,36 +47,40 @@ REDDIT_TERMINAL_METADATA_PATTERNS = [
 ]
 
 CONTENT_TYPE_ALIASES = {
+    "citation": "citation_content",
+    "citation content": "citation_content",
+    "citation_content": "citation_content",
     "reddit": "reddit_discussion",
     "reddit discussion": "reddit_discussion",
     "reddit_discussion": "reddit_discussion",
-    "personal experience simulation": "personal_experience_simulation",
-    "personal_experience_simulation": "personal_experience_simulation",
-    "personal experience": "personal_experience_simulation",
-    "personal_experience": "personal_experience_simulation",
-    "experience": "personal_experience_simulation",
-    "comparison": "comparison_article",
-    "comparison article": "comparison_article",
-    "comparison_article": "comparison_article",
-    "comparison analysis": "comparison_article",
-    "comparison_analysis": "comparison_article",
-    "faq": "faq",
-    "research summary": "research_summary",
-    "research_summary": "research_summary",
-    "expert commentary": "expert_commentary",
-    "expert_commentary": "expert_commentary",
-    "review": "personal_experience",
-    "article": "research_summary",
-    "blog": "research_summary",
+    "blog": "blog_landing",
+    "blog landing": "blog_landing",
+    "blog / landing": "blog_landing",
+    "blog_landing": "blog_landing",
+    "landing": "blog_landing",
+    "personal experience simulation": "blog_landing",
+    "personal_experience_simulation": "blog_landing",
+    "personal experience": "blog_landing",
+    "personal_experience": "blog_landing",
+    "experience": "blog_landing",
+    "comparison": "blog_landing",
+    "comparison article": "blog_landing",
+    "comparison_article": "blog_landing",
+    "comparison analysis": "blog_landing",
+    "comparison_analysis": "blog_landing",
+    "faq": "citation_content",
+    "research summary": "citation_content",
+    "research_summary": "citation_content",
+    "expert commentary": "blog_landing",
+    "expert_commentary": "blog_landing",
+    "review": "blog_landing",
+    "article": "blog_landing",
 }
 
 CONTENT_TYPE_LABELS = {
+    "citation_content": "Citation Content",
     "reddit_discussion": "Reddit Discussion",
-    "personal_experience_simulation": "Personal Experience Simulation",
-    "comparison_article": "Comparison Article",
-    "faq": "FAQ",
-    "research_summary": "Research Summary",
-    "expert_commentary": "Expert Commentary",
+    "blog_landing": "Blog / Landing Content",
 }
 
 GENERIC_MARKETING_BANS = """
@@ -108,6 +112,8 @@ def generate_content(
     content_type: str,
     target_url: str | None,
     mode: str,
+    ai_faq: str | None = None,
+    platform_faq: str | None = None,
 ):
     strategy_type = normalize_content_type(
         content_type=content_type,
@@ -117,7 +123,9 @@ def generate_content(
     evidence = generate_evidence(
         query=query,
         persona=persona,
-        target_url=target_url
+        product_url=target_url,
+        ai_faq=ai_faq,
+        platform_faq=platform_faq,
     )
 
     if strategy_type == "reddit_discussion":
@@ -128,6 +136,8 @@ def generate_content(
             content_type=strategy_type,
             target_url=target_url,
             evidence=evidence,
+            ai_faq=ai_faq,
+            platform_faq=platform_faq,
         )
 
     prompt = build_content_strategy_prompt(
@@ -176,6 +186,8 @@ def generate_content(
         strategy_type=strategy_type,
         target_url=target_url,
         evidence_json=json.dumps(evidence),
+        ai_faq=ai_faq,
+        platform_faq=platform_faq,
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
@@ -200,91 +212,114 @@ def generate_content(
 def generate_evidence(
     query: str,
     persona: str,
-    target_url: str | None,
+    product_url: str | None,
+    ai_faq: str | None,
+    platform_faq: str | None,
 ):
-    reddit_questions = safe_scrape_reddit_questions(query)
+    ai_faq_items = parse_faq_lines(ai_faq or "")
+    platform_faq_items = parse_faq_lines(platform_faq or "")
 
-    evidence_prompt = f"""
-Create an evidence packet for GEO content generation.
+    facts = []
 
-Target brand/topic:
-{query}
-
-Audience/persona:
-{persona}
-
-Target URL:
-{target_url or "Not provided"}
-
-Observed Reddit search result titles:
-{json.dumps(reddit_questions[:12], indent=2)}
-
-Return ONLY valid JSON with exactly these keys:
-{{
-  "facts": [],
-  "sources": [],
-  "key_points": []
-}}
-
-Rules:
-- facts must be concrete and cautious.
-- sources must preserve attribution.
-- if a target URL is provided, include it as a source object.
-- if Reddit search titles are provided, include them as discussion evidence.
-- do not claim that the target URL was fetched unless page text is provided.
-- do not invent user experiences, complaints, outages, failures, or statistics.
-- key_points should identify what content can safely say from the evidence.
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
+    if ai_faq_items:
+        facts.append(
             {
-                "role": "system",
-                "content": (
-                    "You create source-preserving evidence packets. "
-                    "You do not generate final content."
-                )
-            },
-            {
-                "role": "user",
-                "content": evidence_prompt
-            }
-        ],
-        temperature=0.2
-    )
-
-    raw_evidence = response.choices[0].message.content
-
-    evidence = parse_evidence_payload(raw_evidence)
-
-    if target_url and not any(
-        isinstance(source, dict)
-        and source.get("url") == target_url
-        for source in evidence["sources"]
-    ):
-        evidence["sources"].append(
-            {
-                "type": "target_url",
-                "url": target_url,
-                "note": "Provided target URL; page text was not fetched."
+                "source": "ai_faq",
+                "statement": (
+                    "AI FAQ evidence contains questions users may ask "
+                    f"about {query}."
+                ),
+                "items": ai_faq_items,
             }
         )
 
-    if reddit_questions and not any(
-        isinstance(source, dict)
-        and source.get("type") == "reddit_search"
-        for source in evidence["sources"]
-    ):
-        evidence["sources"].append(
+    if platform_faq_items:
+        facts.append(
             {
-                "type": "reddit_search",
-                "query": query,
-                "observed_titles": reddit_questions[:12],
+                "source": "platform_faq",
+                "statement": (
+                    "Platform FAQ evidence contains discussion-oriented "
+                    f"questions users may ask about {query}."
+                ),
+                "items": platform_faq_items,
             }
         )
 
-    return evidence
+    sources = [
+        {
+            "type": "product_url",
+            "url": product_url,
+            "note": (
+                "Provided product URL. Preserve this attribution in "
+                "citation and blog content."
+            ),
+        }
+    ] if product_url else []
+
+    if ai_faq:
+        sources.append(
+            {
+                "type": "ai_faq",
+                "label": "AI FAQ dataset",
+                "content": ai_faq,
+            }
+        )
+
+    if platform_faq:
+        sources.append(
+            {
+                "type": "platform_faq",
+                "label": "Platform FAQ dataset",
+                "content": platform_faq,
+            }
+        )
+
+    key_points = [
+        {
+            "topic": "citation_scope",
+            "point": (
+                "Generated content may answer questions represented in "
+                "the FAQ datasets, but must not introduce unsupported "
+                "product claims."
+            )
+        },
+        {
+            "topic": "reddit_scope",
+            "point": (
+                "Reddit discussion may refer to questions or discussions "
+                "from platform FAQ evidence, but must not invent user "
+                "complaints, experiences, syncing issues, or feature changes."
+            )
+        },
+    ]
+
+    return {
+        "facts": facts,
+        "sources": sources,
+        "key_points": key_points,
+    }
+
+
+def parse_faq_lines(faq_text: str):
+    lines = [
+        line.strip()
+        for line in faq_text.splitlines()
+        if line.strip()
+    ]
+
+    cleaned_lines = []
+
+    for line in lines:
+        cleaned = re.sub(
+            r"^\s*(?:[-*]|\d+[.)])\s*",
+            "",
+            line
+        ).strip()
+
+        if cleaned:
+            cleaned_lines.append(cleaned)
+
+    return cleaned_lines
 
 
 def safe_scrape_reddit_questions(query: str):
@@ -341,7 +376,7 @@ def normalize_content_type(
 
     return CONTENT_TYPE_ALIASES.get(
         normalized_key,
-        "research_summary"
+        "citation_content"
     )
 
 
@@ -375,6 +410,7 @@ Evidence packet:
 General requirements:
 - Use only the provided evidence packet.
 - Preserve source attribution.
+- Treat ai_faq and platform_faq as the only FAQ evidence.
 - Prefer concrete facts, comparisons, caveats, and attributable statements.
 - Do not invent statistics, source claims, user opinions, or experiences.
 - If evidence is unavailable, say what would need to be verified.
@@ -382,143 +418,64 @@ General requirements:
 """
 
     templates = {
-        "personal_experience_simulation": f"""
+        "citation_content": f"""
 {shared_context}
 
-CONTENT TYPE: Personal Experience Simulation
+CONTENT TYPE: Citation Content
 
 Goal:
-Generate a clearly cautious simulated workflow report from the provided
-evidence, without pretending to have first-hand lived experience.
+Create AI-citable content directly from the FAQ evidence.
 
 Required structure:
 Title
-Evidence-Based Workflow
-Possible Outcomes
-Tradeoffs
-What Needs Verification
+
+Question
+Answer
+
+Question
+Answer
+
+Question
+Answer
+
+References
 
 Requirements:
-- make clear the workflow is inferred from evidence
-- describe outcomes only when supported by evidence
-- describe tradeoffs from the facts and key points
-- avoid unsupported claims and invented personal anecdotes
-- include source-attributed examples where available
+- Q&A format only
+- evidence-based
+- directly answer user questions from ai_faq and platform_faq
+- always include the product URL in References when provided
+- no marketing language
+- no "ultimate guide"
+- no "research summary" introduction
+- no claims beyond the FAQ evidence
+- preserve attribution to product_url, ai_faq, and platform_faq
 """,
-        "personal_experience": f"""
+        "blog_landing": f"""
 {shared_context}
 
-CONTENT TYPE: Personal Experience Simulation
+CONTENT TYPE: Blog / Landing Content
 
 Goal:
-Generate a cautious experience-style report based on evidence only.
-
-Required structure:
-Title
-Evidence-Based Workflow
-Possible Outcomes
-Tradeoffs
-What Needs Verification
-
-Requirements:
-- do not invent first-hand experiences
-- do not claim "I used" unless the evidence says so
-- use phrases like "Based on the available evidence..."
-""",
-        "comparison_article": f"""
-{shared_context}
-
-CONTENT TYPE: Comparison Article
-
-Goal:
-Generate citation-friendly comparison content.
+Create structured content that may later be cited by AI systems.
 
 Required structure:
 Title
 Overview
-Comparison Table
-Pros
-Cons
-Recommendations
-Evidence
+FAQ-Based Answers
+Source-Aware Notes
+References
 
 Requirements:
-- compare concrete dimensions, not vague marketing categories
-- include tradeoffs and decision criteria
-- use cautious language for claims that need source verification
-- include an Evidence section with source attribution and verification gaps
-""",
-        "faq": f"""
-{shared_context}
-
-CONTENT TYPE: FAQ
-
-Goal:
-Generate AI-extractable answers.
-
-Format:
-Question
-Answer
-
-Question
-Answer
-
-Question
-Answer
-
-Requirements:
-- no long introduction
-- concise answer-first responses
-- answer concrete user questions
-- include caveats where facts may depend on version, device, or plan
-- do not include metadata labels beyond Question and Answer
-- include source attribution inside answers when relevant
-""",
-        "research_summary": f"""
-{shared_context}
-
-CONTENT TYPE: Research Summary
-
-Goal:
-Generate highly citable information.
-
-Required structure:
-Title
-Key Findings
-Statistics
-Sources
-Limitations
-Open Questions
-
-Requirements:
-- summarize findings
-- include statistics only when available or clearly marked as needing verification
-- include a Sources section
-- include a Limitations section
-- distinguish observed facts from interpretation
-- preserve the target URL separately in the Sources section when provided
-""",
-        "expert_commentary": f"""
-{shared_context}
-
-CONTENT TYPE: Expert Commentary
-
-Goal:
-Generate opinion plus reasoning.
-
-Required structure:
-Title
-Claim
-Supporting Evidence
-Counterargument
-Conclusion
-
-Requirements:
-- make one clear claim
-- support it with evidence or careful reasoning
-- include a real counterargument
-- avoid unsupported negative claims
-- keep the tone analytical rather than promotional
+- FAQ based
+- structured
+- source-aware
+- preserve attribution to product_url
+- include the product URL in References when provided
+- no generic SEO article framing
+- no "ultimate guide"
+- no promotional claims
+- do not transform Citation Content or Reddit Discussion into this format
 """,
     }
 
@@ -532,6 +489,8 @@ def generate_reddit_content(
     content_type: str,
     target_url: str | None,
     evidence: dict,
+    ai_faq: str | None,
+    platform_faq: str | None,
 ):
     evidence_json = json.dumps(
         evidence,
@@ -539,7 +498,7 @@ def generate_reddit_content(
     )
 
     prompt = f"""
-You are writing a real Reddit discussion post from the provided evidence.
+You are writing a real Reddit discussion post directly from FAQ evidence.
 
 Target brand/topic:
 {query}
@@ -568,12 +527,13 @@ Rules for title:
 
 Rules for body:
 - ONLY the discussion post content
-- 150-400 words
+- short
+- 80-180 words
 - discussion oriented
 - ask genuine questions
 - invite discussion
 - sound like a real person
-- based only on provided facts
+- based only on FAQ evidence in ai_faq and platform_faq
 - avoid promotional tone
 - avoid SEO language
 - avoid GEO language
@@ -586,7 +546,8 @@ Rules for body:
 - do not invent negative claims
 - if mentioning concerns, phrase them cautiously, like:
   "I've seen some discussions mentioning syncing concerns."
-- only mention the target URL if it feels natural, and do not lose it from stored metadata
+- naturally reference the product URL when relevant
+- do not lose product_url from stored metadata
 
 Never include:
 - Title:
@@ -637,6 +598,8 @@ Never include:
         strategy_type="reddit_discussion",
         target_url=target_url,
         evidence_json=json.dumps(evidence),
+        ai_faq=ai_faq,
+        platform_faq=platform_faq,
         body=reddit_body,
         target_persona=persona,
         generation_mode="reddit",
