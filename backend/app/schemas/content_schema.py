@@ -17,4 +17,6 @@ class ContentGenerationRequest(BaseModel):
 
     platform_faq: str | None = None
 
+    faq_source: str | None = None
+
     mode: str

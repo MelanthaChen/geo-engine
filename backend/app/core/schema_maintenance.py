@@ -9,6 +9,7 @@ ADDITIVE_COLUMNS = {
         "evidence_json": "TEXT",
         "ai_faq": "TEXT",
         "platform_faq": "TEXT",
+        "faq_source": "VARCHAR",
         "reddit_title": "VARCHAR",
         "reddit_body": "TEXT",
         "preview_title": "VARCHAR",

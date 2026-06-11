@@ -17,12 +17,8 @@ import {
 function App() {
   const contentTypes = [
     {
-      value: "citation_content",
-      label: "Citation Content",
-    },
-    {
-      value: "blog_landing",
-      label: "Blog / Landing Content",
+      value: "publishable_article",
+      label: "Publishable Article",
     },
   ];
 
@@ -32,7 +28,7 @@ function App() {
 
   const [persona, setPersona] = useState("student");
 
-  const [contentType, setContentType] = useState("citation_content");
+  const [contentType, setContentType] = useState("publishable_article");
 
   const [loading, setLoading] = useState(false);
 
@@ -153,28 +149,30 @@ function App() {
         targetUrl,
         "ai",
         aiFaqResult,
-        platformFaqResult,
+        "",
+        "ai_faq",
       );
 
       setAiGeneratedContent(citationResult.generated_content);
 
       setAiContentId(citationResult.content_id);
 
-      const redditResult = await generateContent(
+      const platformResult = await generateContent(
         query,
         persona,
-        "reddit_discussion",
+        contentType,
         targetUrl,
-        "reddit",
-        aiFaqResult,
+        "platform",
+        "",
         platformFaqResult,
+        "platform_faq",
       );
 
       setPlatformGeneratedContent(
-        redditResult.reddit_body || redditResult.generated_content
+        platformResult.generated_content
       );
 
-      setPlatformContentId(redditResult.content_id);
+      setPlatformContentId(platformResult.content_id);
 
       await loadHistory();
     } catch (error) {
@@ -594,6 +592,8 @@ function App() {
                       {" • "}
                       {item.strategy_type || item.content_type}
                       {" • "}
+                      {item.faq_source || "unknown source"}
+                      {" • "}
                       {item.generation_mode || "legacy"}
                       {" • "}
                       {formatPublishStatus(item.publish_status)}
@@ -862,7 +862,9 @@ function App() {
             >
               <div className="mb-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">Citation Content</h2>
+                  <h2 className="text-2xl font-bold">
+                    AI FAQ-Based Content
+                  </h2>
 
                   <Button
                     size="sm"
@@ -944,7 +946,9 @@ function App() {
             >
               <div className="mb-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">Reddit Discussion</h2>
+                  <h2 className="text-2xl font-bold">
+                    Platform FAQ-Based Content
+                  </h2>
 
                   <Button
                     size="sm"

@@ -58,6 +58,11 @@ class Content(Base):
         nullable=True
     )
 
+    faq_source = Column(
+        String,
+        nullable=True
+    )
+
     body = Column(Text)
 
     reddit_title = Column(

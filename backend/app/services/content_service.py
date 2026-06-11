@@ -27,60 +27,41 @@ client = OpenAI(
 )
 
 
-REDDIT_FORBIDDEN_PATTERNS = [
-    r"^\s*\d+\.\s+",
-    r"^\s*title\s*:",
-    r"^\s*summary\s*:",
-    r"^\s*introduction\s*:",
-    r"^\s*full article\s*:",
-    r"^\s*faq\s*:",
-    r"^\s*reddit-style discussion post\s*:",
-    r"^\s*key talking points\s*:",
-    r"^\s*suggested follow-up questions\s*:",
-]
-
-REDDIT_TERMINAL_METADATA_PATTERNS = [
-    r"^\s*faq\s*:",
-    r"^\s*key talking points\s*:",
-    r"^\s*suggested follow-up questions\s*:",
-    r"^\s*seo keywords\s*:",
-]
-
 CONTENT_TYPE_ALIASES = {
-    "citation": "citation_content",
-    "citation content": "citation_content",
-    "citation_content": "citation_content",
-    "reddit": "reddit_discussion",
-    "reddit discussion": "reddit_discussion",
-    "reddit_discussion": "reddit_discussion",
-    "blog": "blog_landing",
-    "blog landing": "blog_landing",
-    "blog / landing": "blog_landing",
-    "blog_landing": "blog_landing",
-    "landing": "blog_landing",
-    "personal experience simulation": "blog_landing",
-    "personal_experience_simulation": "blog_landing",
-    "personal experience": "blog_landing",
-    "personal_experience": "blog_landing",
-    "experience": "blog_landing",
-    "comparison": "blog_landing",
-    "comparison article": "blog_landing",
-    "comparison_article": "blog_landing",
-    "comparison analysis": "blog_landing",
-    "comparison_analysis": "blog_landing",
-    "faq": "citation_content",
-    "research summary": "citation_content",
-    "research_summary": "citation_content",
-    "expert commentary": "blog_landing",
-    "expert_commentary": "blog_landing",
-    "review": "blog_landing",
-    "article": "blog_landing",
+    "publishable article": "publishable_article",
+    "publishable_article": "publishable_article",
+    "article": "publishable_article",
+    "citation": "publishable_article",
+    "citation content": "publishable_article",
+    "citation_content": "publishable_article",
+    "reddit": "publishable_article",
+    "reddit discussion": "publishable_article",
+    "reddit_discussion": "publishable_article",
+    "blog": "publishable_article",
+    "blog landing": "publishable_article",
+    "blog / landing": "publishable_article",
+    "blog_landing": "publishable_article",
+    "landing": "publishable_article",
+    "personal experience simulation": "publishable_article",
+    "personal_experience_simulation": "publishable_article",
+    "personal experience": "publishable_article",
+    "personal_experience": "publishable_article",
+    "experience": "publishable_article",
+    "comparison": "publishable_article",
+    "comparison article": "publishable_article",
+    "comparison_article": "publishable_article",
+    "comparison analysis": "publishable_article",
+    "comparison_analysis": "publishable_article",
+    "faq": "publishable_article",
+    "research summary": "publishable_article",
+    "research_summary": "publishable_article",
+    "expert commentary": "publishable_article",
+    "expert_commentary": "publishable_article",
+    "review": "publishable_article",
 }
 
 CONTENT_TYPE_LABELS = {
-    "citation_content": "Citation Content",
-    "reddit_discussion": "Reddit Discussion",
-    "blog_landing": "Blog / Landing Content",
+    "publishable_article": "Publishable Article",
 }
 
 GENERIC_MARKETING_BANS = """
@@ -114,10 +95,15 @@ def generate_content(
     mode: str,
     ai_faq: str | None = None,
     platform_faq: str | None = None,
+    faq_source: str | None = None,
 ):
-    strategy_type = normalize_content_type(
-        content_type=content_type,
+    normalized_faq_source = normalize_faq_source(
+        faq_source=faq_source,
         mode=mode
+    )
+
+    strategy_type = normalize_content_type(
+        content_type=content_type
     )
 
     evidence = generate_evidence(
@@ -126,19 +112,8 @@ def generate_content(
         product_url=target_url,
         ai_faq=ai_faq,
         platform_faq=platform_faq,
+        faq_source=normalized_faq_source,
     )
-
-    if strategy_type == "reddit_discussion":
-        return generate_reddit_content(
-            db=db,
-            query=query,
-            persona=persona,
-            content_type=strategy_type,
-            target_url=target_url,
-            evidence=evidence,
-            ai_faq=ai_faq,
-            platform_faq=platform_faq,
-        )
 
     prompt = build_content_strategy_prompt(
         strategy_type=strategy_type,
@@ -146,6 +121,7 @@ def generate_content(
         persona=persona,
         target_url=target_url,
         evidence=evidence,
+        faq_source=normalized_faq_source,
     )
 
     response = client.chat.completions.create(
@@ -186,8 +162,13 @@ def generate_content(
         strategy_type=strategy_type,
         target_url=target_url,
         evidence_json=json.dumps(evidence),
-        ai_faq=ai_faq,
-        platform_faq=platform_faq,
+        ai_faq=ai_faq if normalized_faq_source == "ai_faq" else None,
+        platform_faq=(
+            platform_faq
+            if normalized_faq_source == "platform_faq"
+            else None
+        ),
+        faq_source=normalized_faq_source,
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
@@ -200,7 +181,8 @@ def generate_content(
         source_type=mode,
         status=new_content.publish_status,
         summary=(
-            f"{CONTENT_TYPE_LABELS[strategy_type]} generated: "
+            f"{CONTENT_TYPE_LABELS[strategy_type]} "
+            f"from {normalized_faq_source} generated: "
             f"{article_title}"
         ),
         details=generated_content[:500]
@@ -215,33 +197,39 @@ def generate_evidence(
     product_url: str | None,
     ai_faq: str | None,
     platform_faq: str | None,
+    faq_source: str,
 ):
     ai_faq_items = parse_faq_lines(ai_faq or "")
     platform_faq_items = parse_faq_lines(platform_faq or "")
+    selected_items = (
+        ai_faq_items
+        if faq_source == "ai_faq"
+        else platform_faq_items
+    )
+    selected_faq = (
+        ai_faq
+        if faq_source == "ai_faq"
+        else platform_faq
+    )
 
     facts = []
 
-    if ai_faq_items:
-        facts.append(
-            {
-                "source": "ai_faq",
-                "statement": (
-                    "AI FAQ evidence contains questions users may ask "
-                    f"about {query}."
-                ),
-                "items": ai_faq_items,
-            }
+    if selected_items:
+        source_statement = (
+            "AI FAQ evidence contains questions AI systems commonly answer "
+            f"about {query}."
+            if faq_source == "ai_faq"
+            else (
+                "Platform FAQ evidence contains user concerns, comparisons, "
+                f"and discussion topics about {query}."
+            )
         )
 
-    if platform_faq_items:
         facts.append(
             {
-                "source": "platform_faq",
-                "statement": (
-                    "Platform FAQ evidence contains discussion-oriented "
-                    f"questions users may ask about {query}."
-                ),
-                "items": platform_faq_items,
+                "source": faq_source,
+                "statement": source_statement,
+                "items": selected_items,
             }
         )
 
@@ -256,39 +244,31 @@ def generate_evidence(
         }
     ] if product_url else []
 
-    if ai_faq:
+    if selected_faq:
         sources.append(
             {
-                "type": "ai_faq",
-                "label": "AI FAQ dataset",
-                "content": ai_faq,
-            }
-        )
-
-    if platform_faq:
-        sources.append(
-            {
-                "type": "platform_faq",
-                "label": "Platform FAQ dataset",
-                "content": platform_faq,
+                "type": faq_source,
+                "label": (
+                    "AI FAQ dataset"
+                    if faq_source == "ai_faq"
+                    else "Platform FAQ dataset"
+                ),
+                "content": selected_faq,
             }
         )
 
     key_points = [
         {
-            "topic": "citation_scope",
+            "topic": "source_scope",
             "point": (
-                "Generated content may answer questions represented in "
-                "the FAQ datasets, but must not introduce unsupported "
-                "product claims."
+                f"Generated content must use only the {faq_source} dataset."
             )
         },
         {
-            "topic": "reddit_scope",
+            "topic": "content_scope",
             "point": (
-                "Reddit discussion may refer to questions or discussions "
-                "from platform FAQ evidence, but must not invent user "
-                "complaints, experiences, syncing issues, or feature changes."
+                "Generated content should be a human-readable publishable "
+                "article, not a FAQ dump or source transformation."
             )
         },
     ]
@@ -320,6 +300,24 @@ def parse_faq_lines(faq_text: str):
             cleaned_lines.append(cleaned)
 
     return cleaned_lines
+
+
+def normalize_faq_source(
+    faq_source: str | None,
+    mode: str,
+):
+    normalized = (faq_source or "").strip().lower()
+
+    if normalized in {"platform", "platform_faq", "community"}:
+        return "platform_faq"
+
+    if normalized in {"ai", "ai_faq"}:
+        return "ai_faq"
+
+    if mode in {"platform", "reddit"}:
+        return "platform_faq"
+
+    return "ai_faq"
 
 
 def safe_scrape_reddit_questions(query: str):
@@ -362,11 +360,7 @@ def parse_evidence_payload(raw_content: str):
 
 def normalize_content_type(
     content_type: str,
-    mode: str,
 ):
-    if mode == "reddit":
-        return "reddit_discussion"
-
     normalized_key = (
         content_type
         .strip()
@@ -376,7 +370,7 @@ def normalize_content_type(
 
     return CONTENT_TYPE_ALIASES.get(
         normalized_key,
-        "citation_content"
+        "publishable_article"
     )
 
 
@@ -386,6 +380,7 @@ def build_content_strategy_prompt(
     persona: str,
     target_url: str | None,
     evidence: dict,
+    faq_source: str,
 ):
     evidence_json = json.dumps(
         evidence,
@@ -405,295 +400,64 @@ Target URL, if relevant:
 Evidence packet:
 {evidence_json}
 
+FAQ source:
+{faq_source}
+
 {GENERIC_MARKETING_BANS}
 
 General requirements:
 - Use only the provided evidence packet.
 - Preserve source attribution.
-- Treat ai_faq and platform_faq as the only FAQ evidence.
-- Prefer concrete facts, comparisons, caveats, and attributable statements.
-- Do not invent statistics, source claims, user opinions, or experiences.
-- If evidence is unavailable, say what would need to be verified.
-- Avoid repetitive introductions and empty praise.
+- Treat FAQ source and content type as independent concepts.
+- Keep the content type identical regardless of FAQ source.
+- Use only the selected FAQ source.
+- Write 500-1000 words.
+- Write natural human-readable prose.
+- Include the target URL naturally when relevant.
+- Do not use Question/Answer blocks.
+- Do not dump the FAQ list.
+- Do not include Key Findings, Research Summary, or SEO Keywords sections.
+- Do not use "AI optimized" wording.
+- Do not use "ultimate guide" wording.
+- Do not invent facts beyond the selected FAQ source.
 """
 
     templates = {
-        "citation_content": f"""
+        "publishable_article": f"""
 {shared_context}
 
-CONTENT TYPE: Citation Content
+CONTENT TYPE: Publishable Article
 
 Goal:
-Create AI-citable content directly from the FAQ evidence.
+Create one full publishable content piece from the selected FAQ source.
 
 Required structure:
 Title
-
-Question
-Answer
-
-Question
-Answer
-
-Question
-Answer
-
+Human-readable article body
 References
 
+Source-specific guidance:
+- If FAQ source is ai_faq, preserve questions AI systems commonly answer.
+- If FAQ source is platform_faq, preserve user concerns, comparisons,
+  discussions, and community interests.
+
 Requirements:
-- Q&A format only
+- 500-1000 words
+- publishable
+- human sounding
 - evidence-based
-- directly answer user questions from ai_faq and platform_faq
-- always include the product URL in References when provided
-- no marketing language
-- no "ultimate guide"
-- no "research summary" introduction
-- no claims beyond the FAQ evidence
-- preserve attribution to product_url, ai_faq, and platform_faq
-""",
-        "blog_landing": f"""
-{shared_context}
-
-CONTENT TYPE: Blog / Landing Content
-
-Goal:
-Create structured content that may later be cited by AI systems.
-
-Required structure:
-Title
-Overview
-FAQ-Based Answers
-Source-Aware Notes
-References
-
-Requirements:
-- FAQ based
-- structured
-- source-aware
-- preserve attribution to product_url
-- include the product URL in References when provided
-- no generic SEO article framing
-- no "ultimate guide"
-- no promotional claims
-- do not transform Citation Content or Reddit Discussion into this format
+- no FAQ dump
+- no Question/Answer blocks
+- no Key Findings section
+- no Research Summary section
+- no SEO keyword section
+- no AI optimized wording
+- no generic marketing tone
+- include the target URL naturally and in References when provided
 """,
     }
 
     return templates[strategy_type]
-
-
-def generate_reddit_content(
-    db: Session,
-    query: str,
-    persona: str,
-    content_type: str,
-    target_url: str | None,
-    evidence: dict,
-    ai_faq: str | None,
-    platform_faq: str | None,
-):
-    evidence_json = json.dumps(
-        evidence,
-        indent=2
-    )
-
-    prompt = f"""
-You are writing a real Reddit discussion post directly from FAQ evidence.
-
-Target brand/topic:
-{query}
-
-Persona:
-{persona}
-
-Target URL:
-{target_url or "Not provided"}
-
-Evidence packet:
-{evidence_json}
-
-Return ONLY valid JSON with exactly these keys:
-{{
-  "title": "...",
-  "body": "..."
-}}
-
-Rules for title:
-- natural Reddit-style question or discussion title
-- no clickbait
-- no marketing language
-- no "AI optimized"
-- no "comprehensive guide"
-
-Rules for body:
-- ONLY the discussion post content
-- short
-- 80-180 words
-- discussion oriented
-- ask genuine questions
-- invite discussion
-- sound like a real person
-- based only on FAQ evidence in ai_faq and platform_faq
-- avoid promotional tone
-- avoid SEO language
-- avoid GEO language
-- avoid "AI optimized"
-- avoid "comprehensive guide"
-- do not invent experiences
-- do not invent complaints
-- do not invent sync issues
-- do not fabricate user opinions
-- do not invent negative claims
-- if mentioning concerns, phrase them cautiously, like:
-  "I've seen some discussions mentioning syncing concerns."
-- naturally reference the product URL when relevant
-- do not lose product_url from stored metadata
-
-Never include:
-- Title:
-- Summary:
-- Introduction:
-- Full Article:
-- FAQ:
-- numbered sections
-- Markdown document structure
-- metadata labels
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You write natural Reddit posts and return strict JSON."
-                )
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.8
-    )
-
-    raw_content = response.choices[0].message.content
-
-    reddit_payload = parse_reddit_payload(raw_content)
-
-    reddit_title = reddit_payload["reddit_title"]
-
-    reddit_body = clean_reddit_body(
-        reddit_payload["reddit_body"]
-    )
-
-    print("[REDDIT MODE] Generated title")
-    print("[REDDIT MODE] Generated discussion body")
-
-    new_content = create_content(
-        db=db,
-        query_id=None,
-        title=reddit_title,
-        content_type="reddit_discussion",
-        strategy_type="reddit_discussion",
-        target_url=target_url,
-        evidence_json=json.dumps(evidence),
-        ai_faq=ai_faq,
-        platform_faq=platform_faq,
-        body=reddit_body,
-        target_persona=persona,
-        generation_mode="reddit",
-        reddit_title=reddit_title,
-        reddit_body=reddit_body,
-    )
-
-    create_history_event(
-        db=db,
-        event_type="reddit_content_created",
-        content_id=new_content.id,
-        source_type="reddit",
-        status=new_content.publish_status,
-        summary=f"Reddit post generated: {reddit_title}",
-        details=reddit_body[:500]
-    )
-
-    return new_content
-
-
-def parse_reddit_payload(raw_content: str):
-    try:
-        payload = json.loads(raw_content)
-    except json.JSONDecodeError:
-        match = re.search(
-            r"\{.*\}",
-            raw_content,
-            re.DOTALL
-        )
-
-        if not match:
-            raise ValueError(
-                "Reddit content generation did not return JSON"
-            )
-
-        payload = json.loads(match.group(0))
-
-    reddit_title = str(
-        payload.get("title")
-        or payload.get("reddit_title")
-        or ""
-    ).strip()
-
-    reddit_body = str(
-        payload.get("body")
-        or payload.get("reddit_body")
-        or ""
-    ).strip()
-
-    if not reddit_title or not reddit_body:
-        raise ValueError(
-            "Reddit content JSON must include title and body"
-        )
-
-    return {
-        "reddit_title": reddit_title,
-        "reddit_body": reddit_body,
-    }
-
-
-def clean_reddit_body(reddit_body: str):
-    cleaned_lines = []
-    skip_remaining = False
-
-    for line in reddit_body.splitlines():
-        stripped = line.strip()
-
-        if any(
-            re.search(pattern, stripped, re.IGNORECASE)
-            for pattern in REDDIT_TERMINAL_METADATA_PATTERNS
-        ):
-            skip_remaining = True
-            continue
-
-        if skip_remaining:
-            continue
-
-        if any(
-            re.search(pattern, stripped, re.IGNORECASE)
-            for pattern in REDDIT_FORBIDDEN_PATTERNS
-        ):
-            continue
-
-        cleaned_lines.append(line)
-
-    cleaned_body = "\n".join(cleaned_lines).strip()
-
-    cleaned_body = re.sub(
-        r"\n{3,}",
-        "\n\n",
-        cleaned_body
-    )
-
-    return cleaned_body
 
 
 def generate_faqs(

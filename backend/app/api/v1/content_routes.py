@@ -109,6 +109,7 @@ def generate_content_route(
         mode=request.mode,
         ai_faq=request.ai_faq,
         platform_faq=request.platform_faq,
+        faq_source=request.faq_source,
     )
 
     return {
@@ -141,6 +142,9 @@ def generate_content_route(
 
         "platform_faq":
             result.platform_faq,
+
+        "faq_source":
+            result.faq_source,
 
         "content_id":
             result.id
@@ -193,6 +197,9 @@ def get_content_history(
             ),
             "platform_faq": (
                 event.content.platform_faq if event.content else None
+            ),
+            "faq_source": (
+                event.content.faq_source if event.content else None
             ),
             "generation_mode": (
                 event.content.generation_mode
@@ -263,6 +270,7 @@ def get_content_history(
                 "evidence": content_evidence(content),
                 "ai_faq": content.ai_faq,
                 "platform_faq": content.platform_faq,
+                "faq_source": content.faq_source,
                 "generation_mode": content.generation_mode,
                 "publish_status": content.publish_status,
                 **publish_metadata(db, content),
@@ -360,6 +368,7 @@ def get_content_by_id(
         "evidence": content_evidence(content),
         "ai_faq": content.ai_faq,
         "platform_faq": content.platform_faq,
+        "faq_source": content.faq_source,
         "publish_status": content.publish_status,
         **publish_metadata(db, content),
         "preview_title": content.preview_title,
