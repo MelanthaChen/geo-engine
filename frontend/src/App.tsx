@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 
 import { Button } from "../@/components/ui/button";
 import { Card, CardContent } from "../@/components/ui/card";
 
 import { generateContent } from "@/api/content";
 import { generateFaqs } from "@/api/faq";
-import { fetchContentHistory } from "@/api/history";
+import {
+  deleteFaqHistory,
+  deleteGeneratedContentHistory,
+  fetchContentHistory,
+} from "@/api/history";
 import { publishContent } from "@/api/publishing";
 import { getContentStatus } from "@/api/contentStatus";
 import { runCitationTest } from "@/api/citation";
@@ -52,6 +56,11 @@ function App() {
   const [history, setHistory] = useState<any[]>([]);
 
   const [selectedHistory, setSelectedHistory] = useState<any>(null);
+
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const [aiContentId, setAiContentId] = useState<number | null>(null);
 
@@ -291,6 +300,66 @@ function App() {
     }
   }
 
+  function showToast(
+    type: "success" | "error",
+    message: string,
+  ) {
+    setToast({
+      type,
+      message,
+    });
+
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  }
+
+  async function handleDeleteHistoryItem(
+    item: any,
+    event: MouseEvent<HTMLButtonElement>,
+  ) {
+    event.stopPropagation();
+
+    const confirmed = window.confirm("Delete this history item?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      if (item.history_item_type === "faq") {
+        await deleteFaqHistory(item.history_item_id);
+      } else if (item.history_item_type === "generated_content") {
+        await deleteGeneratedContentHistory(item.history_item_id);
+      } else {
+        throw new Error("This history item cannot be deleted here");
+      }
+
+      const deletedIndex = history.findIndex(
+        (historyItem) => historyItem.id === item.id
+      );
+
+      const nextHistory = history.filter(
+        (historyItem) => historyItem.id !== item.id
+      );
+
+      setHistory(nextHistory);
+
+      if (selectedHistory?.id === item.id) {
+        setSelectedHistory(
+          nextHistory[deletedIndex] ||
+            nextHistory[deletedIndex - 1] ||
+            null
+        );
+      }
+
+      showToast("success", "History item deleted");
+    } catch (error) {
+      console.error(error);
+      showToast("error", "Failed to delete history item");
+    }
+  }
+
   async function handleCitationTest() {
     const contentId =
       selectedHistory?.content_id ||
@@ -351,6 +420,29 @@ function App() {
   return (
     <div className="min-h-screen bg-black text-white p-10">
       <div className="max-w-7xl mx-auto space-y-8">
+        {toast && (
+          <div
+            className={`
+              fixed
+              right-6
+              top-6
+              z-50
+              rounded
+              border
+              px-4
+              py-2
+              text-sm
+              ${
+                toast.type === "success"
+                  ? "border-emerald-700 bg-emerald-950 text-emerald-100"
+                  : "border-red-700 bg-red-950 text-red-100"
+              }
+            `}
+          >
+            {toast.message}
+          </div>
+        )}
+
         {hasReviewReadyTask && (
           <div
             className="
@@ -605,19 +697,40 @@ function App() {
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="font-bold text-lg">{item.title}</h3>
 
-                      <span
-                        className="
-                          rounded
-                          border
-                          border-zinc-700
-                          px-2
-                          py-1
-                          text-xs
-                          text-zinc-300
-                        "
-                      >
-                        {item.event_type || "content"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="
+                            rounded
+                            border
+                            border-zinc-700
+                            px-2
+                            py-1
+                            text-xs
+                            text-zinc-300
+                          "
+                        >
+                          {item.event_type || "content"}
+                        </span>
+
+                        {(item.history_item_type === "faq" ||
+                          item.history_item_type === "generated_content") && (
+                          <button
+                            type="button"
+                            aria-label="Delete history item"
+                            onClick={(event) =>
+                              handleDeleteHistoryItem(item, event)
+                            }
+                            className="
+                              text-zinc-500
+                              hover:text-red-300
+                              text-sm
+                              leading-none
+                            "
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <p className="text-zinc-400 text-sm mt-1">

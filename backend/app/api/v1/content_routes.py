@@ -169,13 +169,13 @@ def get_content_history(
     db: Session = Depends(get_db),
 ):
 
-    contents = fetch_all_contents(db)
-
     events = get_recent_history_events(db)
 
     event_rows = [
         {
             "id": f"event-{event.id}",
+            "history_item_type": "event",
+            "history_item_id": event.id,
             "event_id": event.id,
             "content_id": event.content_id,
             "title": (
@@ -259,6 +259,8 @@ def get_content_history(
     faq_rows = [
         {
             "id": f"faq-set-{faq_set.id}",
+            "history_item_type": "faq",
+            "history_item_id": faq_set.id,
             "content_id": None,
             "title": f"{faq_set.faq_source} FAQ Discovery: {faq_set.category}",
             "body": "\n".join(
@@ -306,6 +308,8 @@ def get_content_history(
     generated_rows = [
         {
             "id": f"generated-content-{content.id}",
+            "history_item_type": "generated_content",
+            "history_item_id": content.id,
             "content_id": content.content_id,
             "title": content.title,
             "body": content.body,
@@ -352,45 +356,8 @@ def get_content_history(
         reverse=True
     )
 
-    if history_rows:
-        return {
-            "history": history_rows
-        }
-
     return {
-        "history": [
-            {
-                "id": content.id,
-                "content_id": content.id,
-                "title": content_title(content),
-                "body": content.body,
-                "reddit_title": content.reddit_title,
-                "reddit_body": content.reddit_body,
-                "content_type": content.content_type,
-                "strategy_type": content.strategy_type,
-                "target_persona": content.target_persona,
-                "target_url": content.target_url,
-                "evidence": content_evidence(content),
-                "ai_faq": content.ai_faq,
-                "platform_faq": content.platform_faq,
-                "faq_source": content.faq_source,
-                "generation_mode": content.generation_mode,
-                "publish_status": content.publish_status,
-                **publish_metadata(db, content),
-                "preview_title": content.preview_title,
-                "preview_subreddit": content.preview_subreddit,
-                "preview_screenshot": content.preview_screenshot,
-                "preview_url": content.preview_url,
-                "preview_timestamp": content.preview_timestamp,
-                "citation_count": content.citation_count,
-                "visibility_score": content.visibility_score,
-                "event_type": "legacy_content",
-                "event_summary": "Legacy generated content",
-                "event_status": content.publish_status,
-                "created_at": content.created_at,
-            }
-            for content in contents
-        ]
+        "history": history_rows
     }
 
 

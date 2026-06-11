@@ -1,9 +1,18 @@
-from app.core.database import engine, Base
+from sqlalchemy import text
+
+from app.core.database import Base, engine
 
 from app.models import *
 
-print("Creating database tables...")
+
+print("Resetting database schema...")
+
+with engine.begin() as connection:
+    connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+    connection.execute(text("CREATE SCHEMA public"))
+
+print("Creating database tables from SQLAlchemy models...")
 
 Base.metadata.create_all(bind=engine)
 
-print("Tables created successfully!")
+print("Database reset and tables created successfully!")
