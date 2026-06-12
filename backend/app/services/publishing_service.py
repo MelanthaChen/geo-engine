@@ -17,6 +17,7 @@ def publish_content(
     db: Session,
     content_id: int,
     account_id: int | None = None,
+    publish_platform: str | None = None,
 ):
 
     content = (
@@ -33,23 +34,13 @@ def publish_content(
 
     account = select_publish_account(
         db=db,
-        account_id=account_id
+        account_id=account_id,
+        publish_platform=publish_platform,
     )
 
     if not account:
         return {
             "error": "No active publishing account found"
-        }
-
-    if account.platform == "reddit" and (
-        not content.reddit_title
-        or not content.reddit_body
-    ):
-        return {
-            "error": (
-                "Reddit publishing requires Reddit Discussion content. "
-                "Generate content with mode=reddit before queueing."
-            )
         }
 
     content.publish_status = "pending"
@@ -92,27 +83,34 @@ def publish_content(
         "publish_task_id": publish_task.id,
         "account_id": account.id,
         "account_handle": account.handle,
+        "publish_platform": account.platform,
     }
 
 
 def select_publish_account(
     db: Session,
     account_id: int | None = None,
+    publish_platform: str | None = None,
 ):
+    normalized_platform = (
+        publish_platform or "reddit"
+    ).strip().lower()
+
     if account_id:
-        return (
-            db.query(Account)
-            .filter(
-                Account.id == account_id,
-                Account.is_active.is_(True)
-            )
-            .first()
-        )
+        filters = [
+            Account.id == account_id,
+            Account.is_active.is_(True),
+        ]
+
+        if publish_platform:
+            filters.append(Account.platform == normalized_platform)
+
+        return db.query(Account).filter(*filters).first()
 
     active_accounts = (
         db.query(Account)
         .filter(
-            Account.platform == "reddit",
+            Account.platform == normalized_platform,
             Account.is_active.is_(True)
         )
         .all()

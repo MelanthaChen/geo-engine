@@ -19,6 +19,11 @@ def create_content(
     faq_source: str | None = None,
     reddit_title: str | None = None,
     reddit_body: str | None = None,
+    angle: str | None = None,
+    perspective: str | None = None,
+    archetype: str | None = None,
+    internet_style: str | None = None,
+    generated_angles: str | None = None,
 ):
     content = Content(
         query_id=query_id,
@@ -31,6 +36,11 @@ def create_content(
         ai_faq=ai_faq,
         platform_faq=platform_faq,
         faq_source=faq_source,
+        angle=angle,
+        perspective=perspective,
+        archetype=archetype,
+        internet_style=internet_style,
+        generated_angles=generated_angles,
         body=body,
         reddit_title=reddit_title,
         reddit_body=reddit_body,

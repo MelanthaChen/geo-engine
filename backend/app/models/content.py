@@ -63,6 +63,31 @@ class Content(Base):
         nullable=True
     )
 
+    angle = Column(
+        String,
+        nullable=True
+    )
+
+    perspective = Column(
+        String,
+        nullable=True
+    )
+
+    archetype = Column(
+        String,
+        nullable=True
+    )
+
+    internet_style = Column(
+        String,
+        nullable=True
+    )
+
+    generated_angles = Column(
+        Text,
+        nullable=True
+    )
+
     body = Column(Text)
 
     reddit_title = Column(

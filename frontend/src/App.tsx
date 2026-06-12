@@ -13,10 +13,6 @@ import {
 import { publishContent } from "@/api/publishing";
 import { getContentStatus } from "@/api/contentStatus";
 import { runCitationTest } from "@/api/citation";
-import {
-  fetchAccounts,
-  updateAccountStage,
-} from "@/api/accounts";
 
 function App() {
   const contentTypes = [
@@ -33,6 +29,8 @@ function App() {
     { value: "buying_guide", label: "buying_guide" },
     { value: "alternatives", label: "alternatives" },
     { value: "best_of", label: "best_of" },
+    { value: "community_summary", label: "community_summary" },
+    { value: "experience_report", label: "experience_report" },
   ];
 
   const [query, setQuery] = useState("");
@@ -84,8 +82,6 @@ function App() {
 
   const [citationResult, setCitationResult] = useState<any>(null);
 
-  const [accounts, setAccounts] = useState<any[]>([]);
-
   function formatPublishStatus(status: string) {
     if (status === "review_ready") {
       return "Review Ready";
@@ -103,7 +99,6 @@ function App() {
 
   useEffect(() => {
     loadHistory();
-    loadAccounts();
   }, []);
 
   useEffect(() => {
@@ -234,7 +229,10 @@ function App() {
         setPlatformStatus("queued");
       }
 
-      const result = await publishContent(contentId);
+      const result = await publishContent(
+        contentId,
+        publishPlatform,
+      );
 
       if (result.error) {
         throw new Error(result.error);
@@ -389,31 +387,6 @@ function App() {
       alert("Failed to run citation test");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function loadAccounts() {
-    try {
-      const data = await fetchAccounts();
-
-      setAccounts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  async function handleAccountStage(
-    accountId: number,
-    lifecycleStage: string,
-  ) {
-    try {
-      await updateAccountStage(accountId, lifecycleStage);
-
-      await loadAccounts();
-    } catch (error) {
-      console.error(error);
-
-      alert("Failed to update account stage");
     }
   }
 
@@ -584,7 +557,9 @@ function App() {
                 >
                   <option>reddit</option>
                   <option>xiaohongshu</option>
-                  <option>website</option>
+                  <option>wordpress</option>
+                  <option>github_pages</option>
+                  <option>medium</option>
                 </select>
               </div>
 
@@ -827,104 +802,6 @@ function App() {
             </CardContent>
           </Card>
         </div>
-
-        {/* ACCOUNT LIFECYCLE ROW */}
-
-        <Card className="bg-zinc-900 border-zinc-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Account Lifecycle</h2>
-
-              <Button size="sm" onClick={loadAccounts}>
-                Refresh
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className="
-                    bg-zinc-950
-                    border
-                    border-zinc-800
-                    rounded-xl
-                    p-4
-                    space-y-3
-                  "
-                >
-                  <div>
-                    <h3 className="font-bold truncate">{account.handle}</h3>
-                    <p className="text-sm text-zinc-400">
-                      {account.platform} • {account.persona}
-                    </p>
-                    <p className="text-xs text-zinc-500 truncate">
-                      {account.account_key || `account-${account.id}`}
-                    </p>
-                  </div>
-
-                  <div className="text-sm">
-                    <p className="text-zinc-500">Topic</p>
-                    <p>{account.assigned_topic}</p>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                    <div className="bg-zinc-900 rounded p-2">
-                      <p className="text-zinc-500">Assigned</p>
-                      <p className="font-bold">
-                        {account.assigned_tasks || 0}
-                      </p>
-                    </div>
-
-                    <div className="bg-zinc-900 rounded p-2">
-                      <p className="text-zinc-500">Published</p>
-                      <p className="font-bold">
-                        {account.published_tasks || 0}
-                      </p>
-                    </div>
-
-                    <div className="bg-zinc-900 rounded p-2">
-                      <p className="text-zinc-500">Failed</p>
-                      <p className="font-bold">
-                        {account.failed_tasks || 0}
-                      </p>
-                    </div>
-                  </div>
-
-                  <select
-                    value={account.lifecycle_stage}
-                    onChange={(e) =>
-                      handleAccountStage(account.id, e.target.value)
-                    }
-                    className="
-                      w-full
-                      bg-zinc-900
-                      border
-                      border-zinc-800
-                      rounded
-                      p-2
-                      text-sm
-                    "
-                  >
-                    <option value="created">created</option>
-                    <option value="warming">warming</option>
-                    <option value="ready">ready</option>
-                    <option value="publishing">publishing</option>
-                    <option value="monitoring">monitoring</option>
-                    <option value="paused">paused</option>
-                    <option value="blocked">blocked</option>
-                  </select>
-
-                  <p className="text-xs text-zinc-500">
-                    {account.is_active ? "active" : "inactive"} •{" "}
-                    {account.agent_name || "no agent"} •{" "}
-                    {account.health_status} • {account.last_action}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* FAQ ROW */}
 

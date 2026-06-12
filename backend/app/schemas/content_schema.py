@@ -21,4 +21,12 @@ class ContentGenerationRequest(BaseModel):
 
     source_faq_set_id: int | None = None
 
+    angle: str | None = None
+
+    perspective: str | None = None
+
+    archetype: str | None = None
+
+    internet_style: str | None = None
+
     mode: str

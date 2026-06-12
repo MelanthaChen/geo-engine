@@ -30,11 +30,26 @@ class GeneratedContent(Base):
 
     content_type = Column(String, nullable=False, index=True)
 
+    angle = Column(String, nullable=True, index=True)
+
+    perspective = Column(String, nullable=True, index=True)
+
+    archetype = Column(String, nullable=True, index=True)
+
+    internet_style = Column(String, nullable=True, index=True)
+
+    generated_angles = Column(Text, nullable=True)
+
     title = Column(String, nullable=False)
 
     body = Column(Text, nullable=False)
 
     website_url = Column(String, nullable=True)
+
+    generation_timestamp = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
 
     created_at = Column(
         DateTime(timezone=True),

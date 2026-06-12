@@ -20,6 +20,8 @@ CONTENT_TYPE_REGISTRY = {
     "buying_guide": "buying_guide",
     "alternatives": "alternatives",
     "best_of": "best_of",
+    "community_summary": "community_summary",
+    "experience_report": "experience_report",
 }
 
 
@@ -49,6 +51,11 @@ def persist_generated_content(
         category=category,
         faq_source=content.faq_source or "UNKNOWN",
         content_type=content.content_type or "unknown",
+        angle=content.angle,
+        perspective=content.perspective,
+        archetype=content.archetype,
+        internet_style=content.internet_style,
+        generated_angles=content.generated_angles,
         title=content.title,
         body=content.body,
         website_url=content.target_url,
@@ -61,11 +68,4 @@ def insert_natural_link(
     body: str,
     website_url: str | None,
 ):
-    if not website_url or website_url in body:
-        return body
-
-    return (
-        body.rstrip()
-        + "\n\nFor additional examples and resources:\n"
-        + website_url
-    )
+    return body

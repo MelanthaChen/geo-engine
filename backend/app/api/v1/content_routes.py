@@ -123,6 +123,10 @@ def generate_content_route(
         platform_faq=request.platform_faq,
         faq_source=request.faq_source,
         source_faq_set_id=request.source_faq_set_id,
+        angle=request.angle,
+        perspective=request.perspective,
+        archetype=request.archetype,
+        internet_style=request.internet_style,
     )
 
     return {
@@ -158,6 +162,21 @@ def generate_content_route(
 
         "faq_source":
             result.faq_source,
+
+        "angle":
+            result.angle,
+
+        "perspective":
+            result.perspective,
+
+        "archetype":
+            result.archetype,
+
+        "internet_style":
+            result.internet_style,
+
+        "generated_angles":
+            result.generated_angles,
 
         "content_id":
             result.id
@@ -213,6 +232,21 @@ def get_content_history(
             ),
             "faq_source": (
                 event.content.faq_source if event.content else None
+            ),
+            "angle": (
+                event.content.angle if event.content else None
+            ),
+            "perspective": (
+                event.content.perspective if event.content else None
+            ),
+            "archetype": (
+                event.content.archetype if event.content else None
+            ),
+            "internet_style": (
+                event.content.internet_style if event.content else None
+            ),
+            "generated_angles": (
+                event.content.generated_angles if event.content else None
             ),
             "generation_mode": (
                 event.content.generation_mode
@@ -280,6 +314,11 @@ def get_content_history(
             "ai_faq": None,
             "platform_faq": None,
             "faq_source": faq_set.faq_source,
+            "angle": None,
+            "perspective": None,
+            "archetype": None,
+            "internet_style": None,
+            "generated_angles": None,
             "generation_mode": "faq_discovery",
             "publish_status": "discovered",
             **empty_publish_metadata(),
@@ -323,6 +362,11 @@ def get_content_history(
             "ai_faq": None,
             "platform_faq": None,
             "faq_source": content.faq_source,
+            "angle": content.angle,
+            "perspective": content.perspective,
+            "archetype": content.archetype,
+            "internet_style": content.internet_style,
+            "generated_angles": content.generated_angles,
             "generation_mode": "content_generation",
             "publish_status": "generated",
             **empty_publish_metadata(),
@@ -339,7 +383,7 @@ def get_content_history(
                 f"{content.faq_source} FAQ set"
             ),
             "event_status": "generated",
-            "created_at": content.created_at,
+            "created_at": content.generation_timestamp or content.created_at,
         }
         for content in (
             db.query(GeneratedContent)
@@ -447,6 +491,11 @@ def get_content_by_id(
         "ai_faq": content.ai_faq,
         "platform_faq": content.platform_faq,
         "faq_source": content.faq_source,
+        "angle": content.angle,
+        "perspective": content.perspective,
+        "archetype": content.archetype,
+        "internet_style": content.internet_style,
+        "generated_angles": content.generated_angles,
         "publish_status": content.publish_status,
         **publish_metadata(db, content),
         "preview_title": content.preview_title,

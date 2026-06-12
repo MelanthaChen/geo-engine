@@ -20,6 +20,12 @@ from app.services.content.content_generator import (
     normalize_content_type as registry_normalize_content_type,
     persist_generated_content,
 )
+from app.services.content.angle_strategy import (
+    build_content_strategy,
+)
+from app.services.content.prompt_templates import (
+    build_content_prompt,
+)
 from app.services.faq_discovery.ai_faq_service import (
     discover_ai_faqs,
 )
@@ -37,21 +43,6 @@ from app.utils.title_extractor import (
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY
 )
-
-
-GENERIC_MARKETING_BANS = """
-Never use generic marketing or SEO language such as:
-- Ultimate Guide
-- Comprehensive Guide
-- AI Optimized Guide
-- SEO optimized
-- GEO optimized
-- keyword-rich
-- unlock productivity
-- game changer
-
-The goal is citation-worthy information gain, not promotion.
-"""
 
 
 def fetch_all_contents(
@@ -72,6 +63,10 @@ def generate_content(
     platform_faq: str | None = None,
     faq_source: str | None = None,
     source_faq_set_id: int | None = None,
+    angle: str | None = None,
+    perspective: str | None = None,
+    archetype: str | None = None,
+    internet_style: str | None = None,
 ):
     normalized_faq_source = normalize_faq_source(
         faq_source=faq_source,
@@ -117,13 +112,31 @@ def generate_content(
         faq_source=normalized_faq_source,
     )
 
-    prompt = build_content_strategy_prompt(
-        strategy_type=strategy_type,
-        query=query,
+    content_strategy = build_content_strategy(
+        db=db,
+        client=client,
+        category=query,
+        content_type=strategy_type,
+        faq_source=normalized_faq_source,
+        evidence=evidence,
+        explicit_angle=angle,
+        explicit_perspective=perspective,
+        explicit_archetype=archetype,
+        explicit_internet_style=internet_style,
+    )
+
+    prompt = build_content_prompt(
+        content_type=strategy_type,
+        category=query,
         persona=persona,
         target_url=target_url,
         evidence=evidence,
         faq_source=normalized_faq_source,
+        angle=content_strategy["angle"],
+        perspective=content_strategy["perspective"],
+        archetype=content_strategy["archetype"],
+        internet_style=content_strategy["internet_style"],
+        diversity_constraints=content_strategy["diversity_constraints"],
     )
 
     response = client.chat.completions.create(
@@ -131,14 +144,11 @@ def generate_content(
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You generate evidence-rich, citation-worthy content "
-                    "for AI retrieval and human research workflows."
-                )
+                "content": prompt.system_prompt
             },
             {
                 "role": "user",
-                "content": prompt
+                "content": prompt.user_prompt
             }
         ],
         temperature=0.7
@@ -176,6 +186,11 @@ def generate_content(
             else None
         ),
         faq_source=normalized_faq_source,
+        angle=content_strategy["angle"],
+        perspective=content_strategy["perspective"],
+        archetype=content_strategy["archetype"],
+        internet_style=content_strategy["internet_style"],
+        generated_angles=json.dumps(content_strategy["generated_angles"]),
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
@@ -192,7 +207,16 @@ def generate_content(
             f"from {normalized_faq_source} generated: "
             f"{article_title}"
         ),
-        details=generated_content[:500]
+        details=json.dumps(
+            {
+                "angle": content_strategy["angle"],
+                "perspective": content_strategy["perspective"],
+                "archetype": content_strategy["archetype"],
+                "internet_style": content_strategy["internet_style"],
+                "generated_angles": content_strategy["generated_angles"],
+                "preview": generated_content[:500],
+            }
+        )
     )
 
     persist_generated_content(
@@ -332,93 +356,6 @@ def normalize_faq_source(
         return "platform_faq"
 
     return "ai_faq"
-
-
-def build_content_strategy_prompt(
-    strategy_type: str,
-    query: str,
-    persona: str,
-    target_url: str | None,
-    evidence: dict,
-    faq_source: str,
-):
-    evidence_json = json.dumps(
-        evidence,
-        indent=2
-    )
-
-    shared_context = f"""
-Category:
-{query}
-
-Audience/persona:
-{persona}
-
-Target URL, if relevant:
-{target_url or "Not provided"}
-
-Evidence packet:
-{evidence_json}
-
-FAQ source:
-{faq_source}
-
-{GENERIC_MARKETING_BANS}
-
-General requirements:
-- Use only the provided evidence packet.
-- Preserve source attribution.
-- Treat FAQ source and content type as independent concepts.
-- Keep the content type identical regardless of FAQ source.
-- Use only the selected FAQ source.
-- Write 500-1000 words.
-- Write natural human-readable prose.
-- Include the target URL naturally when relevant.
-- Useful even if the website link is removed.
-- Do not use Question/Answer blocks.
-- Do not dump the FAQ list.
-- Do not include Key Findings, Research Summary, or SEO Keywords sections.
-- Do not use "AI optimized" wording.
-- Do not use "ultimate guide" wording.
-- Do not say the target website is amazing, best, or recommended.
-- Do not include a direct sales call to action.
-- Do not invent facts beyond the selected FAQ source.
-"""
-
-    return f"""
-{shared_context}
-
-CONTENT TYPE:
-{strategy_type}
-
-Goal:
-Create one full publishable content piece from the selected FAQ source.
-
-Required structure:
-Title
-Human-readable article body
-References
-
-Source-specific guidance:
-- If FAQ source is ai_faq, preserve questions AI systems commonly answer.
-- If FAQ source is platform_faq, preserve user concerns, comparisons,
-  discussions, and community interests.
-
-Requirements:
-- 500-1000 words
-- publishable
-- human sounding
-- evidence-based
-- follow the requested content type: {strategy_type}
-- no FAQ dump
-- no Question/Answer blocks
-- no Key Findings section
-- no Research Summary section
-- no SEO keyword section
-- no AI optimized wording
-- no generic marketing tone
-- include the target URL naturally and in References when provided
-"""
 
 
 def generate_faqs(

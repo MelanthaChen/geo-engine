@@ -64,13 +64,15 @@ class PublishFailedRequest(
 def publish_content_route(
     content_id: int,
     account_id: int | None = None,
+    publish_platform: str | None = None,
     db: Session = Depends(get_db),
 ):
 
     result = publish_content(
         db=db,
         content_id=content_id,
-        account_id=account_id
+        account_id=account_id,
+        publish_platform=publish_platform,
     )
 
     return result
@@ -121,21 +123,10 @@ def get_pending_publish_for_account(
 
     content = task.content
 
-    if task.account.platform == "reddit" and (
-        not content.reddit_title
-        or not content.reddit_body
-    ):
-        task.status = "failed"
-        content.publish_status = "failed"
-        db.commit()
-
-        return {
-            "task": None,
-            "error": (
-                "Reddit task missing reddit_title or reddit_body. "
-                "Regenerate as Reddit Discussion content."
-            )
-        }
+    adapted_title, adapted_body = adapt_content_for_platform(
+        content=content,
+        publish_platform=task.account.platform,
+    )
 
     return {
         "task": {
@@ -145,18 +136,8 @@ def get_pending_publish_for_account(
             "account_id": task.account_id,
             "account_handle": task.account.handle,
             "platform": task.account.platform,
-            "title": (
-                content.reddit_title
-                or extract_article_title(
-                    generated_content=content.body,
-                    fallback=content.title
-                )
-            ),
-            "body": (
-                content.reddit_body
-                if task.account.platform == "reddit"
-                else content.body
-            ),
+            "title": adapted_title,
+            "body": adapted_body,
             "target_url": content.target_url,
             "subreddit": "test"
         }
@@ -230,7 +211,11 @@ def complete_publish(
     if request.status == "published":
         content.published_url = request.url
 
-    content.publish_provider = "reddit"
+    content.publish_provider = (
+        publish_task.account.platform
+        if publish_task
+        else None
+    )
 
     content.preview_title = request.preview_title
     content.preview_subreddit = request.preview_subreddit
@@ -271,3 +256,68 @@ def complete_publish(
         "account_id": publish_task.account_id if publish_task else None,
         "publish_status": content.publish_status,
     }
+
+
+def adapt_content_for_platform(
+    content: Content,
+    publish_platform: str,
+):
+    normalized_platform = (publish_platform or "").strip().lower()
+
+    title = (
+        content.reddit_title
+        or extract_article_title(
+            generated_content=content.body,
+            fallback=content.title
+        )
+    )
+
+    if normalized_platform != "reddit":
+        return title, content.body
+
+    if content.reddit_body:
+        return title, content.reddit_body
+
+    return title, build_reddit_discussion_body(content)
+
+
+def build_reddit_discussion_body(content: Content):
+    body = (content.body or "").strip()
+
+    lines = [
+        line.strip()
+        for line in body.splitlines()
+        if line.strip()
+    ]
+
+    cleaned_lines = [
+        line
+        for line in lines
+        if not line.lower().startswith(
+            (
+                "title:",
+                "summary:",
+                "full article:",
+                "faq:",
+                "references:",
+            )
+        )
+    ]
+
+    excerpt = "\n\n".join(cleaned_lines[:6]).strip()
+
+    if len(excerpt) > 1800:
+        excerpt = excerpt[:1800].rsplit(" ", 1)[0].strip()
+
+    question = (
+        "Curious how other people are thinking about this. "
+        "What tradeoffs or details would you pay attention to?"
+    )
+
+    if not excerpt:
+        excerpt = (
+            "I have been looking into this topic and trying to separate "
+            "useful information from generic advice."
+        )
+
+    return f"{excerpt}\n\n{question}"
