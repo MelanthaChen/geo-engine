@@ -179,6 +179,30 @@ Failure conditions:
 - The article could have been written without reading the evidence.
 - The article sounds like a school essay.
 - The article sounds like a generic educational article.
+
+Internet-native writing rules:
+
+Assume the reader already knows the basics.
+
+Do not spend time defining the category.
+
+Do not answer:
+"What is X?"
+
+Do not answer:
+"What are the benefits of X?"
+
+Do not answer:
+"What are the disadvantages of X?"
+
+Instead focus on:
+
+- misconceptions
+- tradeoffs
+- surprising patterns
+- disagreements
+- failed assumptions
+- decision-making conflicts
 """
 
 
