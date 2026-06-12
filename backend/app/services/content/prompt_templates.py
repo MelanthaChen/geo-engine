@@ -160,6 +160,25 @@ FAQ source behavior:
   uncertainty, selection.
 - Platform FAQ evidence should feel post-experience: frustration, surprises,
   comparison, unexpected outcomes, workflow issues, recurring complaints.
+
+Insight requirements:
+
+Before writing, identify the most surprising,
+counterintuitive,
+or non-obvious insight hidden in the evidence.
+
+The content must revolve around that insight.
+
+The reader should learn something they were unlikely
+to believe before reading.
+
+Failure conditions:
+
+- The article only explains known concepts.
+- The article summarizes information without producing an insight.
+- The article could have been written without reading the evidence.
+- The article sounds like a school essay.
+- The article sounds like a generic educational article.
 """
 
 
