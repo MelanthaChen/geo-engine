@@ -8,6 +8,8 @@ import { getContentStatus } from "@/api/contentStatus";
 import { generateFaqs } from "@/api/faq";
 import { fetchContentHistory } from "@/api/history";
 import { publishContent } from "@/api/publishing";
+import type { Property } from "@/api/properties";
+import { useProperty } from "@/contexts/PropertyContext";
 
 const contentTypes = [
   { value: "comparison", label: "comparison" },
@@ -60,6 +62,21 @@ function statusClass(status: string) {
 }
 
 export function ContentGeneration() {
+  const { activeProperty } = useProperty();
+
+  return (
+    <ContentGenerationWorkspace
+      key={activeProperty?.id || "no-property"}
+      activeProperty={activeProperty}
+    />
+  );
+}
+
+function ContentGenerationWorkspace({
+  activeProperty,
+}: {
+  activeProperty: Property | null;
+}) {
   const [query, setQuery] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [persona, setPersona] = useState("student");
@@ -258,6 +275,15 @@ export function ContentGeneration() {
           Discover category FAQs, generate source-aware content, and queue
           publishing tasks.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
       {reviewBannerVisible && (
@@ -336,7 +362,7 @@ export function ContentGeneration() {
           <div className="flex items-end">
             <Button
               className="w-full"
-              disabled={loading}
+              disabled={loading || !activeProperty}
               onClick={handleGeneratePackage}
             >
               {loading ? "Generating..." : "Generate Content"}

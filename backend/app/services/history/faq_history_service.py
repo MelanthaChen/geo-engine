@@ -9,10 +9,12 @@ def create_faq_set(
     category: str,
     faq_source: str,
     questions: list[str],
+    property_id: int | None = None,
     content_type: str | None = None,
     website_url: str | None = None,
 ):
     faq_set = FaqSet(
+        property_id=property_id,
         category=category,
         faq_source=faq_source,
         content_type=content_type,
@@ -70,6 +72,7 @@ def serialize_faq_set(faq_set: FaqSet | None):
 
     return {
         "id": faq_set.id,
+        "property_id": faq_set.property_id,
         "category": faq_set.category,
         "faq_source": faq_set.faq_source,
         "content_type": faq_set.content_type,

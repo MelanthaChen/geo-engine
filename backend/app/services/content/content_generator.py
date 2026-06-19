@@ -45,9 +45,11 @@ def persist_generated_content(
     category: str,
     content: Content,
     source_faq_set_id: int | None,
+    property_id: int | None = None,
 ):
     return create_generated_content(
         db=db,
+        property_id=property_id,
         category=category,
         faq_source=content.faq_source or "UNKNOWN",
         content_type=content.content_type or "unknown",

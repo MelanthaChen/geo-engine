@@ -7,6 +7,7 @@ import {
   deleteGeneratedContentHistory,
   fetchContentHistory,
 } from "@/api/history";
+import { useProperty } from "@/contexts/PropertyContext";
 
 type HistoryItem = {
   id: number | string;
@@ -40,6 +41,7 @@ function formatPublishStatus(status: string) {
 }
 
 export function ContentHistory() {
+  const { activeProperty } = useProperty();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(
     null,
@@ -53,6 +55,11 @@ export function ContentHistory() {
     let isMounted = true;
 
     async function loadInitialHistory() {
+      if (!activeProperty) {
+        setHistory([]);
+        return;
+      }
+
       try {
         const data = await fetchContentHistory();
 
@@ -77,7 +84,7 @@ export function ContentHistory() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [activeProperty]);
 
   function showToast(type: "success" | "error", message: string) {
     setToast({ type, message });
@@ -156,6 +163,15 @@ export function ContentHistory() {
         <p className="mt-2 max-w-3xl text-sm text-zinc-500">
           Browse persisted FAQ discovery runs and generated content artifacts.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[420px_1fr]">

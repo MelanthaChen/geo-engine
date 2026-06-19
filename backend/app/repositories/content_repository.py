@@ -10,6 +10,7 @@ def create_content(
     content_type: str,
     body: str,
     target_persona: str,
+    property_id: int | None = None,
     generation_mode: str | None = None,
     strategy_type: str | None = None,
     target_url: str | None = None,
@@ -26,6 +27,7 @@ def create_content(
     generated_angles: str | None = None,
 ):
     content = Content(
+        property_id=property_id,
         query_id=query_id,
         title=title,
         content_type=content_type,
@@ -59,6 +61,17 @@ def get_all_contents(db: Session):
 
     return (
         db.query(Content)
+        .order_by(Content.created_at.desc())
+        .all()
+    )
+
+def get_all_contents_for_property(
+    db: Session,
+    property_id: int,
+):
+    return (
+        db.query(Content)
+        .filter(Content.property_id == property_id)
         .order_by(Content.created_at.desc())
         .all()
     )

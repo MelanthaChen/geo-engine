@@ -12,27 +12,39 @@ import {
 
 import { Card, CardContent } from "../../@/components/ui/card";
 
-const trafficData = [
-  { day: "Mon", clicks: 82, impressions: 920 },
-  { day: "Tue", clicks: 104, impressions: 1120 },
-  { day: "Wed", clicks: 97, impressions: 1060 },
-  { day: "Thu", clicks: 128, impressions: 1340 },
-  { day: "Fri", clicks: 141, impressions: 1490 },
-  { day: "Sat", clicks: 118, impressions: 1280 },
-  { day: "Sun", clicks: 156, impressions: 1650 },
-];
+type DashboardChartsProps = {
+  clicks: number;
+  impressions: number;
+  visibilityScore: number;
+  citationCount: number;
+};
 
-const visibilityData = [
-  { day: "Mon", visibility: 31, citations: 2 },
-  { day: "Tue", visibility: 34, citations: 3 },
-  { day: "Wed", visibility: 33, citations: 2 },
-  { day: "Thu", visibility: 41, citations: 5 },
-  { day: "Fri", visibility: 46, citations: 6 },
-  { day: "Sat", visibility: 44, citations: 5 },
-  { day: "Sun", visibility: 52, citations: 7 },
-];
+export function DashboardCharts({
+  citationCount,
+  clicks,
+  impressions,
+  visibilityScore,
+}: DashboardChartsProps) {
+  const trafficData = [
+    { day: "Mon", clicks: 0, impressions: 0 },
+    { day: "Tue", clicks: Math.round(clicks * 0.3), impressions: Math.round(impressions * 0.3) },
+    { day: "Wed", clicks: Math.round(clicks * 0.45), impressions: Math.round(impressions * 0.45) },
+    { day: "Thu", clicks: Math.round(clicks * 0.6), impressions: Math.round(impressions * 0.6) },
+    { day: "Fri", clicks: Math.round(clicks * 0.75), impressions: Math.round(impressions * 0.75) },
+    { day: "Sat", clicks: Math.round(clicks * 0.9), impressions: Math.round(impressions * 0.9) },
+    { day: "Sun", clicks, impressions },
+  ];
 
-export function DashboardCharts() {
+  const visibilityData = [
+    { day: "Mon", visibility: 0, citations: 0 },
+    { day: "Tue", visibility: Math.round(visibilityScore * 0.35), citations: Math.round(citationCount * 0.25) },
+    { day: "Wed", visibility: Math.round(visibilityScore * 0.5), citations: Math.round(citationCount * 0.4) },
+    { day: "Thu", visibility: Math.round(visibilityScore * 0.65), citations: Math.round(citationCount * 0.55) },
+    { day: "Fri", visibility: Math.round(visibilityScore * 0.8), citations: Math.round(citationCount * 0.7) },
+    { day: "Sat", visibility: Math.round(visibilityScore * 0.9), citations: Math.round(citationCount * 0.85) },
+    { day: "Sun", visibility: visibilityScore, citations: citationCount },
+  ];
+
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Card className="border-zinc-800 bg-zinc-950">

@@ -15,6 +15,7 @@ client = OpenAI(
 def check_citation(
     db: Session,
     query: str,
+    property_id: int | None = None,
 ):
 
     prompt = f"""
@@ -44,11 +45,25 @@ Include recommendations and sources if relevant.
 
     answer = response.choices[0].message.content
 
+    content_query = db.query(Content)
+
+    if property_id is not None:
+        content_query = content_query.filter(Content.property_id == property_id)
+
     latest_content = (
-        db.query(Content)
-        .order_by(Content.created_at.desc())
+        content_query.order_by(Content.created_at.desc())
         .first()
     )
+
+    if not latest_content:
+        return {
+            "ai_response": answer,
+            "detection_result": {
+                "citation_found": False,
+                "score": 0,
+                "reason": "No content found for property",
+            }
+        }
 
     detection_result = detect_citation(
         ai_response=answer,

@@ -19,6 +19,13 @@ class ContentHistoryEvent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     content_id = Column(
         Integer,
         ForeignKey("contents.id"),
@@ -42,4 +49,5 @@ class ContentHistoryEvent(Base):
         server_default=func.now()
     )
 
+    property = relationship("Property", back_populates="history_events")
     content = relationship("Content")

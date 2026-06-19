@@ -13,6 +13,7 @@ def create_generated_content(
     website_url: str | None,
     source_faq_set_id: int | None,
     content_id: int | None,
+    property_id: int | None = None,
     angle: str | None = None,
     perspective: str | None = None,
     archetype: str | None = None,
@@ -20,6 +21,7 @@ def create_generated_content(
     generated_angles: str | None = None,
 ):
     generated_content = GeneratedContent(
+        property_id=property_id,
         category=category,
         faq_source=faq_source,
         content_type=content_type,
@@ -45,6 +47,7 @@ def create_generated_content(
 def serialize_generated_content(content: GeneratedContent):
     return {
         "id": content.id,
+        "property_id": content.property_id,
         "content_id": content.content_id,
         "source_faq_set_id": content.source_faq_set_id,
         "category": content.category,

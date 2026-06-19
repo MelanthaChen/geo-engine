@@ -2,34 +2,46 @@ import { BarChart3, FileText, Link2, Send } from "lucide-react";
 
 import { Card, CardContent } from "../../@/components/ui/card";
 
-const cards = [
-  {
-    label: "Generated Content",
-    value: "142",
-    detail: "+18 this week",
-    icon: FileText,
-  },
-  {
-    label: "Published Content",
-    value: "68",
-    detail: "12 awaiting review",
-    icon: Send,
-  },
-  {
-    label: "Tracked Prompts",
-    value: "37",
-    detail: "Across 5 categories",
-    icon: BarChart3,
-  },
-  {
-    label: "Citation Count",
-    value: "14",
-    detail: "Observed in tests",
-    icon: Link2,
-  },
-];
+type DashboardCardsProps = {
+  generatedContent: number;
+  publishedContent: number;
+  trackedPrompts: number;
+  citationCount: number;
+};
 
-export function DashboardCards() {
+export function DashboardCards({
+  citationCount,
+  generatedContent,
+  publishedContent,
+  trackedPrompts,
+}: DashboardCardsProps) {
+  const cards = [
+    {
+      label: "Generated Content",
+      value: String(generatedContent),
+      detail: "Current property",
+      icon: FileText,
+    },
+    {
+      label: "Published Content",
+      value: String(publishedContent),
+      detail: "Current property",
+      icon: Send,
+    },
+    {
+      label: "Tracked Prompts",
+      value: String(trackedPrompts),
+      detail: "Active publishing or review tasks",
+      icon: BarChart3,
+    },
+    {
+      label: "Citation Count",
+      value: String(citationCount),
+      detail: "Observed in citation tests",
+      icon: Link2,
+    },
+  ];
+
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (

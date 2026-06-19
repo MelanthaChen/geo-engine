@@ -1,5 +1,7 @@
 import { Card, CardContent } from "../../@/components/ui/card";
 
+import { useProperty } from "@/contexts/PropertyContext";
+
 const publishingTasks = [
   {
     title: "AI Resume Builders vs Traditional Resume Writing",
@@ -54,6 +56,8 @@ function statusBadgeClass(status: string) {
 }
 
 export function PublishingQueue() {
+  const { activeProperty } = useProperty();
+
   return (
     <div className="space-y-6">
       <div>
@@ -67,6 +71,15 @@ export function PublishingQueue() {
           Review queued publishing tasks, assigned platforms, and current
           processing status.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
       <Card className="border-zinc-800 bg-zinc-950">

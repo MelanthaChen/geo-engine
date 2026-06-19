@@ -19,6 +19,13 @@ class Content(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     query_id = Column(
         Integer,
         ForeignKey("queries.id")
@@ -175,5 +182,6 @@ class Content(Base):
         nullable=True
     )
 
+    property = relationship("Property", back_populates="contents")
     query = relationship("Query")
     campaign = relationship("Campaign")

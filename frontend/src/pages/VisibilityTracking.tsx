@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
+import { useProperty } from "@/contexts/PropertyContext";
+
 const prompts = [
   {
     prompt: "best ai resume builder",
@@ -43,6 +45,7 @@ const modelResponses = {
 };
 
 export function VisibilityTracking() {
+  const { activeProperty } = useProperty();
   const [selectedPrompt, setSelectedPrompt] = useState<
     (typeof prompts)[number] | null
   >(null);
@@ -60,6 +63,15 @@ export function VisibilityTracking() {
           Track prompt-level visibility and inspect model responses across AI
           search surfaces.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
       <Card className="border-zinc-800 bg-zinc-950">

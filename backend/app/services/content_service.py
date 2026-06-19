@@ -9,7 +9,8 @@ from app.core.config import settings
 
 from app.repositories.content_repository import (
     create_content,
-    get_all_contents
+    get_all_contents,
+    get_all_contents_for_property
 )
 from app.repositories.history_repository import (
     create_history_event
@@ -46,8 +47,11 @@ client = OpenAI(
 
 
 def fetch_all_contents(
-    db: Session
+    db: Session,
+    property_id: int | None = None,
 ):
+    if property_id is not None:
+        return get_all_contents_for_property(db, property_id)
 
     return get_all_contents(db)
 
@@ -59,6 +63,7 @@ def generate_content(
     content_type: str,
     target_url: str | None,
     mode: str,
+    property_id: int | None = None,
     ai_faq: str | None = None,
     platform_faq: str | None = None,
     faq_source: str | None = None,
@@ -174,6 +179,7 @@ def generate_content(
     new_content = create_content(
         db=db,
         query_id=None,
+        property_id=property_id,
         title=article_title,
         content_type=strategy_type,
         strategy_type=strategy_type,
@@ -199,6 +205,7 @@ def generate_content(
     create_history_event(
         db=db,
         event_type="content_created",
+        property_id=new_content.property_id,
         content_id=new_content.id,
         source_type=mode,
         status=new_content.publish_status,
@@ -224,6 +231,7 @@ def generate_content(
         category=query,
         content=new_content,
         source_faq_set_id=source_faq_set_id,
+        property_id=property_id,
     )
 
     return new_content
@@ -364,6 +372,7 @@ def generate_faqs(
     db: Session | None = None,
     content_type: str = "comparison",
     website_url: str | None = None,
+    property_id: int | None = None,
 ):
     if db is None:
         raise ValueError("Database session is required for FAQ discovery")
@@ -373,6 +382,7 @@ def generate_faqs(
             db=db,
             category=target,
             content_type=content_type,
+            property_id=property_id,
         )
 
     else:
@@ -380,6 +390,7 @@ def generate_faqs(
             db=db,
             category=target,
             website_url=website_url,
+            property_id=property_id,
         )
 
     questions = [

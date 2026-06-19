@@ -21,6 +21,13 @@ class CitationTest(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     content_id = Column(
         Integer,
         ForeignKey("contents.id")
@@ -53,4 +60,5 @@ class CitationTest(Base):
         server_default=func.now()
     )
 
+    property = relationship("Property", back_populates="citation_tests")
     content = relationship("Content")

@@ -1,8 +1,10 @@
 from sqlalchemy import Column
+from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import DateTime
 from sqlalchemy import func
+from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
@@ -14,6 +16,13 @@ class Query(Base):
     id = Column(
         Integer,
         primary_key=True,
+        index=True
+    )
+
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
         index=True
     )
 
@@ -42,3 +51,5 @@ class Query(Base):
         DateTime(timezone=True),
         server_default=func.now()
     )
+
+    property = relationship("Property")

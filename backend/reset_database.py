@@ -2,6 +2,7 @@ from sqlalchemy import inspect, text
 
 from app.core.database import Base, engine
 from app.models import *
+from app.services.property_service import seed_default_property
 
 
 REQUIRED_TABLES = {
@@ -9,6 +10,7 @@ REQUIRED_TABLES = {
     "faqs",
     "generated_contents",
     "content_history_events",
+    "properties",
 }
 
 
@@ -21,6 +23,11 @@ def reset_database():
 
     print("Creating database tables from SQLAlchemy models...")
     Base.metadata.create_all(bind=engine)
+
+    from app.core.database import SessionLocal
+
+    with SessionLocal() as db:
+        seed_default_property(db)
 
     inspector = inspect(engine)
     created_tables = sorted(inspector.get_table_names(schema="public"))

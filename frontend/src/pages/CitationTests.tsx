@@ -1,30 +1,28 @@
 import { Card, CardContent } from "../../@/components/ui/card";
 
+import { useProperty } from "@/contexts/PropertyContext";
+
 const citationRows = [
   {
     prompt: "best ai resume builder for students",
-    targetBrand: "ResumeForge",
     mentioned: "Yes",
     rank: 3,
     model: "ChatGPT",
   },
   {
     prompt: "resume builder vs chatgpt",
-    targetBrand: "ResumeForge",
     mentioned: "No",
     rank: "-",
     model: "Claude",
   },
   {
     prompt: "ats friendly resume builder",
-    targetBrand: "ResumeForge",
     mentioned: "Yes",
     rank: 5,
     model: "Perplexity",
   },
   {
     prompt: "free ai resume builder recommendations",
-    targetBrand: "ResumeForge",
     mentioned: "No",
     rank: "-",
     model: "Gemini",
@@ -32,6 +30,8 @@ const citationRows = [
 ];
 
 export function CitationTests() {
+  const { activeProperty } = useProperty();
+
   return (
     <div className="space-y-6">
       <div>
@@ -45,6 +45,15 @@ export function CitationTests() {
           Inspect prompt tests, target mentions, model rank, and citation
           visibility.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
       <Card className="border-zinc-800 bg-zinc-950">
@@ -69,7 +78,7 @@ export function CitationTests() {
                     {row.prompt}
                   </td>
                   <td className="px-5 py-4 text-zinc-400">
-                    {row.targetBrand}
+                    {activeProperty?.brand_name || "No property selected"}
                   </td>
                   <td className="px-5 py-4">
                     <span

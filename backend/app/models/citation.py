@@ -19,6 +19,13 @@ class Citation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     content_id = Column(
         Integer,
         ForeignKey("contents.id")
@@ -41,4 +48,5 @@ class Citation(Base):
         server_default=func.now()
     )
 
+    property = relationship("Property")
     content = relationship("Content")

@@ -18,13 +18,15 @@ def publish_content(
     content_id: int,
     account_id: int | None = None,
     publish_platform: str | None = None,
+    property_id: int | None = None,
 ):
 
-    content = (
-        db.query(Content)
-        .filter(Content.id == content_id)
-        .first()
-    )
+    query = db.query(Content).filter(Content.id == content_id)
+
+    if property_id is not None:
+        query = query.filter(Content.property_id == property_id)
+
+    content = query.first()
 
     if not content:
 
@@ -54,6 +56,7 @@ def publish_content(
     )
 
     publish_task = PublishTask(
+        property_id=content.property_id,
         content_id=content.id,
         account_id=account.id,
         status="pending"
@@ -68,6 +71,7 @@ def publish_content(
     create_history_event(
         db=db,
         event_type="publish_requested",
+        property_id=content.property_id,
         content_id=content.id,
         source_type=content.generation_mode,
         status=content.publish_status,
@@ -135,13 +139,19 @@ def select_publish_account(
 def claim_pending_task(
     db: Session,
     account_id: int,
+    property_id: int | None = None,
 ):
+    filters = [
+        PublishTask.account_id == account_id,
+        PublishTask.status == "pending",
+    ]
+
+    if property_id is not None:
+        filters.append(PublishTask.property_id == property_id)
+
     task = (
         db.query(PublishTask)
-        .filter(
-            PublishTask.account_id == account_id,
-            PublishTask.status == "pending"
-        )
+        .filter(*filters)
         .order_by(PublishTask.created_at.asc())
         .first()
     )
@@ -180,6 +190,7 @@ def mark_task_failed(
     create_history_event(
         db=db,
         event_type="publish_failed",
+        property_id=task.property_id,
         content_id=task.content_id,
         source_type=task.content.generation_mode,
         status="failed",

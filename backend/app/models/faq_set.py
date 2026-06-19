@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -11,6 +11,13 @@ class FaqSet(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     category = Column(String, nullable=False, index=True)
 
     faq_source = Column(String, nullable=False, index=True)
@@ -22,6 +29,11 @@ class FaqSet(Base):
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now()
+    )
+
+    property = relationship(
+        "Property",
+        back_populates="faq_sets"
     )
 
     faqs = relationship(

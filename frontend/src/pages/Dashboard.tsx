@@ -1,7 +1,44 @@
+import { useEffect, useState } from "react";
+
+import {
+  fetchPropertyMetrics,
+  type PropertyMetrics,
+} from "@/api/properties";
 import { DashboardCards } from "@/components/DashboardCards";
 import { DashboardCharts } from "@/components/DashboardCharts";
+import { useProperty } from "@/contexts/PropertyContext";
 
 export function Dashboard() {
+  const { activeProperty } = useProperty();
+  const [metrics, setMetrics] = useState<PropertyMetrics | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMetrics() {
+      if (!activeProperty) {
+        setMetrics(null);
+        return;
+      }
+
+      try {
+        const result = await fetchPropertyMetrics(activeProperty.id);
+
+        if (isMounted) {
+          setMetrics(result);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    void loadMetrics();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProperty]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -15,10 +52,29 @@ export function Dashboard() {
           Monitor category research, publishing throughput, visibility, and
           citation performance from one console.
         </p>
+        {activeProperty && (
+          <p className="mt-3 text-sm text-zinc-400">
+            Current Property:{" "}
+            <span className="text-zinc-100">{activeProperty.name}</span>
+            {" • "}
+            Domain:{" "}
+            <span className="text-zinc-100">{activeProperty.domain}</span>
+          </p>
+        )}
       </div>
 
-      <DashboardCards />
-      <DashboardCharts />
+      <DashboardCards
+        citationCount={metrics?.citation_count ?? 0}
+        generatedContent={metrics?.generated_content ?? 0}
+        publishedContent={metrics?.published_content ?? 0}
+        trackedPrompts={metrics?.tracked_prompts ?? 0}
+      />
+      <DashboardCharts
+        clicks={metrics?.clicks ?? 0}
+        impressions={metrics?.impressions ?? 0}
+        visibilityScore={metrics?.visibility_score ?? 0}
+        citationCount={metrics?.citation_count ?? 0}
+      />
     </div>
   );
 }

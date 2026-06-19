@@ -1,4 +1,5 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -9,6 +10,13 @@ class GeneratedContent(Base):
     __tablename__ = "generated_contents"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
 
     content_id = Column(
         Integer,
@@ -54,4 +62,9 @@ class GeneratedContent(Base):
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now()
+    )
+
+    property = relationship(
+        "Property",
+        back_populates="generated_contents"
     )

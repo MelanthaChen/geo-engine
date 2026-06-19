@@ -14,6 +14,7 @@ def discover_platform_faqs(
     db: Session,
     category: str,
     website_url: str | None,
+    property_id: int | None = None,
 ):
     platform_discussions = collect_external_platform_questions(category)
 
@@ -81,6 +82,7 @@ Format:
 
     return create_faq_set(
         db=db,
+        property_id=property_id,
         category=category,
         faq_source="PLATFORM",
         questions=questions,

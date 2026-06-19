@@ -24,11 +24,15 @@ def run_citation_test(
     content_id: int,
     platform: str = "openai",
     source_type: str = "published_content",
+    property_id: int | None = None,
 ):
 
-    content = db.query(Content).filter(
-        Content.id == content_id
-    ).first()
+    query = db.query(Content).filter(Content.id == content_id)
+
+    if property_id is not None:
+        query = query.filter(Content.property_id == property_id)
+
+    content = query.first()
 
     if not content:
         return None
@@ -127,6 +131,7 @@ published content, or a personal comment.
     )
 
     citation_test = CitationTest(
+        property_id=content.property_id,
         content_id=content.id,
         platform=platform,
         query=test_query,
@@ -156,6 +161,7 @@ published content, or a personal comment.
     create_history_event(
         db=db,
         event_type="citation_tested",
+        property_id=content.property_id,
         content_id=content.id,
         source_type=source_type,
         status=citation_type,

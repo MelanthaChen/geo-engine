@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { PropertyProvider } from "@/contexts/PropertyContext";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { CitationTests } from "@/pages/CitationTests";
 import { ContentGeneration } from "@/pages/ContentGeneration";
@@ -12,18 +13,20 @@ import { VisibilityTracking } from "@/pages/VisibilityTracking";
 function App() {
   return (
     <BrowserRouter>
-      <DashboardLayout>
-        <Routes>
-          <Route element={<Dashboard />} path="/" />
-          <Route element={<ContentGeneration />} path="/content" />
-          <Route element={<PublishingQueue />} path="/publishing" />
-          <Route element={<VisibilityTracking />} path="/visibility" />
-          <Route element={<CitationTests />} path="/citations" />
-          <Route element={<ContentHistory />} path="/history" />
-          <Route element={<Settings />} path="/settings" />
-          <Route element={<Navigate replace to="/" />} path="*" />
-        </Routes>
-      </DashboardLayout>
+      <PropertyProvider>
+        <DashboardLayout>
+          <Routes>
+            <Route element={<Dashboard />} path="/" />
+            <Route element={<ContentGeneration />} path="/content" />
+            <Route element={<PublishingQueue />} path="/publishing" />
+            <Route element={<VisibilityTracking />} path="/visibility" />
+            <Route element={<CitationTests />} path="/citations" />
+            <Route element={<ContentHistory />} path="/history" />
+            <Route element={<Settings />} path="/settings" />
+            <Route element={<Navigate replace to="/" />} path="*" />
+          </Routes>
+        </DashboardLayout>
+      </PropertyProvider>
     </BrowserRouter>
   );
 }

@@ -20,13 +20,15 @@ router = APIRouter(
 def run_test(
     content_id: int,
     source_type: str = "published_content",
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
     result = run_citation_test(
         db=db,
         content_id=content_id,
-        source_type=source_type
+        source_type=source_type,
+        property_id=property_id,
     )
 
     if not result:
@@ -38,6 +40,7 @@ def run_test(
     return {
         "test_id": result.id,
         "content_id": result.content_id,
+        "property_id": result.property_id,
         "platform": result.platform,
         "mentioned": result.mentioned,
         "evidence_found": result.evidence_found,

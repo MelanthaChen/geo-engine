@@ -18,6 +18,13 @@ class PublishTask(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True
+    )
+
     content_id = Column(
         Integer,
         ForeignKey("contents.id"),
@@ -37,5 +44,6 @@ class PublishTask(Base):
         server_default=func.now()
     )
 
+    property = relationship("Property", back_populates="publish_tasks")
     content = relationship("Content")
     account = relationship("Account")

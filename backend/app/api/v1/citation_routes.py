@@ -14,12 +14,14 @@ router = APIRouter(
 @router.get("/check")
 def citation_check(
     query: str,
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
     result = check_citation(
         db=db,
-        query=query
+        query=query,
+        property_id=property_id,
     )
 
     return result

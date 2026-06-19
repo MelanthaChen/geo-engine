@@ -65,6 +65,7 @@ def publish_content_route(
     content_id: int,
     account_id: int | None = None,
     publish_platform: str | None = None,
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
@@ -73,6 +74,7 @@ def publish_content_route(
         content_id=content_id,
         account_id=account_id,
         publish_platform=publish_platform,
+        property_id=property_id,
     )
 
     return result
@@ -80,11 +82,17 @@ def publish_content_route(
 
 @router.get("/pending")
 def get_pending_publish(
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    filters = [PublishTask.status == "pending"]
+
+    if property_id is not None:
+        filters.append(PublishTask.property_id == property_id)
+
     task = (
         db.query(PublishTask)
-        .filter(PublishTask.status == "pending")
+        .filter(*filters)
         .order_by(PublishTask.created_at.asc())
         .first()
     )
@@ -96,6 +104,7 @@ def get_pending_publish(
 
     return get_pending_publish_for_account(
         account_id=task.account_id,
+        property_id=property_id,
         db=db
     )
 
@@ -104,11 +113,13 @@ def get_pending_publish(
 def get_pending_publish_for_account(
     account_id: int,
     agent_name: str | None = None,
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     task = claim_pending_task(
         db=db,
-        account_id=account_id
+        account_id=account_id,
+        property_id=property_id,
     )
 
     if not task:
@@ -133,6 +144,7 @@ def get_pending_publish_for_account(
             "id": task.id,
             "publish_task_id": task.id,
             "content_id": content.id,
+            "property_id": task.property_id,
             "account_id": task.account_id,
             "account_handle": task.account.handle,
             "platform": task.account.platform,
@@ -243,6 +255,7 @@ def complete_publish(
     create_history_event(
         db=db,
         event_type=event_type,
+        property_id=content.property_id,
         content_id=content.id,
         source_type=content.generation_mode,
         status=content.publish_status,

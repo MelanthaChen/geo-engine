@@ -14,6 +14,7 @@ def discover_ai_faqs(
     db: Session,
     category: str,
     content_type: str,
+    property_id: int | None = None,
 ):
     prompt = f"""
 You are an expert researcher.
@@ -66,6 +67,7 @@ Format:
 
     return create_faq_set(
         db=db,
+        property_id=property_id,
         category=category,
         faq_source="AI",
         questions=questions,

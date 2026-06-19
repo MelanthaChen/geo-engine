@@ -2,8 +2,9 @@ from fastapi import FastAPI
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.database import Base, engine
+from app.core.database import Base, SessionLocal, engine
 from app.models import *
+from app.services.property_service import seed_default_property
 
 from app.api.v1.query_routes import router as query_router
 from app.api.v1.content_routes import router as content_router
@@ -29,8 +30,14 @@ from app.api.v1.account_routes import (
 from app.api.v1.history_routes import (
     router as history_router
 )
+from app.api.v1.property_routes import (
+    router as property_router
+)
 
 Base.metadata.create_all(bind=engine)
+
+with SessionLocal() as db:
+    seed_default_property(db)
 
 app = FastAPI(
     title="GEO Engine API",
@@ -99,3 +106,4 @@ app.include_router(campaign_runner_router)
 app.include_router(optimization_router)
 app.include_router(account_router)
 app.include_router(history_router)
+app.include_router(property_router)

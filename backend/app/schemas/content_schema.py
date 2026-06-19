@@ -5,6 +5,8 @@ class ContentGenerationRequest(BaseModel):
 
     query: str
 
+    property_id: int | None = None
+
     persona: str
 
     content_type: str

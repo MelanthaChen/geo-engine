@@ -115,6 +115,7 @@ def generate_content_route(
     result = generate_content(
         db=db,
         query=request.query,
+        property_id=request.property_id,
         persona=request.persona,
         content_type=request.content_type,
         target_url=request.product_url or request.target_url,
@@ -179,16 +180,20 @@ def generate_content_route(
             result.generated_angles,
 
         "content_id":
-            result.id
+            result.id,
+
+        "property_id":
+            result.property_id
     }
 
 
 @router.get("/history")
 def get_content_history(
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
-    events = get_recent_history_events(db)
+    events = get_recent_history_events(db, property_id=property_id)
 
     event_rows = [
         {
@@ -197,6 +202,7 @@ def get_content_history(
             "history_item_id": event.id,
             "event_id": event.id,
             "content_id": event.content_id,
+            "property_id": event.property_id,
             "title": (
                 content_title(event.content)
                 if event.content
@@ -290,12 +296,18 @@ def get_content_history(
         for event in events
     ]
 
+    faq_query = db.query(FaqSet)
+
+    if property_id is not None:
+        faq_query = faq_query.filter(FaqSet.property_id == property_id)
+
     faq_rows = [
         {
             "id": f"faq-set-{faq_set.id}",
             "history_item_type": "faq",
             "history_item_id": faq_set.id,
             "content_id": None,
+            "property_id": faq_set.property_id,
             "title": f"{faq_set.faq_source} FAQ Discovery: {faq_set.category}",
             "body": "\n".join(
                 f"{faq.rank}. {faq.question}"
@@ -338,11 +350,17 @@ def get_content_history(
             "created_at": faq_set.created_at,
         }
         for faq_set in (
-            db.query(FaqSet)
-            .order_by(FaqSet.created_at.desc())
+            faq_query.order_by(FaqSet.created_at.desc())
             .all()
         )
     ]
+
+    generated_query = db.query(GeneratedContent)
+
+    if property_id is not None:
+        generated_query = generated_query.filter(
+            GeneratedContent.property_id == property_id
+        )
 
     generated_rows = [
         {
@@ -350,6 +368,7 @@ def get_content_history(
             "history_item_type": "generated_content",
             "history_item_id": content.id,
             "content_id": content.content_id,
+            "property_id": content.property_id,
             "title": content.title,
             "body": content.body,
             "reddit_title": None,
@@ -386,8 +405,7 @@ def get_content_history(
             "created_at": content.generation_timestamp or content.created_at,
         }
         for content in (
-            db.query(GeneratedContent)
-            .order_by(GeneratedContent.created_at.desc())
+            generated_query.order_by(GeneratedContent.created_at.desc())
             .all()
         )
     ]
@@ -411,6 +429,7 @@ def generate_faqs_route(
     mode: str,
     content_type: str = "comparison",
     website_url: str | None = None,
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
@@ -420,6 +439,7 @@ def generate_faqs_route(
         db=db,
         content_type=content_type,
         website_url=website_url,
+        property_id=property_id,
     )
 
     print("FAQ RESULT:")
@@ -463,14 +483,16 @@ def export_content(
 @router.get("/{content_id}")
 def get_content_by_id(
     content_id: int,
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
-    content = (
-        db.query(Content)
-        .filter(Content.id == content_id)
-        .first()
-    )
+    query = db.query(Content).filter(Content.id == content_id)
+
+    if property_id is not None:
+        query = query.filter(Content.property_id == property_id)
+
+    content = query.first()
 
     if not content:
 
@@ -480,6 +502,7 @@ def get_content_by_id(
 
     return {
         "id": content.id,
+        "property_id": content.property_id,
         "title": content_title(content),
         "body": content.body,
         "reddit_title": content.reddit_title,
