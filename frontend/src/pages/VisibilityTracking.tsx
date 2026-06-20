@@ -1,54 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
+import {
+  fetchCitationTests,
+  type CitationTestRow,
+} from "@/api/citationTests";
 import { useProperty } from "@/contexts/PropertyContext";
-
-const prompts = [
-  {
-    prompt: "best ai resume builder",
-    visibilityScore: 74,
-    mentionRate: "42%",
-    lastRun: "2026-06-19",
-  },
-  {
-    prompt: "ats resume builder",
-    visibilityScore: 61,
-    mentionRate: "31%",
-    lastRun: "2026-06-18",
-  },
-  {
-    prompt: "resume builder for students",
-    visibilityScore: 68,
-    mentionRate: "36%",
-    lastRun: "2026-06-18",
-  },
-  {
-    prompt: "rezi alternatives",
-    visibilityScore: 49,
-    mentionRate: "24%",
-    lastRun: "2026-06-17",
-  },
-];
-
-const modelResponses = {
-  ChatGPT:
-    "Users compare AI resume builders by ATS guidance, editing control, template quality, and whether the tool helps them revise for specific roles.",
-  Claude:
-    "The stronger tools tend to explain resume decisions instead of only producing finished copy. Job seekers often need workflow support as much as writing help.",
-  Gemini:
-    "For students, the most useful resume builders combine examples, keyword suggestions, and review steps that reduce common early-career mistakes.",
-  Perplexity:
-    "Common alternatives include manual templates, ChatGPT-assisted drafting, career center reviews, and specialized resume platforms.",
-};
 
 export function VisibilityTracking() {
   const { activeProperty } = useProperty();
-  const [selectedPrompt, setSelectedPrompt] = useState<
-    (typeof prompts)[number] | null
-  >(null);
+  const [tests, setTests] = useState<CitationTestRow[]>([]);
+  const [selectedTest, setSelectedTest] = useState<CitationTestRow | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadVisibilityRows() {
+      if (!activeProperty) {
+        setTests([]);
+        return;
+      }
+
+      try {
+        const result = await fetchCitationTests();
+
+        if (isMounted) {
+          setTests(result);
+        }
+      } catch (error) {
+        console.error(error);
+        if (isMounted) {
+          setTests([]);
+        }
+      }
+    }
+
+    void loadVisibilityRows();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeProperty]);
 
   return (
     <div className="space-y-6">
@@ -86,30 +83,38 @@ export function VisibilityTracking() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
-              {prompts.map((item) => (
+              {tests.map((test) => (
                 <tr
-                  key={item.prompt}
+                  key={test.id}
                   className="cursor-pointer transition hover:bg-zinc-900/50"
-                  onClick={() => setSelectedPrompt(item)}
+                  onClick={() => setSelectedTest(test)}
                 >
                   <td className="px-5 py-4 font-medium text-zinc-100">
-                    {item.prompt}
+                    {test.query}
                   </td>
                   <td className="px-5 py-4 text-zinc-300">
-                    {item.visibilityScore}
+                    {test.visibility_score || 0}
                   </td>
                   <td className="px-5 py-4 text-zinc-300">
-                    {item.mentionRate}
+                    {test.mentioned ? "100%" : "0%"}
                   </td>
-                  <td className="px-5 py-4 text-zinc-500">{item.lastRun}</td>
+                  <td className="px-5 py-4 text-zinc-500">
+                    {new Date(test.tested_at).toLocaleDateString()}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {tests.length === 0 && (
+            <div className="border-t border-zinc-800 px-5 py-8 text-sm text-zinc-500">
+              No visibility runs for the current property.
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {selectedPrompt && (
+      {selectedTest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
           <div className="w-full max-w-3xl rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
             <div className="flex items-start justify-between border-b border-zinc-800 p-5">
@@ -118,13 +123,13 @@ export function VisibilityTracking() {
                   Prompt Detail
                 </p>
                 <h2 className="mt-2 text-xl font-semibold text-zinc-50">
-                  {selectedPrompt.prompt}
+                  {selectedTest.query}
                 </h2>
               </div>
 
               <Button
                 aria-label="Close prompt detail"
-                onClick={() => setSelectedPrompt(null)}
+                onClick={() => setSelectedTest(null)}
                 size="sm"
                 variant="ghost"
               >
@@ -132,18 +137,15 @@ export function VisibilityTracking() {
               </Button>
             </div>
 
-            <div className="grid gap-4 p-5 md:grid-cols-2">
-              {Object.entries(modelResponses).map(([model, response]) => (
-                <div
-                  key={model}
-                  className="rounded-lg border border-zinc-800 bg-black p-4"
-                >
-                  <h3 className="font-semibold text-zinc-100">{model}</h3>
-                  <p className="mt-3 text-sm leading-6 text-zinc-400">
-                    {response}
-                  </p>
-                </div>
-              ))}
+            <div className="p-5">
+              <div className="rounded-lg border border-zinc-800 bg-black p-4">
+                <h3 className="font-semibold text-zinc-100">
+                  {selectedTest.platform}
+                </h3>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-400">
+                  {selectedTest.ai_response || "No model response stored."}
+                </p>
+              </div>
             </div>
           </div>
         </div>

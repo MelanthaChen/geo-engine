@@ -37,6 +37,7 @@ from app.services.history.faq_history_service import (
     get_faq_set,
     serialize_faq_set,
 )
+from app.services.property_service import get_property
 from app.utils.title_extractor import (
     extract_article_title
 )
@@ -73,6 +74,11 @@ def generate_content(
     archetype: str | None = None,
     internet_style: str | None = None,
 ):
+    property_record = get_property(db, property_id) if property_id else None
+
+    if property_record:
+        target_url = normalize_property_url(property_record.domain)
+
     normalized_faq_source = normalize_faq_source(
         faq_source=faq_source,
         mode=mode
@@ -366,6 +372,15 @@ def normalize_faq_source(
     return "ai_faq"
 
 
+def normalize_property_url(domain: str):
+    normalized_domain = domain.strip()
+
+    if normalized_domain.startswith(("http://", "https://")):
+        return normalized_domain
+
+    return f"https://{normalized_domain}"
+
+
 def generate_faqs(
     target: str,
     mode: str,
@@ -376,6 +391,11 @@ def generate_faqs(
 ):
     if db is None:
         raise ValueError("Database session is required for FAQ discovery")
+
+    property_record = get_property(db, property_id) if property_id else None
+
+    if property_record:
+        website_url = normalize_property_url(property_record.domain)
 
     if mode == "ai":
         faq_set = discover_ai_faqs(

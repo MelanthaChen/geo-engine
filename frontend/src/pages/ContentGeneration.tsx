@@ -78,7 +78,6 @@ function ContentGenerationWorkspace({
   activeProperty: Property | null;
 }) {
   const [query, setQuery] = useState("");
-  const [targetUrl, setTargetUrl] = useState("");
   const [persona, setPersona] = useState("student");
   const [contentType, setContentType] = useState("comparison");
   const [publishPlatform, setPublishPlatform] = useState("reddit");
@@ -128,7 +127,7 @@ function ContentGenerationWorkspace({
     try {
       setLoading(true);
 
-      const result = await generateFaqs(query, "ai", contentType, targetUrl);
+      const result = await generateFaqs(query, "ai", contentType);
 
       setAiFaqs(result.faqs);
 
@@ -157,7 +156,6 @@ function ContentGenerationWorkspace({
         query,
         "platform",
         contentType,
-        targetUrl,
       );
 
       setPlatformFaqs(result.faqs);
@@ -190,7 +188,6 @@ function ContentGenerationWorkspace({
         query,
         persona,
         contentType,
-        targetUrl,
         "ai",
         aiFaqResult.faqs,
         "",
@@ -207,7 +204,6 @@ function ContentGenerationWorkspace({
         query,
         persona,
         contentType,
-        targetUrl,
         "platform",
         "",
         platformFaqResult.faqs,
@@ -304,15 +300,17 @@ function ContentGenerationWorkspace({
             />
           </label>
 
-          <label className="space-y-2 lg:col-span-2">
-            <span className="text-sm text-zinc-400">Website URL</span>
-            <input
-              value={targetUrl}
-              onChange={(event) => setTargetUrl(event.target.value)}
-              placeholder="https://example.com"
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
-            />
-          </label>
+          <div className="space-y-2 lg:col-span-2">
+            <span className="text-sm text-zinc-400">Target Website</span>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3">
+              <p className="text-sm font-medium text-zinc-100">
+                {activeProperty?.name || "No property selected"}
+              </p>
+              <p className="mt-1 text-sm text-zinc-500">
+                {activeProperty?.domain || "Select a property first"}
+              </p>
+            </div>
+          </div>
 
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Persona</span>

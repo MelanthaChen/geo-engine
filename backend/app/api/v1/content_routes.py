@@ -17,6 +17,7 @@ from app.models.content import Content
 from app.models.faq_set import FaqSet
 from app.models.generated_content import GeneratedContent
 from app.models.publish_task import PublishTask
+from app.services.property_service import get_property
 
 from app.core.deps import get_db
 
@@ -111,6 +112,15 @@ def generate_content_route(
     request: ContentGenerationRequest,
     db: Session = Depends(get_db),
 ):
+    target_url = None
+
+    if request.property_id:
+        property_record = get_property(db, request.property_id)
+
+        if property_record:
+            target_url = property_record.domain
+    else:
+        target_url = request.product_url or request.target_url
 
     result = generate_content(
         db=db,
@@ -118,7 +128,7 @@ def generate_content_route(
         property_id=request.property_id,
         persona=request.persona,
         content_type=request.content_type,
-        target_url=request.product_url or request.target_url,
+        target_url=target_url,
         mode=request.mode,
         ai_faq=request.ai_faq,
         platform_faq=request.platform_faq,

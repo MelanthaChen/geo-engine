@@ -8,12 +8,53 @@ from app.core.deps import get_db
 from app.services.citation_test_service import (
     run_citation_test
 )
+from app.models.citation_test import CitationTest
 
 
 router = APIRouter(
     prefix="/api/v1/citation-tests",
     tags=["Citation Testing Engine"]
 )
+
+
+@router.get("")
+def list_tests(
+    property_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(CitationTest)
+
+    if property_id is not None:
+        query = query.filter(CitationTest.property_id == property_id)
+
+    tests = (
+        query.order_by(CitationTest.tested_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    return {
+        "tests": [
+            {
+                "id": test.id,
+                "property_id": test.property_id,
+                "content_id": test.content_id,
+                "platform": test.platform,
+                "query": test.query,
+                "source_type": test.source_type,
+                "citation_target": test.citation_target,
+                "ai_response": test.ai_response,
+                "mentioned": test.mentioned,
+                "evidence_found": test.evidence_found,
+                "citation_type": test.citation_type,
+                "confidence_score": test.confidence_score,
+                "visibility_score": test.visibility_score,
+                "matched_keywords": test.matched_keywords,
+                "tested_at": test.tested_at,
+            }
+            for test in tests
+        ]
+    }
 
 
 @router.post("/run/{content_id}")

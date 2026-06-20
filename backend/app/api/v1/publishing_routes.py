@@ -40,6 +40,16 @@ PUBLISH_TASK_STATUSES = {
 }
 
 
+def content_title(content: Content):
+    if content.reddit_title:
+        return content.reddit_title
+
+    return extract_article_title(
+        generated_content=content.body,
+        fallback=content.title
+    )
+
+
 class PublishCompleteRequest(
     BaseModel
 ):
@@ -107,6 +117,41 @@ def get_pending_publish(
         property_id=property_id,
         db=db
     )
+
+
+@router.get("/tasks")
+def get_publish_tasks(
+    property_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(PublishTask)
+
+    if property_id is not None:
+        query = query.filter(PublishTask.property_id == property_id)
+
+    tasks = (
+        query.order_by(PublishTask.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    return {
+        "tasks": [
+            {
+                "id": task.id,
+                "property_id": task.property_id,
+                "content_id": task.content_id,
+                "title": content_title(task.content),
+                "platform": task.account.platform if task.account else None,
+                "account_handle": (
+                    task.account.handle if task.account else None
+                ),
+                "status": task.status,
+                "created_at": task.created_at,
+            }
+            for task in tasks
+        ]
+    }
 
 
 @router.get("/pending/{account_id}")
