@@ -326,8 +326,8 @@ function ContentGenerationWorkspace({
       )}
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 lg:grid-cols-5">
-          <label className="space-y-2 lg:col-span-2">
+        <CardContent className="grid gap-4 p-6 lg:grid-cols-6">
+          <label className="space-y-2 lg:col-span-4">
             <span className="text-sm text-zinc-400">Category</span>
             <input
               value={query}
@@ -337,19 +337,7 @@ function ContentGenerationWorkspace({
             />
           </label>
 
-          <div className="space-y-2 lg:col-span-2">
-            <span className="text-sm text-zinc-400">Target Website</span>
-            <div className="rounded-lg border border-zinc-800 bg-black p-3">
-              <p className="text-sm font-medium text-zinc-100">
-                {activeProperty?.name || "No property selected"}
-              </p>
-              <p className="mt-1 text-sm text-zinc-500">
-                {activeProperty?.domain || "Select a property first"}
-              </p>
-            </div>
-          </div>
-
-          <label className="space-y-2">
+          <label className="space-y-2 lg:col-span-2">
             <span className="text-sm text-zinc-400">Persona</span>
             <select
               value={persona}
@@ -394,7 +382,7 @@ function ContentGenerationWorkspace({
             </select>
           </label>
 
-          <div className="flex items-end">
+          <div className="flex items-end lg:col-span-2">
             <Button
               className="w-full"
               disabled={loading || !activeProperty}

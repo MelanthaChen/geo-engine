@@ -108,15 +108,22 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
 
   const addProperty = useCallback(async (property: PropertyPayload) => {
     const createdProperty = await createProperty(property);
+    localStorage.setItem(
+      ACTIVE_PROPERTY_STORAGE_KEY,
+      String(createdProperty.id),
+    );
 
-    setProperties((currentProperties) => [
-      ...currentProperties,
-      createdProperty,
-    ]);
-    setActiveProperty(createdProperty);
+    const propertyList = await fetchProperties();
+    const selectedProperty =
+      propertyList.find(
+        (currentProperty) => currentProperty.id === createdProperty.id,
+      ) || createdProperty;
 
-    return createdProperty;
-  }, [setActiveProperty]);
+    setProperties(propertyList);
+    setActivePropertyState(selectedProperty);
+
+    return selectedProperty;
+  }, []);
 
   const updateActiveProperty = useCallback(async (
     property: Partial<PropertyPayload>,
