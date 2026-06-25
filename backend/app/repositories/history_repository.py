@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.models.content_history import ContentHistoryEvent
+from app.models.history_event import HistoryEvent
 
 
 def create_history_event(
@@ -8,21 +8,21 @@ def create_history_event(
     event_type: str,
     property_id: int | None = None,
     content_id: int | None = None,
+    faq_id: int | None = None,
     source_type: str | None = None,
     actor: str = "system",
     status: str | None = None,
     summary: str | None = None,
     details: str | None = None,
+    metadata_json: str | None = None,
 ):
-    event = ContentHistoryEvent(
+    event = HistoryEvent(
         property_id=property_id,
         content_id=content_id,
+        faq_id=faq_id,
         event_type=event_type,
-        source_type=source_type,
-        actor=actor,
-        status=status,
         summary=summary,
-        details=details,
+        metadata_json=metadata_json or details,
     )
 
     db.add(event)
@@ -39,13 +39,13 @@ def get_recent_history_events(
     limit: int = 100,
     property_id: int | None = None,
 ):
-    query = db.query(ContentHistoryEvent)
+    query = db.query(HistoryEvent)
 
     if property_id is not None:
-        query = query.filter(ContentHistoryEvent.property_id == property_id)
+        query = query.filter(HistoryEvent.property_id == property_id)
 
     return (
-        query.order_by(ContentHistoryEvent.created_at.desc())
+        query.order_by(HistoryEvent.created_at.desc())
         .limit(limit)
         .all()
     )

@@ -7,6 +7,7 @@ DEFAULT_PROPERTY = {
     "name": "GeoAIResume",
     "domain": "geoairesume.com",
     "brand_name": "GeoAIResume",
+    "description": "Default GEO Engine property.",
 }
 
 
@@ -51,11 +52,13 @@ def create_property(
     name: str,
     domain: str,
     brand_name: str,
+    description: str | None = None,
 ):
     property_record = Property(
         name=name,
         domain=domain,
         brand_name=brand_name,
+        description=description,
     )
 
     db.add(property_record)
@@ -71,6 +74,7 @@ def update_property(
     name: str | None = None,
     domain: str | None = None,
     brand_name: str | None = None,
+    description: str | None = None,
 ):
     property_record = get_property(db, property_id)
 
@@ -85,6 +89,9 @@ def update_property(
 
     if brand_name is not None:
         property_record.brand_name = brand_name
+
+    if description is not None:
+        property_record.description = description
 
     db.commit()
     db.refresh(property_record)

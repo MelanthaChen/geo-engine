@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -15,7 +15,9 @@ class Property(Base):
 
     domain = Column(String, nullable=False, unique=True, index=True)
 
-    brand_name = Column(String, nullable=False)
+    brand_name = Column(String, nullable=True)
+
+    description = Column(Text, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),
@@ -30,12 +32,8 @@ class Property(Base):
 
     contents = relationship("Content", back_populates="property")
     faq_sets = relationship("FaqSet", back_populates="property")
-    generated_contents = relationship(
-        "GeneratedContent",
-        back_populates="property"
-    )
     history_events = relationship(
-        "ContentHistoryEvent",
+        "HistoryEvent",
         back_populates="property"
     )
     publish_tasks = relationship("PublishTask", back_populates="property")

@@ -46,6 +46,7 @@ def publish_content(
         }
 
     content.publish_status = "pending"
+    content.publish_platform = account.platform
 
     article_title = (
         content.reddit_title

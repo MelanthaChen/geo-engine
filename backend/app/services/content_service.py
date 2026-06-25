@@ -19,7 +19,6 @@ from app.repositories.history_repository import (
 from app.services.content.content_generator import (
     insert_natural_link,
     normalize_content_type as registry_normalize_content_type,
-    persist_generated_content,
 )
 from app.services.content.angle_strategy import (
     build_content_strategy,
@@ -186,10 +185,12 @@ def generate_content(
         db=db,
         query_id=None,
         property_id=property_id,
+        faq_set_id=source_faq_set_id,
+        faq_id=None,
         title=article_title,
         content_type=strategy_type,
         strategy_type=strategy_type,
-        target_url=target_url,
+        target_url=None,
         evidence_json=json.dumps(evidence),
         ai_faq=ai_faq if normalized_faq_source == "ai_faq" else None,
         platform_faq=(
@@ -210,7 +211,7 @@ def generate_content(
 
     create_history_event(
         db=db,
-        event_type="content_created",
+        event_type="content_generated",
         property_id=new_content.property_id,
         content_id=new_content.id,
         source_type=mode,
@@ -230,14 +231,6 @@ def generate_content(
                 "preview": generated_content[:500],
             }
         )
-    )
-
-    persist_generated_content(
-        db=db,
-        category=query,
-        content=new_content,
-        source_faq_set_id=source_faq_set_id,
-        property_id=property_id,
     )
 
     return new_content

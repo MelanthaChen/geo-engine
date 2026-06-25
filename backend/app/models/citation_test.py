@@ -28,14 +28,17 @@ class CitationTest(Base):
         index=True
     )
 
-    content_id = Column(
-        Integer,
-        ForeignKey("contents.id")
-    )
+    content_id = Column(Integer, ForeignKey("contents.id"), nullable=True)
 
     platform = Column(String)
 
     query = Column(String)
+
+    prompt = Column(String, nullable=True)
+
+    target_brand = Column(String, nullable=True)
+
+    status = Column(String, default="pending")
 
     source_type = Column(String, default="published_content")
 
@@ -60,5 +63,20 @@ class CitationTest(Base):
         server_default=func.now()
     )
 
+    last_run = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
     property = relationship("Property", back_populates="citation_tests")
-    content = relationship("Content")
+    content = relationship("Content", back_populates="citation_tests")
+    results = relationship(
+        "CitationResult",
+        back_populates="citation_test",
+        cascade="all, delete-orphan"
+    )

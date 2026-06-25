@@ -40,7 +40,10 @@ def list_tests(
                 "property_id": test.property_id,
                 "content_id": test.content_id,
                 "platform": test.platform,
-                "query": test.query,
+                "query": test.prompt or test.query,
+                "prompt": test.prompt or test.query,
+                "target_brand": test.target_brand,
+                "status": test.status,
                 "source_type": test.source_type,
                 "citation_target": test.citation_target,
                 "ai_response": test.ai_response,
@@ -50,7 +53,8 @@ def list_tests(
                 "confidence_score": test.confidence_score,
                 "visibility_score": test.visibility_score,
                 "matched_keywords": test.matched_keywords,
-                "tested_at": test.tested_at,
+                "tested_at": test.last_run or test.tested_at,
+                "last_run": test.last_run or test.tested_at,
             }
             for test in tests
         ]

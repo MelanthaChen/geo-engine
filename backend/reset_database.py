@@ -6,10 +6,14 @@ from app.services.property_service import seed_default_property
 
 
 REQUIRED_TABLES = {
+    "accounts",
+    "citation_results",
+    "citation_tests",
+    "contents",
     "faq_sets",
     "faqs",
-    "generated_contents",
-    "content_history_events",
+    "history_events",
+    "publish_tasks",
     "properties",
 }
 

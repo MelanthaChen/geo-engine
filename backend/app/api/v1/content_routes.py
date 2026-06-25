@@ -15,7 +15,6 @@ from app.services.export_service import (
 
 from app.models.content import Content
 from app.models.faq_set import FaqSet
-from app.models.generated_content import GeneratedContent
 from app.models.publish_task import PublishTask
 from app.services.property_service import get_property
 
@@ -218,7 +217,9 @@ def get_content_history(
                 if event.content
                 else "System event"
             ),
-            "body": event.content.body if event.content else event.details,
+            "body": (
+                event.content.body if event.content else event.metadata_json
+            ),
             "reddit_title": (
                 event.content.reddit_title if event.content else None
             ),
@@ -267,10 +268,10 @@ def get_content_history(
             "generation_mode": (
                 event.content.generation_mode
                 if event.content
-                else event.source_type
+                else None
             ),
             "publish_status": (
-                event.content.publish_status if event.content else event.status
+                event.content.publish_status if event.content else None
             ),
             **(
                 publish_metadata(db, event.content)
@@ -300,7 +301,7 @@ def get_content_history(
             ),
             "event_type": event.event_type,
             "event_summary": event.summary,
-            "event_status": event.status,
+            "event_status": event.event_type,
             "created_at": event.created_at,
         }
         for event in events
@@ -365,62 +366,7 @@ def get_content_history(
         )
     ]
 
-    generated_query = db.query(GeneratedContent)
-
-    if property_id is not None:
-        generated_query = generated_query.filter(
-            GeneratedContent.property_id == property_id
-        )
-
-    generated_rows = [
-        {
-            "id": f"generated-content-{content.id}",
-            "history_item_type": "generated_content",
-            "history_item_id": content.id,
-            "content_id": content.content_id,
-            "property_id": content.property_id,
-            "title": content.title,
-            "body": content.body,
-            "reddit_title": None,
-            "reddit_body": None,
-            "content_type": content.content_type,
-            "strategy_type": content.content_type,
-            "target_persona": content.category,
-            "target_url": content.website_url,
-            "evidence": None,
-            "ai_faq": None,
-            "platform_faq": None,
-            "faq_source": content.faq_source,
-            "angle": content.angle,
-            "perspective": content.perspective,
-            "archetype": content.archetype,
-            "internet_style": content.internet_style,
-            "generated_angles": content.generated_angles,
-            "generation_mode": "content_generation",
-            "publish_status": "generated",
-            **empty_publish_metadata(),
-            "preview_title": None,
-            "preview_subreddit": None,
-            "preview_screenshot": None,
-            "preview_url": None,
-            "preview_timestamp": None,
-            "citation_count": 0,
-            "visibility_score": 0,
-            "event_type": "generated_content",
-            "event_summary": (
-                f"{content.content_type} generated from "
-                f"{content.faq_source} FAQ set"
-            ),
-            "event_status": "generated",
-            "created_at": content.generation_timestamp or content.created_at,
-        }
-        for content in (
-            generated_query.order_by(GeneratedContent.created_at.desc())
-            .all()
-        )
-    ]
-
-    history_rows = event_rows + faq_rows + generated_rows
+    history_rows = event_rows + faq_rows
 
     history_rows = sorted(
         history_rows,

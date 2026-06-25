@@ -1,4 +1,5 @@
 from openai import OpenAI
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -6,6 +7,7 @@ from app.core.config import settings
 
 from app.models.content import Content
 from app.models.citation_test import CitationTest
+from app.models.citation_result import CitationResult
 from app.repositories.history_repository import (
     create_history_event
 )
@@ -48,6 +50,15 @@ def run_citation_test(
     )
 
     citation_target = content.published_url or article_title
+
+    create_history_event(
+        db=db,
+        event_type="citation_test_started",
+        property_id=content.property_id,
+        content_id=content.id,
+        summary=f"Citation test started for {article_title}",
+        details=test_query,
+    )
 
     if source_type == "personal_comment":
         context_message = f"""
@@ -135,6 +146,14 @@ published content, or a personal comment.
         content_id=content.id,
         platform=platform,
         query=test_query,
+        prompt=test_query,
+        target_brand=(
+            content.property.brand_name
+            if content.property and content.property.brand_name
+            else None
+        ),
+        status="finished",
+        last_run=datetime.now(timezone.utc),
         source_type=source_type,
         citation_target=citation_target,
         ai_response=ai_response,
@@ -152,6 +171,17 @@ published content, or a personal comment.
 
     db.refresh(citation_test)
 
+    citation_result = CitationResult(
+        citation_test_id=citation_test.id,
+        model=platform,
+        mentioned=mentioned,
+        rank=None,
+        response=ai_response,
+    )
+
+    db.add(citation_result)
+    db.commit()
+
     content.citation_count = (content.citation_count or 0) + (
         1 if evidence_found else 0
     )
@@ -160,7 +190,7 @@ published content, or a personal comment.
 
     create_history_event(
         db=db,
-        event_type="citation_tested",
+        event_type="citation_test_finished",
         property_id=content.property_id,
         content_id=content.id,
         source_type=source_type,
@@ -171,5 +201,15 @@ published content, or a personal comment.
         ),
         details=ai_response[:500]
     )
+
+    if evidence_found:
+        create_history_event(
+            db=db,
+            event_type="citation_found",
+            property_id=content.property_id,
+            content_id=content.id,
+            summary=f"Citation found for {article_title}",
+            details=ai_response[:500]
+        )
 
     return citation_test

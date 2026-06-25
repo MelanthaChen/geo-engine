@@ -45,5 +45,5 @@ class PublishTask(Base):
     )
 
     property = relationship("Property", back_populates="publish_tasks")
-    content = relationship("Content")
+    content = relationship("Content", back_populates="publish_tasks")
     account = relationship("Account")

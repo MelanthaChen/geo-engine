@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 
-from app.models.content_history import ContentHistoryEvent
+from app.models.history_event import HistoryEvent
 from app.models.faq import Faq
 from app.models.faq_set import FaqSet
-from app.models.generated_content import GeneratedContent
+from app.models.content import Content
 
 
 def delete_faq_set(
@@ -33,21 +33,20 @@ def delete_generated_content(
     db: Session,
     generated_content_id: int,
 ):
-    generated_content = (
-        db.query(GeneratedContent)
-        .filter(GeneratedContent.id == generated_content_id)
+    content = (
+        db.query(Content)
+        .filter(Content.id == generated_content_id)
         .first()
     )
 
-    if not generated_content:
+    if not content:
         return False
 
-    if generated_content.content_id:
-        db.query(ContentHistoryEvent).filter(
-            ContentHistoryEvent.content_id == generated_content.content_id
-        ).delete(synchronize_session=False)
+    db.query(HistoryEvent).filter(
+        HistoryEvent.content_id == content.id
+    ).delete(synchronize_session=False)
 
-    db.delete(generated_content)
+    db.delete(content)
     db.commit()
 
     return True

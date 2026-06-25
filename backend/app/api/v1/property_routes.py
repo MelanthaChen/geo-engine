@@ -23,13 +23,15 @@ router = APIRouter(
 class PropertyCreateRequest(BaseModel):
     name: str
     domain: str
-    brand_name: str
+    brand_name: str | None = None
+    description: str | None = None
 
 
 class PropertyUpdateRequest(BaseModel):
     name: str | None = None
     domain: str | None = None
     brand_name: str | None = None
+    description: str | None = None
 
 
 def serialize_property(property_record):
@@ -38,6 +40,7 @@ def serialize_property(property_record):
         "name": property_record.name,
         "domain": property_record.domain,
         "brand_name": property_record.brand_name,
+        "description": property_record.description,
         "created_at": property_record.created_at,
         "updated_at": property_record.updated_at,
     }
@@ -63,7 +66,8 @@ def post_property(
             db=db,
             name=request.name,
             domain=request.domain,
-            brand_name=request.brand_name,
+            brand_name=request.brand_name or request.name,
+            description=request.description,
         )
     )
 
@@ -93,6 +97,7 @@ def patch_property(
         name=request.name,
         domain=request.domain,
         brand_name=request.brand_name,
+        description=request.description,
     )
 
     if not property_record:

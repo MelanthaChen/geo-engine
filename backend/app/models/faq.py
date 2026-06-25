@@ -31,3 +31,5 @@ class Faq(Base):
         "FaqSet",
         back_populates="faqs"
     )
+
+    contents = relationship("Content", back_populates="faq")

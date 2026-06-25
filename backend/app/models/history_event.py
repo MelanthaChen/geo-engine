@@ -1,21 +1,20 @@
 from sqlalchemy import (
     Column,
+    DateTime,
+    ForeignKey,
     Integer,
     String,
     Text,
-    ForeignKey,
-    DateTime
 )
-
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 
-class ContentHistoryEvent(Base):
+class HistoryEvent(Base):
 
-    __tablename__ = "content_history_events"
+    __tablename__ = "history_events"
 
     id = Column(Integer, primary_key=True, index=True)
 
@@ -29,20 +28,22 @@ class ContentHistoryEvent(Base):
     content_id = Column(
         Integer,
         ForeignKey("contents.id"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
-    event_type = Column(String, nullable=False)
+    faq_id = Column(
+        Integer,
+        ForeignKey("faqs.id"),
+        nullable=True,
+        index=True
+    )
 
-    source_type = Column(String, nullable=True)
-
-    actor = Column(String, default="system")
-
-    status = Column(String, nullable=True)
+    event_type = Column(String, nullable=False, index=True)
 
     summary = Column(Text, nullable=True)
 
-    details = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),
@@ -50,4 +51,5 @@ class ContentHistoryEvent(Base):
     )
 
     property = relationship("Property", back_populates="history_events")
-    content = relationship("Content")
+    content = relationship("Content", back_populates="history_events")
+    faq = relationship("Faq")

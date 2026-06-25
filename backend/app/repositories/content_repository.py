@@ -11,6 +11,8 @@ def create_content(
     body: str,
     target_persona: str,
     property_id: int | None = None,
+    faq_set_id: int | None = None,
+    faq_id: int | None = None,
     generation_mode: str | None = None,
     strategy_type: str | None = None,
     target_url: str | None = None,
@@ -29,6 +31,8 @@ def create_content(
     content = Content(
         property_id=property_id,
         query_id=query_id,
+        faq_set_id=faq_set_id,
+        faq_id=faq_id,
         title=title,
         content_type=content_type,
         strategy_type=strategy_type,
@@ -98,10 +102,12 @@ def update_content_publish_info(
     content.published_url = (
         publish_result["url"]
     )
+    content.publish_url = publish_result["url"]
 
     content.publish_provider = (
         publish_result["provider"]
     )
+    content.publish_platform = publish_result["provider"]
 
     db.commit()
 

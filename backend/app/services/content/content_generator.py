@@ -1,9 +1,6 @@
 from sqlalchemy.orm import Session
 
 from app.models.content import Content
-from app.services.history.content_history_service import (
-    create_generated_content,
-)
 
 
 CONTENT_TYPE_REGISTRY = {
@@ -47,23 +44,7 @@ def persist_generated_content(
     source_faq_set_id: int | None,
     property_id: int | None = None,
 ):
-    return create_generated_content(
-        db=db,
-        property_id=property_id,
-        category=category,
-        faq_source=content.faq_source or "UNKNOWN",
-        content_type=content.content_type or "unknown",
-        angle=content.angle,
-        perspective=content.perspective,
-        archetype=content.archetype,
-        internet_style=content.internet_style,
-        generated_angles=content.generated_angles,
-        title=content.title,
-        body=content.body,
-        website_url=content.target_url,
-        source_faq_set_id=source_faq_set_id,
-        content_id=content.id,
-    )
+    return content
 
 
 def insert_natural_link(

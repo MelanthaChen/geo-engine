@@ -41,3 +41,5 @@ class FaqSet(Base):
         back_populates="faq_set",
         cascade="all, delete-orphan"
     )
+
+    contents = relationship("Content", back_populates="faq_set")

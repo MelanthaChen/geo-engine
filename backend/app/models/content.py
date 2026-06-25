@@ -31,6 +31,20 @@ class Content(Base):
         ForeignKey("queries.id")
     )
 
+    faq_set_id = Column(
+        Integer,
+        ForeignKey("faq_sets.id"),
+        nullable=True,
+        index=True
+    )
+
+    faq_id = Column(
+        Integer,
+        ForeignKey("faqs.id"),
+        nullable=True,
+        index=True
+    )
+
     title = Column(String, nullable=False)
 
     content_type = Column(String)
@@ -126,6 +140,16 @@ class Content(Base):
         nullable=True
     )
 
+    publish_platform = Column(
+        String,
+        nullable=True
+    )
+
+    publish_url = Column(
+        String,
+        nullable=True
+    )
+
     published_at = Column(
         DateTime(timezone=True),
         nullable=True
@@ -176,6 +200,12 @@ class Content(Base):
         server_default=func.now()
     )
 
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
     campaign_id = Column(
         Integer,
         ForeignKey("campaigns.id"),
@@ -184,4 +214,9 @@ class Content(Base):
 
     property = relationship("Property", back_populates="contents")
     query = relationship("Query")
+    faq_set = relationship("FaqSet")
+    faq = relationship("Faq")
     campaign = relationship("Campaign")
+    publish_tasks = relationship("PublishTask", back_populates="content")
+    citation_tests = relationship("CitationTest", back_populates="content")
+    history_events = relationship("HistoryEvent", back_populates="content")

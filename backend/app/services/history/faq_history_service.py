@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.models.faq import Faq
 from app.models.faq_set import FaqSet
+from app.repositories.history_repository import create_history_event
 
 
 def create_faq_set(
@@ -18,7 +19,7 @@ def create_faq_set(
         category=category,
         faq_source=faq_source,
         content_type=content_type,
-        website_url=website_url,
+        website_url=None,
     )
 
     db.add(faq_set)
@@ -35,6 +36,14 @@ def create_faq_set(
 
     db.commit()
     db.refresh(faq_set)
+
+    create_history_event(
+        db=db,
+        event_type="faq_generated",
+        property_id=property_id,
+        summary=f"{faq_source} FAQ generated for {category}",
+        metadata_json="\n".join(questions),
+    )
 
     return faq_set
 

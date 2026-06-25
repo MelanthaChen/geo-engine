@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 
 from sqlalchemy.orm import Session
 
-from app.models.generated_content import GeneratedContent
+from app.models.content import Content
 
 
 PERSPECTIVES = [
@@ -219,7 +219,7 @@ def fallback_angles(category: str, faq_source: str):
 
 def select_diverse_angle(
     angles: list[str],
-    recent_contents: list[GeneratedContent],
+    recent_contents: list[Content],
 ):
     for angle in angles:
         if not is_angle_too_similar(angle, recent_contents):
@@ -230,7 +230,7 @@ def select_diverse_angle(
 
 def is_angle_too_similar(
     angle: str,
-    recent_contents: list[GeneratedContent],
+    recent_contents: list[Content],
 ):
     normalized_angle = normalize_for_similarity(angle)
 
@@ -256,7 +256,7 @@ def is_angle_too_similar(
 
 def build_diversity_constraints(
     selected_angle: str,
-    recent_contents: list[GeneratedContent],
+    recent_contents: list[Content],
 ):
     constraints = [
         f"Build the piece around this selected angle: {selected_angle}",
@@ -277,7 +277,7 @@ def build_diversity_constraints(
 
 
 def build_recent_content_signals(
-    recent_contents: list[GeneratedContent],
+    recent_contents: list[Content],
 ):
     lines = []
 
@@ -304,8 +304,8 @@ def get_recent_generated_contents(
     limit: int = 12,
 ):
     return (
-        db.query(GeneratedContent)
-        .order_by(GeneratedContent.created_at.desc())
+        db.query(Content)
+        .order_by(Content.created_at.desc())
         .limit(limit)
         .all()
     )

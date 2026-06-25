@@ -267,12 +267,14 @@ def complete_publish(
 
     if request.status == "published":
         content.published_url = request.url
+        content.publish_url = request.url
 
     content.publish_provider = (
         publish_task.account.platform
         if publish_task
         else None
     )
+    content.publish_platform = content.publish_provider
 
     content.preview_title = request.preview_title
     content.preview_subreddit = request.preview_subreddit
