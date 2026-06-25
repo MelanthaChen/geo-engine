@@ -8,7 +8,6 @@ import { ContentHistory } from "@/pages/ContentHistory";
 import { Dashboard } from "@/pages/Dashboard";
 import { PublishingQueue } from "@/pages/PublishingQueue";
 import { Settings } from "@/pages/Settings";
-import { VisibilityTracking } from "@/pages/VisibilityTracking";
 
 function App() {
   return (
@@ -19,7 +18,6 @@ function App() {
             <Route element={<Dashboard />} path="/" />
             <Route element={<ContentGeneration />} path="/content" />
             <Route element={<PublishingQueue />} path="/publishing" />
-            <Route element={<VisibilityTracking />} path="/visibility" />
             <Route element={<CitationTests />} path="/citations" />
             <Route element={<ContentHistory />} path="/history" />
             <Route element={<Settings />} path="/settings" />

@@ -1,49 +1,57 @@
-import { BarChart3, FileText, Link2, Send } from "lucide-react";
+import { ClipboardList, FileQuestion, FileText, Send } from "lucide-react";
 
 import { Card, CardContent } from "../../@/components/ui/card";
 
 type DashboardCardsProps = {
-  generatedContent: number;
-  publishedContent: number;
-  trackedPrompts: number;
-  citationCount: number;
+  generatedFaqs: number;
+  generatedContents: number;
+  pendingPublishTasks: number;
+  publishedContents: number;
+  citationTestsRun: number;
 };
 
 export function DashboardCards({
-  citationCount,
-  generatedContent,
-  publishedContent,
-  trackedPrompts,
+  citationTestsRun,
+  generatedContents,
+  generatedFaqs,
+  pendingPublishTasks,
+  publishedContents,
 }: DashboardCardsProps) {
   const cards = [
     {
-      label: "Generated Content",
-      value: String(generatedContent),
+      label: "Generated FAQs",
+      value: String(generatedFaqs),
+      detail: "Stored FAQ sets",
+      icon: FileQuestion,
+    },
+    {
+      label: "Generated Contents",
+      value: String(generatedContents),
       detail: "Current property",
       icon: FileText,
     },
     {
-      label: "Published Content",
-      value: String(publishedContent),
+      label: "Published Contents",
+      value: String(publishedContents),
       detail: "Current property",
       icon: Send,
     },
     {
-      label: "Tracked Prompts",
-      value: String(trackedPrompts),
+      label: "Pending Publish Tasks",
+      value: String(pendingPublishTasks),
       detail: "Active publishing or review tasks",
-      icon: BarChart3,
+      icon: ClipboardList,
     },
     {
-      label: "Citation Count",
-      value: String(citationCount),
-      detail: "Observed in citation tests",
-      icon: Link2,
+      label: "Citation Tests Run",
+      value: String(citationTestsRun),
+      detail: "Stored test records",
+      icon: ClipboardList,
     },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => (
         <Card key={card.label} className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-5">

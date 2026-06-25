@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
 import {
@@ -39,36 +40,34 @@ function formatStatus(status: string) {
 export function PublishingQueue() {
   const { activeProperty } = useProperty();
   const [tasks, setTasks] = useState<PublishingTask[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadTasks() {
-      if (!activeProperty) {
-        setTasks([]);
-        return;
-      }
-
-      try {
-        const result = await fetchPublishingTasks();
-
-        if (isMounted) {
-          setTasks(result);
-        }
-      } catch (error) {
-        console.error(error);
-        if (isMounted) {
-          setTasks([]);
-        }
-      }
+  const loadTasks = useCallback(async () => {
+    if (!activeProperty) {
+      setTasks([]);
+      return;
     }
 
-    void loadTasks();
+    try {
+      setLoading(true);
+      const result = await fetchPublishingTasks();
 
-    return () => {
-      isMounted = false;
-    };
+      setTasks(result);
+    } catch (error) {
+      console.error(error);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
   }, [activeProperty]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTasks();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTasks]);
 
   return (
     <div className="space-y-6">
@@ -84,13 +83,23 @@ export function PublishingQueue() {
           processing status.
         </p>
         {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
-            Current Property:{" "}
-            <span className="text-zinc-100">{activeProperty.name}</span>
-            {" • "}
-            Domain:{" "}
-            <span className="text-zinc-100">{activeProperty.domain}</span>
-          </p>
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <p className="text-sm text-zinc-400">
+              Current Property:{" "}
+              <span className="text-zinc-100">{activeProperty.name}</span>
+              {" • "}
+              Domain:{" "}
+              <span className="text-zinc-100">{activeProperty.domain}</span>
+            </p>
+            <Button
+              disabled={loading}
+              onClick={() => void loadTasks()}
+              size="sm"
+              variant="outline"
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
         )}
       </div>
 

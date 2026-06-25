@@ -4,7 +4,8 @@ export type Property = {
   id: number;
   name: string;
   domain: string;
-  brand_name: string;
+  brand_name: string | null;
+  description?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -20,6 +21,13 @@ export type PropertyMetrics = {
   impressions: number;
 };
 
+export type PropertyPayload = {
+  name: string;
+  domain: string;
+  brand_name?: string | null;
+  description?: string | null;
+};
+
 export async function fetchProperties() {
   const response = await apiClient.get<Property[]>("/api/v1/properties");
 
@@ -27,12 +35,30 @@ export async function fetchProperties() {
 }
 
 export async function createProperty(
-  property: Pick<Property, "name" | "domain" | "brand_name">,
+  property: PropertyPayload,
 ) {
   const response = await apiClient.post<Property>(
     "/api/v1/properties",
     property,
   );
+
+  return response.data;
+}
+
+export async function updateProperty(
+  propertyId: number,
+  property: Partial<PropertyPayload>,
+) {
+  const response = await apiClient.patch<Property>(
+    `/api/v1/properties/${propertyId}`,
+    property,
+  );
+
+  return response.data;
+}
+
+export async function deleteProperty(propertyId: number) {
+  const response = await apiClient.delete(`/api/v1/properties/${propertyId}`);
 
   return response.data;
 }

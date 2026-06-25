@@ -1,4 +1,5 @@
 import { type MouseEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Card, CardContent } from "../../@/components/ui/card";
 
@@ -6,31 +7,9 @@ import {
   deleteFaqHistory,
   deleteGeneratedContentHistory,
   fetchContentHistory,
+  type HistoryItem,
 } from "@/api/history";
 import { useProperty } from "@/contexts/PropertyContext";
-
-type HistoryItem = {
-  id: number | string;
-  history_item_id?: number | string;
-  history_item_type?: string;
-  title?: string;
-  target_persona?: string;
-  strategy_type?: string;
-  content_type?: string;
-  faq_source?: string;
-  generation_mode?: string;
-  publish_status?: string;
-  visibility_score?: number;
-  citation_count?: number;
-  event_type?: string;
-  event_summary?: string;
-  published_account?: string;
-  published_platform?: string;
-  published_url?: string;
-  preview_url?: string;
-  content_id?: number | string;
-  body?: string;
-};
 
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
@@ -38,6 +17,30 @@ function formatPublishStatus(status: string) {
   }
 
   return status;
+}
+
+function formatEventType(eventType?: string) {
+  if (!eventType) {
+    return "History";
+  }
+
+  return eventType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function groupHistoryByDate(history: HistoryItem[]) {
+  return history.reduce<Record<string, HistoryItem[]>>((groups, item) => {
+    const dateKey = item.created_at
+      ? new Date(item.created_at).toLocaleDateString()
+      : "Unknown date";
+
+    return {
+      ...groups,
+      [dateKey]: [...(groups[dateKey] || []), item],
+    };
+  }, {});
 }
 
 export function ContentHistory() {
@@ -67,13 +70,7 @@ export function ContentHistory() {
           return;
         }
 
-        if (Array.isArray(data)) {
-          setHistory(data as HistoryItem[]);
-        } else if (Array.isArray(data.history)) {
-          setHistory(data.history as HistoryItem[]);
-        } else {
-          setHistory([]);
-        }
+        setHistory(Array.isArray(data.history) ? data.history : []);
       } catch (error) {
         console.error(error);
       }
@@ -93,6 +90,8 @@ export function ContentHistory() {
       setToast(null);
     }, 3000);
   }
+
+  const groupedHistory = groupHistoryByDate(history);
 
   async function handleDeleteHistoryItem(
     item: HistoryItem,
@@ -181,132 +180,134 @@ export function ContentHistory() {
               History Items
             </h2>
 
-            <div className="space-y-4 overflow-y-auto pr-1">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedHistory(item)}
-                  className={[
-                    "relative cursor-pointer rounded-xl border bg-black p-4 transition hover:bg-zinc-900/60",
-                    selectedHistory?.id === item.id
-                      ? "border-blue-500"
-                      : "border-zinc-800",
-                  ].join(" ")}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="pr-6 text-base font-semibold text-zinc-50">
-                      {item.title}
-                    </h3>
-
-                    <div className="flex items-center gap-2">
-                      <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
-                        {item.event_type || "content"}
-                      </span>
-
-                      {(item.history_item_type === "faq" ||
-                        item.history_item_type === "generated_content") && (
-                        <button
-                          aria-label="Delete history item"
-                          className="text-sm leading-none text-zinc-500 hover:text-red-300"
-                          onClick={(event) =>
-                            handleDeleteHistoryItem(item, event)
-                          }
-                          type="button"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="mt-2 text-sm text-zinc-400">
-                    {item.target_persona}
-                    {" • "}
-                    {item.strategy_type || item.content_type}
-                    {" • "}
-                    {item.faq_source || "unknown source"}
-                    {" • "}
-                    {item.generation_mode || "legacy"}
-                    {" • "}
-                    {formatPublishStatus(item.publish_status || "draft")}
+            <div className="space-y-6 overflow-y-auto pr-1">
+              {Object.entries(groupedHistory).map(([date, items]) => (
+                <section key={date} className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
+                    {date}
                   </p>
 
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div className="rounded bg-zinc-900 p-2">
-                      <p className="text-zinc-500">Visibility</p>
-                      <p className="font-semibold text-zinc-100">
-                        {item.visibility_score || 0}
-                      </p>
-                    </div>
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedHistory(item)}
+                      className={[
+                        "relative cursor-pointer rounded-xl border bg-black p-4 transition hover:bg-zinc-900/60",
+                        selectedHistory?.id === item.id
+                          ? "border-blue-500"
+                          : "border-zinc-800",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="pr-6 text-base font-semibold text-zinc-50">
+                          {item.title}
+                        </h3>
 
-                    <div className="rounded bg-zinc-900 p-2">
-                      <p className="text-zinc-500">Citations</p>
-                      <p className="font-semibold text-zinc-100">
-                        {item.citation_count || 0}
-                      </p>
-                    </div>
-                  </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
+                            {formatEventType(item.event_type)}
+                          </span>
 
-                  {item.event_summary && (
-                    <p className="mt-3 text-sm text-zinc-500">
-                      {item.event_summary}
-                    </p>
-                  )}
+                          {(item.history_item_type === "faq" ||
+                            item.history_item_type === "generated_content") && (
+                            <button
+                              aria-label="Delete history item"
+                              className="text-sm leading-none text-zinc-500 hover:text-red-300"
+                              onClick={(event) =>
+                                handleDeleteHistoryItem(item, event)
+                              }
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </div>
 
-                  {(item.published_account ||
-                    item.published_platform ||
-                    item.published_url) && (
-                    <div className="mt-3 space-y-1 text-sm text-zinc-400">
-                      <p>
-                        Content{" "}
-                        <span className="text-zinc-200">
-                          #{item.content_id}
-                        </span>
-                      </p>
-                      <p>
-                        Published Account{" "}
-                        <span className="text-zinc-200">
-                          {item.published_account || "Unassigned"}
-                        </span>
-                      </p>
-                      <p>
-                        Published Platform{" "}
-                        <span className="text-zinc-200">
-                          {item.published_platform || "Not selected"}
-                        </span>
+                      <p className="mt-2 text-sm text-zinc-400">
+                        {item.target_persona || "Property event"}
+                        {" • "}
+                        {item.strategy_type || item.content_type || "timeline"}
+                        {" • "}
+                        {item.faq_source || "property source"}
+                        {" • "}
+                        {item.generation_mode || "event"}
+                        {" • "}
+                        {formatPublishStatus(item.publish_status || "draft")}
                       </p>
 
-                      {item.published_url && (
-                        <a
-                          className="text-blue-400 underline"
-                          href={item.published_url}
-                          rel="noreferrer"
-                          target="_blank"
+                      {item.content_id && (
+                        <Link
+                          className="mt-3 inline-block text-sm text-blue-400 underline hover:text-blue-300"
+                          to={`/content?content_id=${item.content_id}`}
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          Published URL
-                        </a>
+                          Related content #{item.content_id}
+                        </Link>
                       )}
 
-                      {!item.published_url && item.preview_url && (
-                        <a
-                          className="text-emerald-300 underline"
-                          href={item.preview_url}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          Review Preview
-                        </a>
-                      )}
-
-                      {item.publish_status === "review_ready" && (
-                        <p className="font-semibold text-emerald-300">
-                          Human Review Required
+                      {item.event_summary && (
+                        <p className="mt-3 text-sm text-zinc-500">
+                          {item.event_summary}
                         </p>
                       )}
+
+                      {(item.published_account ||
+                        item.published_platform ||
+                        item.published_url) && (
+                        <div className="mt-3 space-y-1 text-sm text-zinc-400">
+                          <p>
+                            Published Account{" "}
+                            <span className="text-zinc-200">
+                              {item.published_account || "Unassigned"}
+                            </span>
+                          </p>
+                          <p>
+                            Published Platform{" "}
+                            <span className="text-zinc-200">
+                              {item.published_platform || "Not selected"}
+                            </span>
+                          </p>
+
+                          {item.published_url && (
+                            <a
+                              className="text-blue-400 underline"
+                              href={item.published_url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Published URL
+                            </a>
+                          )}
+
+                          {!item.published_url && item.preview_url && (
+                            <a
+                              className="text-emerald-300 underline"
+                              href={item.preview_url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Review Preview
+                            </a>
+                          )}
+
+                          {item.publish_status === "review_ready" && (
+                            <p className="font-semibold text-emerald-300">
+                              Human Review Required
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  ))}
+                </section>
               ))}
+
+              {history.length === 0 && (
+                <p className="text-sm text-zinc-500">
+                  No history events for the current property.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

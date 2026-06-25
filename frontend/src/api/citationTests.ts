@@ -3,19 +3,23 @@ import apiClient from "./client";
 export type CitationTestRow = {
   id: number;
   property_id: number | null;
-  content_id: number;
-  platform: string;
-  query: string;
-  source_type: string;
-  citation_target: string;
-  ai_response: string;
-  mentioned: boolean;
-  evidence_found: boolean;
-  citation_type: string;
-  confidence_score: number;
-  visibility_score: number;
-  matched_keywords: string;
-  tested_at: string;
+  content_id: number | null;
+  platform: string | null;
+  query: string | null;
+  prompt: string | null;
+  target_brand: string | null;
+  status: string | null;
+  source_type: string | null;
+  citation_target: string | null;
+  ai_response: string | null;
+  mentioned: boolean | null;
+  evidence_found: boolean | null;
+  citation_type: string | null;
+  confidence_score: number | null;
+  visibility_score: number | null;
+  matched_keywords: string | null;
+  tested_at: string | null;
+  last_run: string | null;
 };
 
 export async function fetchCitationTests() {

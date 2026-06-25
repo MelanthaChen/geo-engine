@@ -6,7 +6,6 @@ import { Card, CardContent } from "../../@/components/ui/card";
 import { generateContent } from "@/api/content";
 import { getContentStatus } from "@/api/contentStatus";
 import { generateFaqs } from "@/api/faq";
-import { fetchContentHistory } from "@/api/history";
 import { publishContent } from "@/api/publishing";
 import type { Property } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
@@ -216,7 +215,6 @@ function ContentGenerationWorkspace({
       setPlatformStatus("draft");
       setPlatformUrl("");
 
-      await fetchContentHistory();
     } catch (error) {
       console.error(error);
     } finally {
