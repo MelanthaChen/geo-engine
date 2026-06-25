@@ -29,9 +29,15 @@ export type PropertyPayload = {
 };
 
 export async function fetchProperties() {
-  const response = await apiClient.get<Property[]>("/api/v1/properties");
+  const response = await apiClient.get<Property[] | { properties: Property[] }>(
+    "/api/v1/properties",
+  );
 
-  return response.data;
+  if (Array.isArray(response.data)) {
+    return response.data;
+  }
+
+  return response.data.properties || [];
 }
 
 export async function createProperty(
@@ -57,11 +63,6 @@ export async function updateProperty(
   return response.data;
 }
 
-export async function deleteProperty(propertyId: number) {
-  const response = await apiClient.delete(`/api/v1/properties/${propertyId}`);
-
-  return response.data;
-}
 
 export async function fetchPropertyMetrics(propertyId: number) {
   const response = await apiClient.get<PropertyMetrics>(

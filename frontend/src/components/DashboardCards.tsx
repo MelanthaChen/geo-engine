@@ -1,64 +1,79 @@
-import { ClipboardList, FileQuestion, FileText, Send } from "lucide-react";
+import {
+  ClipboardList,
+  FileCheck2,
+  FileSearch,
+  FileText,
+  Globe2,
+  Send,
+} from "lucide-react";
 
 import { Card, CardContent } from "../../@/components/ui/card";
 
 type DashboardCardsProps = {
-  generatedFaqs: number;
-  generatedContents: number;
-  pendingPublishTasks: number;
-  publishedContents: number;
-  citationTestsRun: number;
+  generatedContent: string;
+  publishedContent: string;
+  citationTests: string;
+  latestAudit: string;
+  latestPublish: string;
+  websiteStatus: string;
 };
 
 export function DashboardCards({
-  citationTestsRun,
-  generatedContents,
-  generatedFaqs,
-  pendingPublishTasks,
-  publishedContents,
+  citationTests,
+  generatedContent,
+  latestAudit,
+  latestPublish,
+  publishedContent,
+  websiteStatus,
 }: DashboardCardsProps) {
   const cards = [
     {
-      label: "Generated FAQs",
-      value: String(generatedFaqs),
-      detail: "Stored FAQ sets",
-      icon: FileQuestion,
-    },
-    {
-      label: "Generated Contents",
-      value: String(generatedContents),
+      label: "Generated Content",
+      value: generatedContent,
       detail: "Current property",
       icon: FileText,
     },
     {
-      label: "Published Contents",
-      value: String(publishedContents),
+      label: "Published Content",
+      value: publishedContent,
       detail: "Current property",
       icon: Send,
     },
     {
-      label: "Pending Publish Tasks",
-      value: String(pendingPublishTasks),
-      detail: "Active publishing or review tasks",
+      label: "Citation Tests",
+      value: citationTests,
+      detail: "Stored test records",
       icon: ClipboardList,
     },
     {
-      label: "Citation Tests Run",
-      value: String(citationTestsRun),
-      detail: "Stored test records",
-      icon: ClipboardList,
+      label: "Latest Audit",
+      value: latestAudit,
+      detail: "Website audit",
+      icon: FileSearch,
+    },
+    {
+      label: "Latest Publish",
+      value: latestPublish,
+      detail: "Publishing timeline",
+      icon: FileCheck2,
+    },
+    {
+      label: "Website Status",
+      value: websiteStatus,
+      detail: "Active property",
+      icon: Globe2,
     },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {cards.map((card) => (
         <Card key={card.label} className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-zinc-500">{card.label}</p>
-                <p className="mt-3 text-3xl font-semibold text-zinc-50">
+                <p className="mt-3 text-2xl font-semibold text-zinc-50">
                   {card.value}
                 </p>
               </div>

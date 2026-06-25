@@ -8,6 +8,7 @@ import { ContentHistory } from "@/pages/ContentHistory";
 import { Dashboard } from "@/pages/Dashboard";
 import { PublishingQueue } from "@/pages/PublishingQueue";
 import { Settings } from "@/pages/Settings";
+import { WebsiteAudit } from "@/pages/WebsiteAudit";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <DashboardLayout>
           <Routes>
             <Route element={<Dashboard />} path="/" />
+            <Route element={<WebsiteAudit />} path="/audit" />
             <Route element={<ContentGeneration />} path="/content" />
             <Route element={<PublishingQueue />} path="/publishing" />
             <Route element={<CitationTests />} path="/citations" />

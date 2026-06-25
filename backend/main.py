@@ -33,6 +33,9 @@ from app.api.v1.history_routes import (
 from app.api.v1.property_routes import (
     router as property_router
 )
+from app.api.v1.audit_routes import (
+    router as audit_router
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -50,6 +53,7 @@ app = FastAPI(
 
 origins = [
     "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "https://geo-engine-phi.vercel.app",
 ]
 
@@ -59,6 +63,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=origins,
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
@@ -107,3 +112,4 @@ app.include_router(optimization_router)
 app.include_router(account_router)
 app.include_router(history_router)
 app.include_router(property_router)
+app.include_router(audit_router)

@@ -83,13 +83,12 @@ export function Dashboard() {
       </div>
 
       <DashboardCards
-        citationTestsRun={citationTests.length}
-        generatedContents={metrics?.generated_content ?? 0}
-        generatedFaqs={
-          history.filter((item) => item.history_item_type === "faq").length
-        }
-        pendingPublishTasks={metrics?.tracked_prompts ?? 0}
-        publishedContents={metrics?.published_content ?? 0}
+        citationTests={formatMetric(citationTests.length)}
+        generatedContent={formatMetric(metrics?.generated_content)}
+        latestAudit="No data yet."
+        latestPublish={latestPublishLabel(history)}
+        publishedContent={formatMetric(metrics?.published_content)}
+        websiteStatus={activeProperty ? "Active" : "No data yet."}
       />
 
       <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
@@ -116,12 +115,8 @@ export function Dashboard() {
                 value={String(metrics?.published_content ?? 0)}
               />
               <MetricLine
-                label="Pending Publish Tasks"
-                value={String(metrics?.tracked_prompts ?? 0)}
-              />
-              <MetricLine
                 label="Citation Tests Run"
-                value={String(citationTests.length)}
+                value={formatMetric(citationTests.length)}
               />
               <MetricLine
                 label="Last Updated"
@@ -190,4 +185,27 @@ function formatEventLabel(eventType?: string) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatMetric(value?: number | null) {
+  if (!value) {
+    return "No data yet.";
+  }
+
+  return String(value);
+}
+
+function latestPublishLabel(history: HistoryItem[]) {
+  const publishEvent = history.find((item) =>
+    ["publish_requested", "published", "publish_failed", "review_ready"]
+      .includes(item.event_type || ""),
+  );
+
+  if (!publishEvent) {
+    return "No data yet.";
+  }
+
+  return publishEvent.created_at
+    ? new Date(publishEvent.created_at).toLocaleDateString()
+    : "Available";
 }

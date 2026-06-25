@@ -1,6 +1,6 @@
 import {
   ChevronDown,
-  Trash2,
+  FileSearch,
   FlaskConical,
   History,
   LayoutDashboard,
@@ -13,13 +13,21 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { Button } from "../../@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../@/components/ui/dialog";
 
-import { deleteProperty } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
 
 const navigationItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Content Generation", href: "/content", icon: PenLine },
+  { label: "Website Audit", href: "/audit", icon: FileSearch },
+  { label: "Social Media Track", href: "/content", icon: PenLine },
   { label: "Publishing Queue", href: "/publishing", icon: Send },
   { label: "Citation Tests", href: "/citations", icon: FlaskConical },
   { label: "Content History", href: "/history", icon: History },
@@ -32,7 +40,6 @@ export function Sidebar() {
     addProperty,
     loading,
     properties,
-    refreshProperties,
     setActiveProperty,
   } = useProperty();
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -44,53 +51,41 @@ export function Sidebar() {
     description: "",
   });
   const [propertyError, setPropertyError] = useState("");
+  const [creatingProperty, setCreatingProperty] = useState(false);
 
   async function handleAddProperty() {
-    if (!addForm.name.trim() || !addForm.domain.trim()) {
-      setPropertyError("Property name and domain are required.");
-      return;
-    }
-
-    setPropertyError("");
-    await addProperty({
-      name: addForm.name.trim(),
-      domain: addForm.domain.trim(),
-      brand_name: addForm.brand_name.trim() || addForm.name.trim(),
-      description: addForm.description.trim() || null,
-    });
-
-    setAddForm({
-      name: "",
-      brand_name: "",
-      domain: "",
-      description: "",
-    });
-    setAddDialogOpen(false);
-    setSelectorOpen(false);
-  }
-
-  async function handleDeleteProperty() {
-    if (!activeProperty) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Delete property "${activeProperty.name}"?`,
-    );
-
-    if (!confirmed) {
+    if (
+      !addForm.name.trim() ||
+      !addForm.brand_name.trim() ||
+      !addForm.domain.trim()
+    ) {
+      setPropertyError("Property name, brand name, and website URL are required.");
       return;
     }
 
     try {
-      await deleteProperty(activeProperty.id);
-      await refreshProperties();
+      setCreatingProperty(true);
+      setPropertyError("");
+      await addProperty({
+        name: addForm.name.trim(),
+        domain: addForm.domain.trim(),
+        brand_name: addForm.brand_name.trim(),
+        description: addForm.description.trim() || null,
+      });
+
+      setAddForm({
+        name: "",
+        brand_name: "",
+        domain: "",
+        description: "",
+      });
+      setAddDialogOpen(false);
       setSelectorOpen(false);
     } catch (error) {
       console.error(error);
-      setPropertyError(
-        "Delete Property requires a backend DELETE /api/v1/properties/{id} endpoint.",
-      );
+      setPropertyError("Failed to create property.");
+    } finally {
+      setCreatingProperty(false);
     }
   }
 
@@ -155,16 +150,6 @@ export function Sidebar() {
                 <Plus className="h-4 w-4" />
                 Add Property
               </Button>
-              <Button
-                className="mt-1 w-full justify-start text-red-300"
-                disabled={!activeProperty}
-                onClick={handleDeleteProperty}
-                size="sm"
-                variant="ghost"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Property
-              </Button>
               {propertyError && (
                 <p className="mt-2 text-xs leading-5 text-red-300">
                   {propertyError}
@@ -175,21 +160,22 @@ export function Sidebar() {
         )}
       </div>
 
-      {addDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-          <div className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <div>
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
                 Property
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-zinc-50">
-                Add Property
-              </h2>
-            </div>
+              <DialogTitle>Add Property</DialogTitle>
+              <DialogDescription>
+                Add a tracked website. This Property becomes the active
+                context after creation.
+              </DialogDescription>
+          </DialogHeader>
 
             <div className="mt-5 space-y-3">
               <label className="block space-y-2">
-                <span className="text-sm text-zinc-400">Property Name</span>
+                <span className="text-sm text-zinc-400">Property Name *</span>
                 <input
                   className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
                   value={addForm.name}
@@ -203,7 +189,7 @@ export function Sidebar() {
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm text-zinc-400">Brand Name</span>
+                <span className="text-sm text-zinc-400">Brand Name *</span>
                 <input
                   className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
                   value={addForm.brand_name}
@@ -217,10 +203,10 @@ export function Sidebar() {
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm text-zinc-400">Website Domain</span>
+                <span className="text-sm text-zinc-400">Website URL *</span>
                 <input
                   className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
-                  placeholder="geoairesume.com"
+                  placeholder="https://example.com"
                   value={addForm.domain}
                   onChange={(event) =>
                     setAddForm((current) => ({
@@ -252,7 +238,7 @@ export function Sidebar() {
               <p className="mt-3 text-sm text-red-300">{propertyError}</p>
             )}
 
-            <div className="mt-5 flex justify-end gap-2">
+            <DialogFooter className="mt-5">
               <Button
                 onClick={() => setAddDialogOpen(false)}
                 size="sm"
@@ -260,13 +246,16 @@ export function Sidebar() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleAddProperty} size="sm">
-                Create Property
+              <Button
+                disabled={creatingProperty}
+                onClick={handleAddProperty}
+                size="sm"
+              >
+                {creatingProperty ? "Creating..." : "Create Property"}
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <nav className="flex-1 space-y-1 px-3 py-5">
         {navigationItems.map((item) => (

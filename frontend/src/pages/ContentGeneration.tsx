@@ -7,6 +7,10 @@ import { generateContent } from "@/api/content";
 import { getContentStatus } from "@/api/contentStatus";
 import { generateFaqs } from "@/api/faq";
 import { publishContent } from "@/api/publishing";
+import {
+  fetchPublishingTasks,
+  type PublishingTask,
+} from "@/api/publishingQueue";
 import type { Property } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
 
@@ -93,8 +97,25 @@ function ContentGenerationWorkspace({
   const [platformStatus, setPlatformStatus] = useState("draft");
   const [aiUrl, setAiUrl] = useState("");
   const [platformUrl, setPlatformUrl] = useState("");
+  const [workflowMessage, setWorkflowMessage] = useState("");
+  const [publishTasks, setPublishTasks] = useState<PublishingTask[]>([]);
   const reviewBannerVisible =
     aiStatus === "review_ready" || platformStatus === "review_ready";
+
+  const loadPublishTasks = useCallback(async () => {
+    if (!activeProperty) {
+      setPublishTasks([]);
+      return;
+    }
+
+    try {
+      const tasks = await fetchPublishingTasks();
+      setPublishTasks(tasks);
+    } catch (error) {
+      console.error(error);
+      setPublishTasks([]);
+    }
+  }, [activeProperty]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -122,6 +143,14 @@ function ContentGenerationWorkspace({
     return () => clearInterval(interval);
   }, [refreshStatus]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadPublishTasks();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadPublishTasks]);
+
   async function handleGenerateAiFaqs() {
     try {
       setLoading(true);
@@ -136,7 +165,7 @@ function ContentGenerationWorkspace({
       };
     } catch (error) {
       console.error(error);
-      alert("Failed to generate AI FAQs");
+      setWorkflowMessage("Failed to generate AI FAQs.");
 
       return {
         faqs: "",
@@ -165,7 +194,7 @@ function ContentGenerationWorkspace({
       };
     } catch (error) {
       console.error(error);
-      alert("Failed to generate platform FAQs");
+      setWorkflowMessage("Failed to generate platform FAQs.");
 
       return {
         faqs: "",
@@ -178,6 +207,7 @@ function ContentGenerationWorkspace({
 
   async function handleGeneratePackage() {
     setLoading(true);
+    setWorkflowMessage("");
 
     try {
       const aiFaqResult = await handleGenerateAiFaqs();
@@ -214,9 +244,10 @@ function ContentGenerationWorkspace({
       setPlatformContentId(platformResult.content_id);
       setPlatformStatus("draft");
       setPlatformUrl("");
-
+      await loadPublishTasks();
     } catch (error) {
       console.error(error);
+      setWorkflowMessage("Failed to generate content.");
     } finally {
       setLoading(false);
     }
@@ -237,10 +268,12 @@ function ContentGenerationWorkspace({
       if (result.error) {
         throw new Error(result.error);
       }
+
+      await loadPublishTasks();
     } catch (error) {
       console.error(error);
 
-      alert(
+      setWorkflowMessage(
         error instanceof Error
           ? error.message
           : "Failed to queue content for publishing",
@@ -263,11 +296,11 @@ function ContentGenerationWorkspace({
           Workflow
         </p>
         <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Content Generation
+          Social Media Track
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Discover category FAQs, generate source-aware content, and queue
-          publishing tasks.
+          Manage category FAQ discovery, content generation, and publishing
+          queue preparation for the active Property.
         </p>
         {activeProperty && (
           <p className="mt-3 text-sm text-zinc-400">
@@ -283,6 +316,12 @@ function ContentGenerationWorkspace({
       {reviewBannerVisible && (
         <div className="rounded-lg border border-emerald-500 bg-emerald-950 px-5 py-4 font-semibold text-emerald-100">
           Human Review Required
+        </div>
+      )}
+
+      {workflowMessage && (
+        <div className="rounded-lg border border-amber-800 bg-amber-950/50 px-5 py-4 text-sm text-amber-200">
+          {workflowMessage}
         </div>
       )}
 
@@ -368,9 +407,12 @@ function ContentGenerationWorkspace({
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <FaqPanel title="AI FAQs" value={aiFaqs || "No AI FAQs yet."} />
         <FaqPanel
-          title="Platform FAQs"
+          title="Generated AI FAQs"
+          value={aiFaqs || "No AI FAQs yet."}
+        />
+        <FaqPanel
+          title="Generated Platform FAQs"
           value={platformFaqs || "No platform FAQs yet."}
         />
       </div>
@@ -395,6 +437,65 @@ function ContentGenerationWorkspace({
           url={platformUrl}
         />
       </div>
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-zinc-50">
+                Publish Queue
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Property-scoped publishing tasks created from this workflow.
+              </p>
+            </div>
+            <Button
+              onClick={() => void loadPublishTasks()}
+              size="sm"
+              variant="outline"
+            >
+              Refresh
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-zinc-800">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-800 bg-zinc-900/70 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Title</th>
+                  <th className="px-4 py-3 font-medium">Platform</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {publishTasks.map((task) => (
+                  <tr key={task.id}>
+                    <td className="px-4 py-3 font-medium text-zinc-100">
+                      {task.title}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      {task.platform || "Not selected"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      {formatPublishStatus(task.status)}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500">
+                      {new Date(task.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {publishTasks.length === 0 && (
+              <div className="px-4 py-6 text-sm text-zinc-500">
+                No publish tasks for the current Property.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
