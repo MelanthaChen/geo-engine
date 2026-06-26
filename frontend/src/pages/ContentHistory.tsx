@@ -4,8 +4,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "../../@/components/ui/card";
 
 import {
-  deleteFaqHistory,
-  deleteGeneratedContentHistory,
+  deleteHistoryItem,
   fetchContentHistory,
   type HistoryItem,
 } from "@/api/history";
@@ -106,13 +105,10 @@ export function ContentHistory() {
     }
 
     try {
-      if (item.history_item_type === "faq") {
-        await deleteFaqHistory(Number(item.history_item_id));
-      } else if (item.history_item_type === "generated_content") {
-        await deleteGeneratedContentHistory(Number(item.history_item_id));
-      } else {
-        throw new Error("This history item cannot be deleted here");
-      }
+      await deleteHistoryItem(
+        item.history_item_type || "event",
+        Number(item.history_item_id || item.event_id),
+      );
 
       const deletedIndex = history.findIndex(
         (historyItem) => historyItem.id === item.id,
@@ -208,19 +204,16 @@ export function ContentHistory() {
                             {formatEventType(item.event_type)}
                           </span>
 
-                          {(item.history_item_type === "faq" ||
-                            item.history_item_type === "generated_content") && (
-                            <button
-                              aria-label="Delete history item"
-                              className="text-sm leading-none text-zinc-500 hover:text-red-300"
-                              onClick={(event) =>
-                                handleDeleteHistoryItem(item, event)
-                              }
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          )}
+                          <button
+                            aria-label="Delete history item"
+                            className="text-sm leading-none text-zinc-500 hover:text-red-300"
+                            onClick={(event) =>
+                              handleDeleteHistoryItem(item, event)
+                            }
+                            type="button"
+                          >
+                            ×
+                          </button>
                         </div>
                       </div>
 

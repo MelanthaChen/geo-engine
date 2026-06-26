@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db
 
 from app.models.content import Content
-from app.models.publish_task import PublishTask
+from app.models.publishing_job import PublishingJob
 
 from app.services.publishing_service import (
+    append_job_log,
     claim_pending_task,
     mark_task_failed,
     publish_content
@@ -32,7 +33,7 @@ router = APIRouter(
 )
 
 PUBLISH_TASK_STATUSES = {
-    "pending",
+    "queued",
     "processing",
     "review_ready",
     "published",
@@ -95,15 +96,15 @@ def get_pending_publish(
     property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    filters = [PublishTask.status == "pending"]
+    filters = [PublishingJob.status == "queued"]
 
     if property_id is not None:
-        filters.append(PublishTask.property_id == property_id)
+        filters.append(PublishingJob.property_id == property_id)
 
     task = (
-        db.query(PublishTask)
+        db.query(PublishingJob)
         .filter(*filters)
-        .order_by(PublishTask.created_at.asc())
+        .order_by(PublishingJob.created_at.asc())
         .first()
     )
 
@@ -124,13 +125,13 @@ def get_publish_tasks(
     property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(PublishTask)
+    query = db.query(PublishingJob)
 
     if property_id is not None:
-        query = query.filter(PublishTask.property_id == property_id)
+        query = query.filter(PublishingJob.property_id == property_id)
 
     tasks = (
-        query.order_by(PublishTask.created_at.desc())
+        query.order_by(PublishingJob.created_at.desc())
         .limit(100)
         .all()
     )
@@ -142,12 +143,15 @@ def get_publish_tasks(
                 "property_id": task.property_id,
                 "content_id": task.content_id,
                 "title": content_title(task.content),
-                "platform": task.account.platform if task.account else None,
+                "platform": task.platform,
                 "account_handle": (
                     task.account.handle if task.account else None
                 ),
                 "status": task.status,
+                "logs": task.logs,
+                "error_message": task.error_message,
                 "created_at": task.created_at,
+                "updated_at": task.updated_at,
             }
             for task in tasks
         ]
@@ -236,8 +240,8 @@ def complete_publish(
 
     if request.publish_task_id:
         publish_task = (
-            db.query(PublishTask)
-            .filter(PublishTask.id == request.publish_task_id)
+            db.query(PublishingJob)
+            .filter(PublishingJob.id == request.publish_task_id)
             .first()
         )
 
@@ -257,6 +261,10 @@ def complete_publish(
 
     if publish_task:
         publish_task.status = request.status
+        append_job_log(
+            publish_task,
+            f"Worker reported status {request.status}.",
+        )
 
     article_title = extract_article_title(
         generated_content=content.body,
@@ -304,10 +312,15 @@ def complete_publish(
         event_type=event_type,
         property_id=content.property_id,
         content_id=content.id,
+        publishing_job_id=publish_task.id if publish_task else None,
         source_type=content.generation_mode,
         status=content.publish_status,
         summary=event_summary,
-        details=request.preview_screenshot or request.url
+        details=(
+            publish_task.logs
+            if publish_task
+            else request.preview_screenshot or request.url
+        )
     )
 
     return {

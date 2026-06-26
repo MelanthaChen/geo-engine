@@ -5,6 +5,7 @@ import { Card, CardContent } from "../../@/components/ui/card";
 
 import {
   fetchCitationTests,
+  runPromptCitationTest,
   type CitationTestRow,
 } from "@/api/citationTests";
 import { useProperty } from "@/contexts/PropertyContext";
@@ -15,8 +16,10 @@ export function CitationTests() {
   const { activeProperty } = useProperty();
   const [tests, setTests] = useState<CitationTestRow[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState("ChatGPT");
-  const [expandedTestId, setExpandedTestId] = useState<number | null>(null);
+  const [selectedModels, setSelectedModels] = useState<string[]>(["ChatGPT"]);
+  const [expandedTestId, setExpandedTestId] = useState<number | string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [runMessage, setRunMessage] = useState("");
 
@@ -47,10 +50,49 @@ export function CitationTests() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTests]);
 
-  function handleRunTest() {
-    setRunMessage(
-      "TODO: backend endpoint missing for prompt + model citation tests. Current backend only supports POST /api/v1/citation-tests/run/{content_id}.",
-    );
+  async function handleRunTest() {
+    if (!activeProperty || !prompt.trim()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setRunMessage("");
+      const result = await runPromptCitationTest({
+        property_id: activeProperty.id,
+        prompt: prompt.trim(),
+        models: selectedModels,
+      });
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      setRunMessage("Citation test finished.");
+      setPrompt("");
+      await loadTests();
+    } catch (error) {
+      console.error(error);
+      setRunMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to run citation test.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleModel(modelName: string) {
+    setSelectedModels((currentModels) => {
+      if (currentModels.includes(modelName)) {
+        const nextModels = currentModels.filter((item) => item !== modelName);
+
+        return nextModels.length > 0 ? nextModels : currentModels;
+      }
+
+      return [...currentModels, modelName];
+    });
   }
 
   return (
@@ -78,7 +120,7 @@ export function CitationTests() {
       </div>
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 lg:grid-cols-[1fr_220px_auto]">
+        <CardContent className="grid gap-4 p-6 lg:grid-cols-[1fr_320px_auto]">
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Prompt</span>
             <input
@@ -90,24 +132,36 @@ export function CitationTests() {
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm text-zinc-400">Model</span>
-            <select
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
-              value={model}
-              onChange={(event) => setModel(event.target.value)}
-            >
+            <span className="text-sm text-zinc-400">Models</span>
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800 bg-black p-3">
               {models.map((modelName) => (
-                <option key={modelName}>{modelName}</option>
+                <label
+                  className="flex items-center gap-2 text-sm text-zinc-300"
+                  key={modelName}
+                >
+                  <input
+                    checked={selectedModels.includes(modelName)}
+                    className="h-4 w-4 accent-blue-500"
+                    onChange={() => toggleModel(modelName)}
+                    type="checkbox"
+                  />
+                  {modelName}
+                </label>
               ))}
-            </select>
+            </div>
           </label>
 
           <div className="flex items-end">
             <Button
-              disabled={!activeProperty || !prompt.trim()}
+              disabled={
+                !activeProperty ||
+                !prompt.trim() ||
+                selectedModels.length === 0 ||
+                loading
+              }
               onClick={handleRunTest}
             >
-              Run Test
+              {loading ? "Running..." : "Run Test"}
             </Button>
           </div>
 
@@ -154,7 +208,7 @@ export function CitationTests() {
                         : "-"}
                     </td>
                     <td className="px-5 py-4 text-zinc-400">
-                      {test.platform || "Unknown"}
+                      {test.model || test.platform || "Unknown"}
                     </td>
                     <td className="px-5 py-4">
                       <span
@@ -168,7 +222,7 @@ export function CitationTests() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-zinc-300">
-                      {test.confidence_score || "-"}
+                      {test.rank || "-"}
                     </td>
                     <td className="px-5 py-4 text-zinc-400">
                       {test.status || "unknown"}
@@ -181,8 +235,21 @@ export function CitationTests() {
                           Full LLM Response
                         </p>
                         <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
-                          {test.ai_response || "No response stored."}
+                          {test.raw_response ||
+                            test.ai_response ||
+                            test.response_snippet ||
+                            "No response stored."}
                         </div>
+                        {test.response_snippet && (
+                          <>
+                            <p className="mb-2 mt-4 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                              Response Snippet
+                            </p>
+                            <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
+                              {test.response_snippet}
+                            </div>
+                          </>
+                        )}
                       </td>
                     </tr>
                   )}

@@ -8,7 +8,10 @@ export type PublishingTask = {
   platform: string | null;
   account_handle: string | null;
   status: string;
+  logs: string | null;
+  error_message: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export async function fetchPublishingTasks() {

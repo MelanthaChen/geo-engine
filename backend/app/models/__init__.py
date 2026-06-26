@@ -11,3 +11,6 @@ from app.models.publish_task import PublishTask
 from app.models.faq_set import FaqSet
 from app.models.faq import Faq
 from app.models.platform_question import PlatformQuestion
+from app.models.publishing_job import PublishingJob
+from app.models.citation_test_run import CitationTestRun
+from app.models.citation_test_result import CitationTestResult

@@ -5,6 +5,7 @@ from app.core.deps import get_db
 from app.services.history.delete_history_service import (
     delete_faq_set,
     delete_generated_content,
+    delete_history_item,
 )
 
 
@@ -55,4 +56,29 @@ def delete_content_history(
     return {
         "status": "deleted",
         "id": generated_content_id,
+    }
+
+
+@router.delete("/items/{item_type}/{item_id}")
+def delete_any_history_item(
+    item_type: str,
+    item_id: int,
+    db: Session = Depends(get_db),
+):
+    deleted = delete_history_item(
+        db=db,
+        item_type=item_type,
+        item_id=item_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="History item not found"
+        )
+
+    return {
+        "status": "deleted",
+        "type": item_type,
+        "id": item_id,
     }

@@ -1,5 +1,6 @@
 from openai import OpenAI
 from datetime import datetime, timezone
+import re
 
 from sqlalchemy.orm import Session
 
@@ -8,6 +9,8 @@ from app.core.config import settings
 from app.models.content import Content
 from app.models.citation_test import CitationTest
 from app.models.citation_result import CitationResult
+from app.models.citation_test_run import CitationTestRun
+from app.models.citation_test_result import CitationTestResult
 from app.repositories.history_repository import (
     create_history_event
 )
@@ -19,6 +22,266 @@ from app.utils.title_extractor import (
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY
 )
+
+SUPPORTED_PROMPT_MODELS = {
+    "chatgpt",
+    "openai",
+    "gpt-4.1-mini",
+}
+
+
+def run_prompt_citation_test(
+    db: Session,
+    property_id: int,
+    prompt: str,
+    models: list[str],
+):
+    from app.services.property_service import get_property
+
+    property_record = get_property(db, property_id)
+
+    if not property_record:
+        return None
+
+    target_brand = property_record.brand_name or property_record.name
+
+    citation_run = CitationTestRun(
+        property_id=property_id,
+        prompt=prompt,
+        target_brand=target_brand,
+        status="processing",
+    )
+
+    db.add(citation_run)
+    db.commit()
+    db.refresh(citation_run)
+
+    create_history_event(
+        db=db,
+        event_type="citation_test_started",
+        property_id=property_id,
+        citation_test_run_id=citation_run.id,
+        status="processing",
+        summary=f"Citation test started: {prompt[:120]}",
+        details=prompt,
+    )
+
+    normalized_models = dedupe_models(models)
+
+    for model_name in normalized_models:
+        result = execute_prompt_model(
+            prompt=prompt,
+            model_name=model_name,
+            target_brand=target_brand,
+            domain=property_record.domain,
+        )
+        db.add(
+            CitationTestResult(
+                run_id=citation_run.id,
+                model=model_name,
+                status=result["status"],
+                mentioned=result["mentioned"],
+                rank=result["rank"],
+                response_snippet=result["response_snippet"],
+                raw_response=result["raw_response"],
+                error_message=result["error_message"],
+            )
+        )
+
+    citation_run.status = "finished"
+    citation_run.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(citation_run)
+
+    create_history_event(
+        db=db,
+        event_type="citation_test_finished",
+        property_id=property_id,
+        citation_test_run_id=citation_run.id,
+        status="finished",
+        summary=f"Citation test finished: {prompt[:120]}",
+        details=serialize_run_preview(citation_run),
+    )
+
+    return citation_run
+
+
+def dedupe_models(models: list[str]):
+    if not models:
+        return ["ChatGPT"]
+
+    seen = set()
+    deduped = []
+
+    for model_name in models:
+        normalized = model_name.strip()
+
+        if not normalized or normalized.lower() in seen:
+            continue
+
+        seen.add(normalized.lower())
+        deduped.append(normalized)
+
+    return deduped or ["ChatGPT"]
+
+
+def execute_prompt_model(
+    prompt: str,
+    model_name: str,
+    target_brand: str,
+    domain: str,
+):
+    normalized_model = model_name.strip().lower()
+
+    if normalized_model not in SUPPORTED_PROMPT_MODELS:
+        error = (
+            f"{model_name} citation testing is not configured. "
+            "Add the provider API integration before running this model."
+        )
+
+        return {
+            "status": "failed",
+            "mentioned": False,
+            "rank": None,
+            "response_snippet": error,
+            "raw_response": error,
+            "error_message": error,
+        }
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Answer the user's prompt naturally. Do not force a "
+                    "brand mention. If a website or brand is relevant, mention "
+                    "it in the same way a normal AI answer would."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        temperature=0.4,
+    )
+    raw_response = response.choices[0].message.content or ""
+    mentioned = detect_mention(
+        response_text=raw_response,
+        target_brand=target_brand,
+        domain=domain,
+    )
+
+    return {
+        "status": "finished",
+        "mentioned": mentioned,
+        "rank": detect_rank(
+            response_text=raw_response,
+            target_brand=target_brand,
+            domain=domain,
+        ) if mentioned else None,
+        "response_snippet": build_response_snippet(
+            response_text=raw_response,
+            target_brand=target_brand,
+            domain=domain,
+        ),
+        "raw_response": raw_response,
+        "error_message": None,
+    }
+
+
+def detect_mention(
+    response_text: str,
+    target_brand: str,
+    domain: str,
+):
+    haystack = response_text.lower()
+    brand = (target_brand or "").lower()
+    clean_domain = normalize_domain(domain)
+
+    return bool(
+        (brand and brand in haystack)
+        or (clean_domain and clean_domain in haystack)
+    )
+
+
+def detect_rank(
+    response_text: str,
+    target_brand: str,
+    domain: str,
+):
+    candidates = [
+        re.escape(value)
+        for value in [target_brand, normalize_domain(domain)]
+        if value
+    ]
+
+    if not candidates:
+        return None
+
+    pattern = re.compile("|".join(candidates), re.IGNORECASE)
+    match = pattern.search(response_text)
+
+    if not match:
+        return None
+
+    before_match = response_text[:match.start()]
+    list_markers = re.findall(r"(?:^|\n)\s*(\d+)[.)]", before_match)
+
+    if list_markers:
+        return int(list_markers[-1])
+
+    return 1
+
+
+def build_response_snippet(
+    response_text: str,
+    target_brand: str,
+    domain: str,
+):
+    if not response_text:
+        return ""
+
+    lowered = response_text.lower()
+    needles = [
+        (target_brand or "").lower(),
+        normalize_domain(domain),
+    ]
+    positions = [
+        lowered.find(needle)
+        for needle in needles
+        if needle and lowered.find(needle) >= 0
+    ]
+
+    if not positions:
+        return response_text[:320]
+
+    center = min(positions)
+    start = max(0, center - 120)
+    end = min(len(response_text), center + 220)
+
+    return response_text[start:end]
+
+
+def normalize_domain(domain: str | None):
+    if not domain:
+        return ""
+
+    return (
+        domain.lower()
+        .replace("https://", "")
+        .replace("http://", "")
+        .strip("/")
+    )
+
+
+def serialize_run_preview(citation_run: CitationTestRun):
+    return "\n".join(
+        f"{result.model}: {result.status}, mentioned={result.mentioned}, "
+        f"rank={result.rank or '-'}"
+        for result in citation_run.results
+    )
 
 
 def run_citation_test(

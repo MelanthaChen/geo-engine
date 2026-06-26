@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.models.account import Account
 from app.models.content import Content
-from app.models.publish_task import PublishTask
+from app.models.publishing_job import PublishingJob
 
 from app.core.config import settings
 from app.repositories.history_repository import (
@@ -12,6 +12,14 @@ from app.services.account_service import seed_demo_accounts
 from app.utils.title_extractor import (
     extract_article_title
 )
+
+
+def append_job_log(
+    job: PublishingJob,
+    message: str,
+):
+    existing_logs = job.logs or ""
+    job.logs = f"{existing_logs}{message}\n"
 
 
 def publish_content(
@@ -56,7 +64,7 @@ def publish_content(
             "error": "No active publishing account found"
         }
 
-    content.publish_status = "pending"
+    content.publish_status = "queued"
     content.publish_platform = account.platform
 
     article_title = (
@@ -67,24 +75,27 @@ def publish_content(
         )
     )
 
-    publish_task = PublishTask(
+    publishing_job = PublishingJob(
         property_id=content.property_id,
         content_id=content.id,
         account_id=account.id,
-        status="pending"
+        platform=account.platform,
+        status="queued",
     )
+    append_job_log(publishing_job, "Publishing job queued.")
 
-    db.add(publish_task)
+    db.add(publishing_job)
 
     db.commit()
 
-    db.refresh(publish_task)
+    db.refresh(publishing_job)
 
     create_history_event(
         db=db,
         event_type="publish_requested",
         property_id=content.property_id,
         content_id=content.id,
+        publishing_job_id=publishing_job.id,
         source_type=content.generation_mode,
         status=content.publish_status,
         summary=(
@@ -94,9 +105,10 @@ def publish_content(
     )
 
     return {
-        "status": "pending",
+        "status": "queued",
         "content_id": content.id,
-        "publish_task_id": publish_task.id,
+        "publish_job_id": publishing_job.id,
+        "publish_task_id": publishing_job.id,
         "account_id": account.id,
         "account_handle": account.handle,
         "publish_platform": account.platform,
@@ -158,14 +170,14 @@ def count_active_tasks(
     property_id: int | None = None,
 ):
     filters = [
-        PublishTask.account_id == account_id,
-        PublishTask.status.in_(["pending", "processing"]),
+        PublishingJob.account_id == account_id,
+        PublishingJob.status.in_(["queued", "processing"]),
     ]
 
     if property_id is not None:
-        filters.append(PublishTask.property_id == property_id)
+        filters.append(PublishingJob.property_id == property_id)
 
-    return db.query(PublishTask).filter(*filters).count()
+    return db.query(PublishingJob).filter(*filters).count()
 
 
 def claim_pending_task(
@@ -174,30 +186,42 @@ def claim_pending_task(
     property_id: int | None = None,
 ):
     filters = [
-        PublishTask.account_id == account_id,
-        PublishTask.status == "pending",
+        PublishingJob.account_id == account_id,
+        PublishingJob.status == "queued",
     ]
 
     if property_id is not None:
-        filters.append(PublishTask.property_id == property_id)
+        filters.append(PublishingJob.property_id == property_id)
 
-    task = (
-        db.query(PublishTask)
+    job = (
+        db.query(PublishingJob)
         .filter(*filters)
-        .order_by(PublishTask.created_at.asc())
+        .order_by(PublishingJob.created_at.asc())
         .first()
     )
 
-    if not task:
+    if not job:
         return None
 
-    task.status = "processing"
-    task.content.publish_status = "processing"
+    job.status = "processing"
+    append_job_log(job, "Worker claimed job. Status changed to processing.")
+    job.content.publish_status = "processing"
 
     db.commit()
-    db.refresh(task)
+    db.refresh(job)
 
-    return task
+    create_history_event(
+        db=db,
+        event_type="publish_processing",
+        property_id=job.property_id,
+        content_id=job.content_id,
+        publishing_job_id=job.id,
+        status="processing",
+        summary=f"Publishing job processing via {job.account.handle}",
+        details=job.logs,
+    )
+
+    return job
 
 
 def mark_task_failed(
@@ -205,8 +229,8 @@ def mark_task_failed(
     publish_task_id: int,
 ):
     task = (
-        db.query(PublishTask)
-        .filter(PublishTask.id == publish_task_id)
+        db.query(PublishingJob)
+        .filter(PublishingJob.id == publish_task_id)
         .first()
     )
 
@@ -214,6 +238,7 @@ def mark_task_failed(
         return None
 
     task.status = "failed"
+    append_job_log(task, "Publishing job failed.")
     task.content.publish_status = "failed"
 
     db.commit()
@@ -224,12 +249,14 @@ def mark_task_failed(
         event_type="publish_failed",
         property_id=task.property_id,
         content_id=task.content_id,
+        publishing_job_id=task.id,
         source_type=task.content.generation_mode,
         status="failed",
         summary=(
             f"Publishing failed for {task.content.title} "
             f"via {task.account.handle}"
-        )
+        ),
+        details=task.logs,
     )
 
     return task

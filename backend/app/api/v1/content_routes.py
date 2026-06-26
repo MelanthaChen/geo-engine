@@ -15,7 +15,7 @@ from app.services.export_service import (
 
 from app.models.content import Content
 from app.models.faq_set import FaqSet
-from app.models.publish_task import PublishTask
+from app.models.publishing_job import PublishingJob
 from app.services.property_service import get_property
 
 from app.core.deps import get_db
@@ -67,9 +67,9 @@ def latest_publish_task(
     content_id: int,
 ):
     return (
-        db.query(PublishTask)
-        .filter(PublishTask.content_id == content_id)
-        .order_by(PublishTask.created_at.desc())
+        db.query(PublishingJob)
+        .filter(PublishingJob.content_id == content_id)
+        .order_by(PublishingJob.created_at.desc())
         .first()
     )
 
@@ -104,6 +104,66 @@ def empty_publish_metadata():
         "published_platform": None,
         "published_url": None,
     }
+
+
+def history_item_type(event):
+    if event.publishing_job_id:
+        return "publish"
+
+    if event.citation_test_run_id:
+        return "citation_test"
+
+    if event.event_type == "audit_run":
+        return "audit"
+
+    return "event"
+
+
+def history_item_id(event):
+    if event.publishing_job_id:
+        return event.publishing_job_id
+
+    if event.citation_test_run_id:
+        return event.citation_test_run_id
+
+    return event.id
+
+
+def history_title(event):
+    if event.publishing_job:
+        return content_title(event.publishing_job.content)
+
+    if event.citation_test_run:
+        return f"Citation Test: {event.citation_test_run.prompt[:80]}"
+
+    if event.event_type == "audit_run":
+        return event.summary or "Website Audit"
+
+    if event.content:
+        return content_title(event.content)
+
+    return event.summary or "System event"
+
+
+def history_body(event):
+    if event.publishing_job:
+        return event.publishing_job.logs or event.metadata_json
+
+    if event.citation_test_run:
+        return "\n\n".join(
+            (
+                f"{result.model}: {result.status}\n"
+                f"Mentioned: {result.mentioned}\n"
+                f"Rank: {result.rank or '-'}\n"
+                f"{result.raw_response or result.error_message or ''}"
+            )
+            for result in event.citation_test_run.results
+        )
+
+    if event.content:
+        return event.content.body
+
+    return event.metadata_json
 
 
 @router.post("/generate")
@@ -207,19 +267,13 @@ def get_content_history(
     event_rows = [
         {
             "id": f"event-{event.id}",
-            "history_item_type": "event",
-            "history_item_id": event.id,
+            "history_item_type": history_item_type(event),
+            "history_item_id": history_item_id(event),
             "event_id": event.id,
             "content_id": event.content_id,
             "property_id": event.property_id,
-            "title": (
-                content_title(event.content)
-                if event.content
-                else "System event"
-            ),
-            "body": (
-                event.content.body if event.content else event.metadata_json
-            ),
+            "title": history_title(event),
+            "body": history_body(event),
             "reddit_title": (
                 event.content.reddit_title if event.content else None
             ),
@@ -301,6 +355,8 @@ def get_content_history(
             ),
             "event_type": event.event_type,
             "event_summary": event.summary,
+            "publishing_job_id": event.publishing_job_id,
+            "citation_test_run_id": event.citation_test_run_id,
             "event_status": event.event_type,
             "created_at": event.created_at,
         }

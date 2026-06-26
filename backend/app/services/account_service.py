@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.account import Account
-from app.models.publish_task import PublishTask
+from app.models.publishing_job import PublishingJob
 
 
 DEMO_ACCOUNTS = [
@@ -166,41 +166,41 @@ def get_account_task_counts(
     account_id: int,
     property_id: int | None = None,
 ):
-    assigned_filters = [PublishTask.account_id == account_id]
+    assigned_filters = [PublishingJob.account_id == account_id]
 
     if property_id is not None:
-        assigned_filters.append(PublishTask.property_id == property_id)
+        assigned_filters.append(PublishingJob.property_id == property_id)
 
     assigned_tasks = (
-        db.query(PublishTask)
+        db.query(PublishingJob)
         .filter(*assigned_filters)
         .count()
     )
 
     published_filters = [
-        PublishTask.account_id == account_id,
-        PublishTask.status == "published",
+        PublishingJob.account_id == account_id,
+        PublishingJob.status == "published",
     ]
 
     if property_id is not None:
-        published_filters.append(PublishTask.property_id == property_id)
+        published_filters.append(PublishingJob.property_id == property_id)
 
     published_tasks = (
-        db.query(PublishTask)
+        db.query(PublishingJob)
         .filter(*published_filters)
         .count()
     )
 
     failed_filters = [
-        PublishTask.account_id == account_id,
-        PublishTask.status == "failed",
+        PublishingJob.account_id == account_id,
+        PublishingJob.status == "failed",
     ]
 
     if property_id is not None:
-        failed_filters.append(PublishTask.property_id == property_id)
+        failed_filters.append(PublishingJob.property_id == property_id)
 
     failed_tasks = (
-        db.query(PublishTask)
+        db.query(PublishingJob)
         .filter(*failed_filters)
         .count()
     )

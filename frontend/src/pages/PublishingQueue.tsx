@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
@@ -18,7 +18,7 @@ function statusBadgeClass(status: string) {
     return "border-blue-700 bg-blue-950 text-blue-200";
   }
 
-  if (status === "pending" || status === "review_ready") {
+  if (status === "pending" || status === "queued" || status === "review_ready") {
     return "border-amber-700 bg-amber-950 text-amber-200";
   }
 
@@ -34,12 +34,17 @@ function formatStatus(status: string) {
     return "Review Ready";
   }
 
+  if (status === "queued") {
+    return "Queued";
+  }
+
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export function PublishingQueue() {
   const { activeProperty } = useProperty();
   const [tasks, setTasks] = useState<PublishingTask[]>([]);
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const loadTasks = useCallback(async () => {
@@ -67,6 +72,14 @@ export function PublishingQueue() {
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
+  }, [loadTasks]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadTasks();
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
   }, [loadTasks]);
 
   return (
@@ -117,29 +130,49 @@ export function PublishingQueue() {
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {tasks.map((task) => (
-                  <tr
-                    key={task.id}
-                    className="transition hover:bg-zinc-900/50"
-                  >
-                    <td className="px-5 py-4 font-medium text-zinc-100">
-                      {task.title}
-                    </td>
-                    <td className="px-5 py-4 text-zinc-400">
-                      {task.platform || "Not selected"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadgeClass(
-                          task.status,
-                        )}`}
-                      >
-                        {formatStatus(task.status)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-zinc-500">
-                      {new Date(task.created_at).toLocaleString()}
-                    </td>
-                  </tr>
+                  <Fragment key={task.id}>
+                    <tr
+                      className="cursor-pointer transition hover:bg-zinc-900/50"
+                      onClick={() =>
+                        setExpandedTaskId((currentId) =>
+                          currentId === task.id ? null : task.id,
+                        )
+                      }
+                    >
+                      <td className="px-5 py-4 font-medium text-zinc-100">
+                        {task.title}
+                      </td>
+                      <td className="px-5 py-4 text-zinc-400">
+                        {task.platform || "Not selected"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusBadgeClass(
+                            task.status,
+                          )}`}
+                        >
+                          {formatStatus(task.status)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-zinc-500">
+                        {new Date(task.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                    {expandedTaskId === task.id && (
+                      <tr>
+                        <td className="bg-black px-5 py-4" colSpan={4}>
+                          <p className="mb-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                            Job Logs
+                          </p>
+                          <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
+                            {task.logs ||
+                              task.error_message ||
+                              "No logs stored for this job yet."}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

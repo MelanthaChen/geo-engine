@@ -4,6 +4,7 @@ export type HistoryItem = {
   id: number | string;
   history_item_id?: number | string;
   history_item_type?: string;
+  event_id?: number | string;
   title?: string;
   target_persona?: string | null;
   strategy_type?: string | null;
@@ -15,6 +16,8 @@ export type HistoryItem = {
   citation_count?: number | null;
   event_type?: string;
   event_summary?: string | null;
+  publishing_job_id?: number | null;
+  citation_test_run_id?: number | null;
   published_account?: string | null;
   published_platform?: string | null;
   published_url?: string | null;
@@ -48,6 +51,17 @@ export async function deleteGeneratedContentHistory(
 ) {
   const response = await apiClient.delete(
     `/api/v1/history/content/${id}`
+  )
+
+  return response.data
+}
+
+export async function deleteHistoryItem(
+  itemType: string,
+  id: number
+) {
+  const response = await apiClient.delete(
+    `/api/v1/history/items/${encodeURIComponent(itemType)}/${id}`
   )
 
   return response.data

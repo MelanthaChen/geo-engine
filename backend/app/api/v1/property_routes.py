@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
 from app.models.citation_test import CitationTest
+from app.models.citation_test_run import CitationTestRun
 from app.models.content import Content
-from app.models.publish_task import PublishTask
+from app.models.publishing_job import PublishingJob
 from app.services.property_service import (
     create_property,
     get_property,
@@ -132,19 +133,19 @@ def get_property_metrics(
     )
 
     pending_publish_count = (
-        db.query(PublishTask)
+        db.query(PublishingJob)
         .filter(
-            PublishTask.property_id == property_id,
-            PublishTask.status.in_(["pending", "processing", "review_ready"]),
+            PublishingJob.property_id == property_id,
+            PublishingJob.status.in_(["queued", "processing", "review_ready"]),
         )
         .count()
     )
 
     citation_count = (
-        db.query(CitationTest)
+        db.query(CitationTestRun)
         .filter(
-            CitationTest.property_id == property_id,
-            CitationTest.evidence_found.is_(True),
+            CitationTestRun.property_id == property_id,
+            CitationTestRun.status == "finished",
         )
         .count()
     )

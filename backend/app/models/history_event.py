@@ -39,6 +39,20 @@ class HistoryEvent(Base):
         index=True
     )
 
+    publishing_job_id = Column(
+        Integer,
+        ForeignKey("publishing_jobs.id"),
+        nullable=True,
+        index=True
+    )
+
+    citation_test_run_id = Column(
+        Integer,
+        ForeignKey("citation_test_runs.id"),
+        nullable=True,
+        index=True
+    )
+
     event_type = Column(String, nullable=False, index=True)
 
     summary = Column(Text, nullable=True)
@@ -53,3 +67,11 @@ class HistoryEvent(Base):
     property = relationship("Property", back_populates="history_events")
     content = relationship("Content", back_populates="history_events")
     faq = relationship("Faq")
+    publishing_job = relationship(
+        "PublishingJob",
+        back_populates="history_events",
+    )
+    citation_test_run = relationship(
+        "CitationTestRun",
+        back_populates="history_events",
+    )

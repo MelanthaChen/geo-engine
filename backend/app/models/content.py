@@ -218,5 +218,6 @@ class Content(Base):
     faq = relationship("Faq")
     campaign = relationship("Campaign")
     publish_tasks = relationship("PublishTask", back_populates="content")
+    publishing_jobs = relationship("PublishingJob", back_populates="content")
     citation_tests = relationship("CitationTest", back_populates="content")
     history_events = relationship("HistoryEvent", back_populates="content")
