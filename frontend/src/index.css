@@ -16,3 +16,13 @@ body {
   color: white;
   font-family: sans-serif;
 }
+
+.dialog-content-centered {
+  position: fixed;
+  inset: 0;
+  width: min(calc(100vw - 2rem), 28rem);
+  max-height: calc(100vh - 2rem);
+  height: fit-content;
+  margin: auto;
+  overflow-y: auto;
+}
