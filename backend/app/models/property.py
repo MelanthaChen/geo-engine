@@ -48,3 +48,8 @@ class Property(Base):
         back_populates="property",
     )
     accounts = relationship("Account", back_populates="property")
+    website_audits = relationship(
+        "WebsiteAudit",
+        back_populates="property",
+        cascade="all, delete-orphan",
+    )

@@ -85,7 +85,7 @@ export function Dashboard() {
       <DashboardCards
         citationTests={formatMetric(citationTests.length)}
         generatedContent={formatMetric(metrics?.generated_content)}
-        latestAudit="No data yet."
+        latestAudit={latestAuditLabel(metrics)}
         latestPublish={latestPublishLabel(history)}
         publishedContent={formatMetric(metrics?.published_content)}
         websiteStatus={activeProperty ? "Active" : "No data yet."}
@@ -208,4 +208,14 @@ function latestPublishLabel(history: HistoryItem[]) {
   return publishEvent.created_at
     ? new Date(publishEvent.created_at).toLocaleDateString()
     : "Available";
+}
+
+function latestAuditLabel(metrics: PropertyMetrics | null) {
+  if (!metrics?.latest_audit) {
+    return "No data yet.";
+  }
+
+  const score = metrics.latest_audit.overall_geo_score;
+
+  return score === null ? "Available" : `${score}/100`;
 }

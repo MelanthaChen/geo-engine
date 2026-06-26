@@ -53,6 +53,13 @@ class HistoryEvent(Base):
         index=True
     )
 
+    website_audit_id = Column(
+        Integer,
+        ForeignKey("website_audits.id"),
+        nullable=True,
+        index=True,
+    )
+
     event_type = Column(String, nullable=False, index=True)
 
     summary = Column(Text, nullable=True)
@@ -75,3 +82,4 @@ class HistoryEvent(Base):
         "CitationTestRun",
         back_populates="history_events",
     )
+    website_audit = relationship("WebsiteAudit")

@@ -19,6 +19,12 @@ export type PropertyMetrics = {
   visibility_score: number;
   clicks: number;
   impressions: number;
+  latest_audit?: {
+    id: number;
+    overall_geo_score: number | null;
+    completed_at: string | null;
+    status: string;
+  } | null;
 };
 
 export type PropertyPayload = {

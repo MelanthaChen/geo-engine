@@ -1,9 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
-import { runWebsiteAudit, type AuditResult } from "@/api/audit";
+import {
+  fetchLatestWebsiteAudit,
+  runWebsiteAudit,
+  type AuditResult,
+  type WebsitePageAudit,
+} from "@/api/audit";
 import { useProperty } from "@/contexts/PropertyContext";
 
 type AuditCardProps = {
@@ -17,6 +22,33 @@ export function WebsiteAudit() {
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLatestAudit() {
+      if (!activePropertyId) {
+        setAudit(null);
+        return;
+      }
+
+      try {
+        const result = await fetchLatestWebsiteAudit(activePropertyId);
+
+        if (isMounted) {
+          setAudit(result);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    void loadLatestAudit();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activePropertyId]);
 
   async function handleAnalyzeWebsite() {
     if (!activePropertyId) {
@@ -103,10 +135,19 @@ export function WebsiteAudit() {
           <CardContent className="p-6">
             <p className="text-sm text-zinc-500">Overall GEO Score</p>
             <p className="mt-3 text-3xl font-semibold text-zinc-50">
-              {audit?.overall_geo_score ?? "No data yet."}
+              {audit?.overall_geo_score === null ||
+              audit?.overall_geo_score === undefined
+                ? "No data yet."
+                : `${audit.overall_geo_score}/100`}
             </p>
           </CardContent>
         </Card>
+
+        <AuditCard
+          title="Score Components"
+          items={formatSubscores(audit)}
+          emptyText="No component scores yet."
+        />
 
         <AuditCard
           title="Brand Understanding"
@@ -139,6 +180,22 @@ export function WebsiteAudit() {
           emptyText="No content recommendations yet."
         />
       </div>
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold text-zinc-50">Crawled Pages</h2>
+          <div className="mt-4 space-y-2">
+            {(audit?.pages || []).map((page) => (
+              <PageAuditRow key={page.id} page={page} />
+            ))}
+            {(!audit?.pages || audit.pages.length === 0) && (
+              <p className="text-sm text-zinc-500">
+                No crawled pages stored yet.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -173,4 +230,38 @@ function AuditCard({ title, items, emptyText }: AuditCardProps) {
       </CardContent>
     </Card>
   );
+}
+
+function PageAuditRow({ page }: { page: WebsitePageAudit }) {
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-black p-4">
+      <p className="truncate text-sm font-medium text-zinc-100">{page.url}</p>
+      <p className="mt-1 text-sm text-zinc-400">
+        {page.page_title || page.h1 || "Untitled page"}
+      </p>
+      <p className="mt-2 text-xs text-zinc-500">
+        Status: {page.status_code || "N/A"} • Words: {page.word_count} •
+        Internal links: {page.internal_link_count}
+      </p>
+    </div>
+  );
+}
+
+function formatSubscores(audit: AuditResult | null) {
+  if (!audit?.subscores) {
+    return [];
+  }
+
+  return [
+    `Content Coverage: ${formatScore(audit.subscores.content_coverage)}`,
+    `FAQ Coverage: ${formatScore(audit.subscores.faq_coverage)}`,
+    `Internal Linking: ${formatScore(audit.subscores.internal_linking)}`,
+    `Website Structure: ${formatScore(audit.subscores.website_structure)}`,
+    `Brand Clarity: ${formatScore(audit.subscores.brand_clarity)}`,
+    `Trust Signals: ${formatScore(audit.subscores.trust_signals)}`,
+  ];
+}
+
+function formatScore(score?: number | null) {
+  return score === null || score === undefined ? "No data" : `${score}/100`;
 }

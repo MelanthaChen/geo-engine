@@ -19,6 +19,9 @@ REQUIRED_TABLES = {
     "publishing_jobs",
     "publish_tasks",
     "properties",
+    "website_audit_recommendations",
+    "website_audits",
+    "website_pages",
 }
 
 

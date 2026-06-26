@@ -10,6 +10,9 @@ from app.models.citation_test import CitationTest
 from app.models.citation_result import CitationResult
 from app.models.citation_test_run import CitationTestRun
 from app.models.citation_test_result import CitationTestResult
+from app.models.website_audit import WebsiteAudit
+from app.models.website_page import WebsitePage
+from app.models.website_audit_recommendation import WebsiteAuditRecommendation
 
 
 def delete_faq_set(
@@ -144,6 +147,35 @@ def delete_history_event(
     return True
 
 
+def delete_website_audit(
+    db: Session,
+    website_audit_id: int,
+):
+    audit = (
+        db.query(WebsiteAudit)
+        .filter(WebsiteAudit.id == website_audit_id)
+        .first()
+    )
+
+    if not audit:
+        return False
+
+    db.query(HistoryEvent).filter(
+        HistoryEvent.website_audit_id == audit.id
+    ).delete(synchronize_session=False)
+    db.query(WebsiteAuditRecommendation).filter(
+        WebsiteAuditRecommendation.audit_id == audit.id
+    ).delete(synchronize_session=False)
+    db.query(WebsitePage).filter(
+        WebsitePage.audit_id == audit.id
+    ).delete(synchronize_session=False)
+
+    db.delete(audit)
+    db.commit()
+
+    return True
+
+
 def delete_history_item(
     db: Session,
     item_type: str,
@@ -166,7 +198,10 @@ def delete_history_item(
             citation_test_run_id=item_id,
         )
 
-    if normalized_type in {"event", "audit"}:
+    if normalized_type == "audit":
+        return delete_website_audit(db=db, website_audit_id=item_id)
+
+    if normalized_type == "event":
         return delete_history_event(db=db, history_event_id=item_id)
 
     return False

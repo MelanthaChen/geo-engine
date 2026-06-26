@@ -14,3 +14,6 @@ from app.models.platform_question import PlatformQuestion
 from app.models.publishing_job import PublishingJob
 from app.models.citation_test_run import CitationTestRun
 from app.models.citation_test_result import CitationTestResult
+from app.models.website_audit import WebsiteAudit
+from app.models.website_page import WebsitePage
+from app.models.website_audit_recommendation import WebsiteAuditRecommendation

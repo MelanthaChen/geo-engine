@@ -8,6 +8,7 @@ from app.models.citation_test import CitationTest
 from app.models.citation_test_run import CitationTestRun
 from app.models.content import Content
 from app.models.publishing_job import PublishingJob
+from app.models.website_audit import WebsiteAudit
 from app.services.property_service import (
     create_property,
     get_property,
@@ -178,6 +179,13 @@ def get_property_metrics(
         else 0
     )
 
+    latest_audit = (
+        db.query(WebsiteAudit)
+        .filter(WebsiteAudit.property_id == property_id)
+        .order_by(WebsiteAudit.created_at.desc())
+        .first()
+    )
+
     return {
         "property_id": property_id,
         "generated_content": generated_content_count,
@@ -187,4 +195,14 @@ def get_property_metrics(
         "visibility_score": visibility_score,
         "clicks": 0,
         "impressions": 0,
+        "latest_audit": (
+            {
+                "id": latest_audit.id,
+                "overall_geo_score": latest_audit.overall_geo_score,
+                "completed_at": latest_audit.completed_at,
+                "status": latest_audit.status,
+            }
+            if latest_audit
+            else None
+        ),
     }

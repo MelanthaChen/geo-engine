@@ -113,7 +113,7 @@ def history_item_type(event):
     if event.citation_test_run_id:
         return "citation_test"
 
-    if event.event_type == "audit_run":
+    if event.website_audit_id or event.event_type == "audit_run":
         return "audit"
 
     return "event"
@@ -126,6 +126,9 @@ def history_item_id(event):
     if event.citation_test_run_id:
         return event.citation_test_run_id
 
+    if event.website_audit_id:
+        return event.website_audit_id
+
     return event.id
 
 
@@ -135,6 +138,9 @@ def history_title(event):
 
     if event.citation_test_run:
         return f"Citation Test: {event.citation_test_run.prompt[:80]}"
+
+    if event.website_audit:
+        return event.summary or "Website Audit"
 
     if event.event_type == "audit_run":
         return event.summary or "Website Audit"
@@ -158,6 +164,14 @@ def history_body(event):
                 f"{result.raw_response or result.error_message or ''}"
             )
             for result in event.citation_test_run.results
+        )
+
+    if event.website_audit:
+        return (
+            f"Overall GEO Score: {event.website_audit.overall_geo_score}\n"
+            f"Brand Summary: {event.website_audit.brand_summary}\n"
+            f"Pages Crawled: {len(event.website_audit.pages)}\n"
+            f"Recommendations: {len(event.website_audit.recommendations)}"
         )
 
     if event.content:
