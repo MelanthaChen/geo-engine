@@ -169,6 +169,28 @@ export function PublishingQueue() {
                               task.error_message ||
                               "No logs stored for this job yet."}
                           </div>
+                          {(task.formatter_name || task.formatter_version) && (
+                            <p className="mt-3 text-xs text-zinc-500">
+                              Formatter: {task.formatter_name || "Unknown"}{" "}
+                              {task.formatter_version || ""}
+                            </p>
+                          )}
+                          {task.formatted_title && (
+                            <p className="mt-3 text-sm text-zinc-400">
+                              Formatted title chars:{" "}
+                              <span className="text-zinc-200">
+                                {task.formatted_title.length}
+                              </span>
+                            </p>
+                          )}
+                          {task.formatted_body && (
+                            <p className="mt-1 text-sm text-zinc-400">
+                              Formatted body chars:{" "}
+                              <span className="text-zinc-200">
+                                {task.formatted_body.length}
+                              </span>
+                            </p>
+                          )}
                         </td>
                       </tr>
                     )}

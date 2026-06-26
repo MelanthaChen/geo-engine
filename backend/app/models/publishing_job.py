@@ -36,6 +36,14 @@ class PublishingJob(Base):
 
     status = Column(String, default="queued", index=True)
 
+    formatted_title = Column(Text, nullable=True)
+
+    formatted_body = Column(Text, nullable=True)
+
+    formatter_version = Column(String(50), nullable=True)
+
+    formatter_name = Column(String(100), nullable=True)
+
     logs = Column(Text, nullable=True)
 
     error_message = Column(Text, nullable=True)

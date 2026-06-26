@@ -23,7 +23,6 @@ from app.services.publishing_service import (
 from app.repositories.history_repository import (
     create_history_event
 )
-from app.services.platform_formatters import get_platform_formatter
 from app.utils.title_extractor import (
     extract_article_title
 )
@@ -151,6 +150,10 @@ def get_publish_tasks(
                 "status": task.status,
                 "logs": task.logs,
                 "error_message": task.error_message,
+                "formatted_title": task.formatted_title,
+                "formatted_body": task.formatted_body,
+                "formatter_name": task.formatter_name,
+                "formatter_version": task.formatter_version,
                 "created_at": task.created_at,
                 "updated_at": task.updated_at,
             }
@@ -189,22 +192,37 @@ def get_pending_publish_for_account(
         f"{len(content.body or '')} content_id={content.id}"
     )
 
-    formatter = get_platform_formatter(task.account.platform)
-    prepared_post = formatter.prepare(content)
+    prepared_title = task.formatted_title
+    prepared_body = task.formatted_body
+
+    if not prepared_title or not prepared_body:
+        task.status = "failed"
+        task.error_message = (
+            "Publishing job is missing formatted_title/formatted_body. "
+            "Create a new publishing job so the formatter runs at enqueue time."
+        )
+        append_job_log(task, task.error_message)
+        db.commit()
+
+        return {
+            "task": None,
+            "error": task.error_message,
+        }
 
     print(
         "[PUBLISH TRACE] formatted_platform="
-        f"{prepared_post.platform} formatted_title_chars="
-        f"{len(prepared_post.title)} formatted_body_chars="
-        f"{len(prepared_post.body)}"
+        f"{task.platform} formatter={task.formatter_name} "
+        f"formatter_version={task.formatter_version} "
+        f"formatted_title_chars={len(prepared_title)} "
+        f"formatted_body_chars={len(prepared_body)}"
     )
 
     append_job_log(
         task,
         (
             f"Loaded content chars={len(content.body or '')}; "
-            f"formatted title chars={len(prepared_post.title)}; "
-            f"formatted body chars={len(prepared_post.body)}."
+            f"formatted title chars={len(prepared_title)}; "
+            f"formatted body chars={len(prepared_body)}."
         ),
     )
     db.commit()
@@ -218,10 +236,10 @@ def get_pending_publish_for_account(
             "account_id": task.account_id,
             "account_handle": task.account.handle,
             "platform": task.account.platform,
-            "title": prepared_post.title,
-            "body": prepared_post.body,
+            "title": prepared_title,
+            "body": prepared_body,
             "source_body_chars": len(content.body or ""),
-            "formatted_body_chars": len(prepared_post.body),
+            "formatted_body_chars": len(prepared_body),
             "target_url": content.target_url,
             "subreddit": "test"
         }

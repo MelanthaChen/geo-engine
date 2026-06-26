@@ -9,6 +9,7 @@ from app.repositories.history_repository import (
     create_history_event
 )
 from app.services.account_service import seed_demo_accounts
+from app.services.platform_formatters import get_platform_formatter
 from app.utils.title_extractor import (
     extract_article_title
 )
@@ -84,6 +85,23 @@ def publish_content(
     )
     append_job_log(publishing_job, "Publishing job queued.")
 
+    formatter = get_platform_formatter(account.platform)
+    formatted_post = formatter.prepare(content)
+    publishing_job.formatted_title = formatted_post.title
+    publishing_job.formatted_body = formatted_post.body
+    publishing_job.formatter_name = formatted_post.formatter_name
+    publishing_job.formatter_version = formatted_post.formatter_version
+    append_job_log(
+        publishing_job,
+        (
+            f"Formatted content with {formatted_post.formatter_name} "
+            f"v{formatted_post.formatter_version}. "
+            f"source chars={len(content.body or '')}; "
+            f"formatted title chars={len(formatted_post.title)}; "
+            f"formatted body chars={len(formatted_post.body)}."
+        ),
+    )
+
     db.add(publishing_job)
 
     db.commit()
@@ -102,6 +120,25 @@ def publish_content(
             f"Publish requested for {article_title} "
             f"via {account.handle}"
         )
+    )
+
+    create_history_event(
+        db=db,
+        event_type="content_formatted",
+        property_id=content.property_id,
+        content_id=content.id,
+        publishing_job_id=publishing_job.id,
+        source_type=content.generation_mode,
+        status="formatted",
+        summary=(
+            f"Content formatted for {account.platform} using "
+            f"{publishing_job.formatter_name} "
+            f"v{publishing_job.formatter_version}"
+        ),
+        details=(
+            f"formatted_title:\n{publishing_job.formatted_title}\n\n"
+            f"formatted_body:\n{publishing_job.formatted_body}"
+        ),
     )
 
     return {

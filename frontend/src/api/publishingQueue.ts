@@ -10,6 +10,10 @@ export type PublishingTask = {
   status: string;
   logs: string | null;
   error_message: string | null;
+  formatted_title: string | null;
+  formatted_body: string | null;
+  formatter_name: string | null;
+  formatter_version: string | null;
   created_at: string;
   updated_at: string;
 };
