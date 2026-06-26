@@ -16,30 +16,33 @@ import { Label } from "../../@/components/ui/label";
 import type { Property } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
 
-type CreatePropertyDialogProps = {
+type EditPropertyDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (property: Property) => void;
+  property: Property | null;
+  onSaved: (property: Property) => void;
   onError: () => void;
 };
 
-export function CreatePropertyDialog({
-  onCreated,
+export function EditPropertyDialog({
   onError,
   onOpenChange,
+  onSaved,
   open,
-}: CreatePropertyDialogProps) {
-  const { addProperty } = useProperty();
-  const [form, setForm] = useState({
-    name: "",
-    domain: "",
-    description: "",
-  });
+  property,
+}: EditPropertyDialogProps) {
+  const { updateActiveProperty } = useProperty();
+  const [form, setForm] = useState<{
+    name?: string;
+    domain?: string;
+    description?: string;
+  }>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [creatingProperty, setCreatingProperty] = useState(false);
+  const [savingProperty, setSavingProperty] = useState(false);
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
+      setForm({});
       setFormErrors({});
     }
 
@@ -49,44 +52,44 @@ export function CreatePropertyDialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!validatePropertyForm()) {
+    if (!property || !validatePropertyForm()) {
       return;
     }
 
     try {
-      setCreatingProperty(true);
-      const createdProperty = await addProperty({
-        name: form.name.trim(),
-        domain: form.domain.trim(),
-        brand_name: form.name.trim(),
-        description: form.description.trim() || null,
+      setSavingProperty(true);
+      const currentForm = getCurrentForm();
+      const updatedProperty = await updateActiveProperty({
+        name: currentForm.name.trim(),
+        domain: currentForm.domain.trim(),
+        brand_name: currentForm.name.trim(),
+        description: currentForm.description.trim() || null,
       });
 
-      setForm({
-        name: "",
-        domain: "",
-        description: "",
-      });
-      setFormErrors({});
+      if (!updatedProperty) {
+        throw new Error("Property not found");
+      }
+
       onOpenChange(false);
-      onCreated(createdProperty);
+      onSaved(updatedProperty);
     } catch {
       onError();
     } finally {
-      setCreatingProperty(false);
+      setSavingProperty(false);
     }
   }
 
   function validatePropertyForm() {
     const errors: Record<string, string> = {};
+    const currentForm = getCurrentForm();
 
-    if (!form.name.trim()) {
+    if (!currentForm.name.trim()) {
       errors.name = "Property Name is required.";
     }
 
-    if (!form.domain.trim()) {
+    if (!currentForm.domain.trim()) {
       errors.domain = "Domain is required.";
-    } else if (!isValidDomainOrUrl(form.domain.trim())) {
+    } else if (!isValidDomainOrUrl(currentForm.domain.trim())) {
       errors.domain = "Enter a valid domain, for example example.com.";
     }
 
@@ -95,6 +98,16 @@ export function CreatePropertyDialog({
     return Object.keys(errors).length === 0;
   }
 
+  function getCurrentForm() {
+    return {
+      name: form.name ?? property?.name ?? "",
+      domain: form.domain ?? property?.domain ?? "",
+      description: form.description ?? property?.description ?? "",
+    };
+  }
+
+  const currentForm = getCurrentForm();
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
@@ -102,22 +115,22 @@ export function CreatePropertyDialog({
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
             Property
           </p>
-          <DialogTitle>Create Property</DialogTitle>
+          <DialogTitle>Edit Property</DialogTitle>
           <DialogDescription>
-            Add a tracked website. This Property becomes the active context
-            after creation.
+            Update the active tracked website. Changes apply across the whole
+            workspace.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="mt-5 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="property-name">Property Name *</Label>
+              <Label htmlFor="edit-property-name">Property Name *</Label>
               <Input
-                id="property-name"
+                id="edit-property-name"
                 aria-invalid={Boolean(formErrors.name)}
                 className="h-auto border-zinc-800 bg-black p-3"
-                value={form.name}
+                value={currentForm.name}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -131,13 +144,13 @@ export function CreatePropertyDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="property-url">Domain *</Label>
+              <Label htmlFor="edit-property-domain">Domain *</Label>
               <Input
-                id="property-url"
+                id="edit-property-domain"
                 aria-invalid={Boolean(formErrors.domain)}
                 className="h-auto border-zinc-800 bg-black p-3"
                 placeholder="geoairesume-web-six.vercel.app"
-                value={form.domain}
+                value={currentForm.domain}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -151,13 +164,13 @@ export function CreatePropertyDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="property-description">
+              <Label htmlFor="edit-property-description">
                 Description (optional)
               </Label>
               <textarea
-                id="property-description"
+                id="edit-property-description"
                 className="min-h-24 w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
-                value={form.description}
+                value={currentForm.description}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -170,21 +183,17 @@ export function CreatePropertyDialog({
 
           <DialogFooter className="mt-5">
             <Button
-              disabled={creatingProperty}
-              onClick={() => {
-                handleOpenChange(false);
-              }}
+              disabled={savingProperty}
+              onClick={() => handleOpenChange(false)}
               size="sm"
               type="button"
               variant="ghost"
             >
               Cancel
             </Button>
-            <Button disabled={creatingProperty} size="sm" type="submit">
-              {creatingProperty && (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              )}
-              {creatingProperty ? "Creating..." : "Create Property"}
+            <Button disabled={savingProperty} size="sm" type="submit">
+              {savingProperty && <Loader2 className="h-4 w-4 animate-spin" />}
+              {savingProperty ? "Saving..." : "Save Property"}
             </Button>
           </DialogFooter>
         </form>

@@ -5,10 +5,26 @@ from app.models.property import Property
 
 DEFAULT_PROPERTY = {
     "name": "GeoAIResume",
-    "domain": "geoairesume.com",
+    "domain": "geoairesume-web-six.vercel.app",
     "brand_name": "GeoAIResume",
     "description": "Default GEO Engine property.",
 }
+
+LEGACY_DEFAULT_DOMAINS = {
+    "geoairesume.com",
+}
+
+
+def normalize_property_domain(domain: str):
+    normalized = domain.strip()
+
+    if normalized.startswith("https://"):
+        normalized = normalized.removeprefix("https://")
+
+    if normalized.startswith("http://"):
+        normalized = normalized.removeprefix("http://")
+
+    return normalized.strip("/")
 
 
 def seed_default_property(db: Session):
@@ -20,6 +36,26 @@ def seed_default_property(db: Session):
 
     if property_record:
         return property_record
+
+    legacy_property = (
+        db.query(Property)
+        .filter(Property.domain.in_(LEGACY_DEFAULT_DOMAINS))
+        .first()
+    )
+
+    if legacy_property:
+        legacy_property.domain = DEFAULT_PROPERTY["domain"]
+
+        if not legacy_property.name:
+            legacy_property.name = DEFAULT_PROPERTY["name"]
+
+        if not legacy_property.brand_name:
+            legacy_property.brand_name = DEFAULT_PROPERTY["brand_name"]
+
+        db.commit()
+        db.refresh(legacy_property)
+
+        return legacy_property
 
     property_record = Property(**DEFAULT_PROPERTY)
     db.add(property_record)
@@ -56,7 +92,7 @@ def create_property(
 ):
     property_record = Property(
         name=name,
-        domain=domain,
+        domain=normalize_property_domain(domain),
         brand_name=brand_name,
         description=description,
     )
@@ -85,7 +121,7 @@ def update_property(
         property_record.name = name
 
     if domain is not None:
-        property_record.domain = domain
+        property_record.domain = normalize_property_domain(domain)
 
     if brand_name is not None:
         property_record.brand_name = brand_name

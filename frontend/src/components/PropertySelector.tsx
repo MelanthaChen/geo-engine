@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -11,6 +11,7 @@ import {
 } from "../../@/components/ui/dropdown-menu";
 
 import { CreatePropertyDialog } from "@/components/CreatePropertyDialog";
+import { EditPropertyDialog } from "@/components/EditPropertyDialog";
 import type { Property } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
 
@@ -19,10 +20,12 @@ export function PropertySelector() {
     activeProperty,
     loading,
     properties,
+    refreshProperties,
     setActiveProperty,
   } = useProperty();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -33,15 +36,35 @@ export function PropertySelector() {
     window.setTimeout(() => setToast(null), 3200);
   }
 
-  function handleAddPropertySelect() {
+  function openCreateDialog() {
     setDropdownOpen(false);
     window.setTimeout(() => {
       setCreateDialogOpen(true);
-    }, 0);
+    }, 80);
+  }
+
+  function openEditDialog() {
+    setDropdownOpen(false);
+    window.setTimeout(() => {
+      setEditDialogOpen(true);
+    }, 80);
   }
 
   function handleCreated(property: Property) {
     showToast("success", `${property.name} created.`);
+  }
+
+  function handleSaved(property: Property) {
+    showToast("success", `${property.name} saved.`);
+  }
+
+  async function handleRefreshProperties() {
+    try {
+      await refreshProperties();
+      showToast("success", "Properties refreshed.");
+    } catch {
+      showToast("error", "Failed to refresh properties.");
+    }
   }
 
   return (
@@ -121,11 +144,36 @@ export function PropertySelector() {
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="font-medium text-zinc-100"
-            onSelect={handleAddPropertySelect}
+            className="gap-2 font-medium text-zinc-100"
+            onSelect={(event) => {
+              event.preventDefault();
+              openCreateDialog();
+            }}
           >
             <Plus className="h-4 w-4" />
             Add Property
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 font-medium text-zinc-100"
+            disabled={!activeProperty}
+            onSelect={(event) => {
+              event.preventDefault();
+              openEditDialog();
+            }}
+          >
+            <Pencil className="h-4 w-4" />
+            Edit Current Property
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-2 font-medium text-zinc-100"
+            onSelect={(event) => {
+              event.preventDefault();
+              setDropdownOpen(false);
+              void handleRefreshProperties();
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Properties
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -135,6 +183,13 @@ export function PropertySelector() {
         onOpenChange={setCreateDialogOpen}
         onCreated={handleCreated}
         onError={() => showToast("error", "Failed to create property.")}
+      />
+      <EditPropertyDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        property={activeProperty}
+        onSaved={handleSaved}
+        onError={() => showToast("error", "Failed to save property.")}
       />
     </>
   );

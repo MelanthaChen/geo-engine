@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
@@ -62,15 +63,22 @@ def post_property(
     request: PropertyCreateRequest,
     db: Session = Depends(get_db),
 ):
-    return serialize_property(
-        create_property(
-            db=db,
-            name=request.name,
-            domain=request.domain,
-            brand_name=request.brand_name or request.name,
-            description=request.description,
+    try:
+        return serialize_property(
+            create_property(
+                db=db,
+                name=request.name,
+                domain=request.domain,
+                brand_name=request.brand_name or request.name,
+                description=request.description,
+            )
         )
-    )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A property with this domain already exists"
+        )
 
 
 @router.get("/{property_id}")
@@ -92,14 +100,21 @@ def patch_property(
     request: PropertyUpdateRequest,
     db: Session = Depends(get_db),
 ):
-    property_record = update_property(
-        db=db,
-        property_id=property_id,
-        name=request.name,
-        domain=request.domain,
-        brand_name=request.brand_name,
-        description=request.description,
-    )
+    try:
+        property_record = update_property(
+            db=db,
+            property_id=property_id,
+            name=request.name,
+            domain=request.domain,
+            brand_name=request.brand_name,
+            description=request.description,
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A property with this domain already exists"
+        )
 
     if not property_record:
         raise HTTPException(status_code=404, detail="Property not found")
