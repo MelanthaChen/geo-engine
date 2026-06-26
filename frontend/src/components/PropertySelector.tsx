@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Pencil, Plus, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
+import { type MouseEvent, useRef, useState } from "react";
 
 import {
   DropdownMenu,
@@ -65,6 +65,25 @@ export function PropertySelector() {
     queuedDialogRef.current = dialog;
     setDropdownOpen(false);
     openQueuedDialog();
+  }
+
+  function handleDialogMenuItem(
+    event: { preventDefault: () => void },
+    dialog: QueuedDialog,
+  ) {
+    event.preventDefault();
+    queueDialog(dialog);
+  }
+
+  function handleDialogMenuItemClick(
+    event: MouseEvent<HTMLDivElement>,
+    dialog: QueuedDialog,
+  ) {
+    if (event.currentTarget.getAttribute("data-disabled") !== null) {
+      return;
+    }
+
+    handleDialogMenuItem(event, dialog);
   }
 
   function handleDropdownOpenChange(nextOpen: boolean) {
@@ -171,8 +190,10 @@ export function PropertySelector() {
           <DropdownMenuItem
             className="gap-2 font-medium text-zinc-100"
             onSelect={(event) => {
-              event.preventDefault();
-              queueDialog("create");
+              handleDialogMenuItem(event, "create");
+            }}
+            onClick={(event) => {
+              handleDialogMenuItemClick(event, "create");
             }}
           >
             <Plus className="h-4 w-4" />
@@ -182,8 +203,10 @@ export function PropertySelector() {
             className="gap-2 font-medium text-zinc-100"
             disabled={!activeProperty}
             onSelect={(event) => {
-              event.preventDefault();
-              queueDialog("edit");
+              handleDialogMenuItem(event, "edit");
+            }}
+            onClick={(event) => {
+              handleDialogMenuItemClick(event, "edit");
             }}
           >
             <Pencil className="h-4 w-4" />

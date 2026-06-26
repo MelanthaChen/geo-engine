@@ -53,7 +53,7 @@ function DropdownMenuItem({
       data-slot="dropdown-menu-item"
       data-inset={inset}
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm outline-none transition hover:bg-zinc-900 focus:bg-zinc-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset=true]:pl-8",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm outline-none transition hover:bg-zinc-900 focus:bg-zinc-900 data-[disabled]:pointer-events-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[inset=true]:pl-8",
         className,
       )}
       {...props}
