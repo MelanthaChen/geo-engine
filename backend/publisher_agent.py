@@ -2,8 +2,9 @@ import time
 import requests
 
 from app.core.config import settings
-from app.services.reddit_publisher import (
-    publish_to_reddit
+from app.services.platform_publishers import (
+    PublishRequest,
+    get_platform_publisher,
 )
 
 print("[TRACE] entering publisher_agent")
@@ -46,14 +47,22 @@ while True:
                 f"Publishing task {task['publish_task_id']} "
                 f"for account {task['account_id']}"
             )
+            print(
+                "[PUBLISH TRACE] worker_loaded_title_chars="
+                f"{len(task['title'])} worker_loaded_body_chars="
+                f"{len(task['body'])} source_body_chars="
+                f"{task.get('source_body_chars')} formatted_body_chars="
+                f"{task.get('formatted_body_chars')}"
+            )
 
             try:
-                result = publish_to_reddit(
-                    username="",
-                    password="",
-                    subreddit=task["subreddit"],
-                    title=task["title"],
-                    body=task["body"]
+                publisher = get_platform_publisher(task["platform"])
+                result = publisher.publish(
+                    PublishRequest(
+                        target=task["subreddit"],
+                        title=task["title"],
+                        body=task["body"],
+                    )
                 )
 
                 requests.post(

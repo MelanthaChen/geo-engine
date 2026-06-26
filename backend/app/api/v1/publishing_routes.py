@@ -23,6 +23,7 @@ from app.services.publishing_service import (
 from app.repositories.history_repository import (
     create_history_event
 )
+from app.services.platform_formatters import get_platform_formatter
 from app.utils.title_extractor import (
     extract_article_title
 )
@@ -183,10 +184,30 @@ def get_pending_publish_for_account(
 
     content = task.content
 
-    adapted_title, adapted_body = adapt_content_for_platform(
-        content=content,
-        publish_platform=task.account.platform,
+    print(
+        "[PUBLISH TRACE] database_content_chars="
+        f"{len(content.body or '')} content_id={content.id}"
     )
+
+    formatter = get_platform_formatter(task.account.platform)
+    prepared_post = formatter.prepare(content)
+
+    print(
+        "[PUBLISH TRACE] formatted_platform="
+        f"{prepared_post.platform} formatted_title_chars="
+        f"{len(prepared_post.title)} formatted_body_chars="
+        f"{len(prepared_post.body)}"
+    )
+
+    append_job_log(
+        task,
+        (
+            f"Loaded content chars={len(content.body or '')}; "
+            f"formatted title chars={len(prepared_post.title)}; "
+            f"formatted body chars={len(prepared_post.body)}."
+        ),
+    )
+    db.commit()
 
     return {
         "task": {
@@ -197,8 +218,10 @@ def get_pending_publish_for_account(
             "account_id": task.account_id,
             "account_handle": task.account.handle,
             "platform": task.account.platform,
-            "title": adapted_title,
-            "body": adapted_body,
+            "title": prepared_post.title,
+            "body": prepared_post.body,
+            "source_body_chars": len(content.body or ""),
+            "formatted_body_chars": len(prepared_post.body),
             "target_url": content.target_url,
             "subreddit": "test"
         }
@@ -329,68 +352,3 @@ def complete_publish(
         "account_id": publish_task.account_id if publish_task else None,
         "publish_status": content.publish_status,
     }
-
-
-def adapt_content_for_platform(
-    content: Content,
-    publish_platform: str,
-):
-    normalized_platform = (publish_platform or "").strip().lower()
-
-    title = (
-        content.reddit_title
-        or extract_article_title(
-            generated_content=content.body,
-            fallback=content.title
-        )
-    )
-
-    if normalized_platform != "reddit":
-        return title, content.body
-
-    if content.reddit_body:
-        return title, content.reddit_body
-
-    return title, build_reddit_discussion_body(content)
-
-
-def build_reddit_discussion_body(content: Content):
-    body = (content.body or "").strip()
-
-    lines = [
-        line.strip()
-        for line in body.splitlines()
-        if line.strip()
-    ]
-
-    cleaned_lines = [
-        line
-        for line in lines
-        if not line.lower().startswith(
-            (
-                "title:",
-                "summary:",
-                "full article:",
-                "faq:",
-                "references:",
-            )
-        )
-    ]
-
-    excerpt = "\n\n".join(cleaned_lines[:6]).strip()
-
-    if len(excerpt) > 1800:
-        excerpt = excerpt[:1800].rsplit(" ", 1)[0].strip()
-
-    question = (
-        "Curious how other people are thinking about this. "
-        "What tradeoffs or details would you pay attention to?"
-    )
-
-    if not excerpt:
-        excerpt = (
-            "I have been looking into this topic and trying to separate "
-            "useful information from generic advice."
-        )
-
-    return f"{excerpt}\n\n{question}"

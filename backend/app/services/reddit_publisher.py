@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 import time
 
 from playwright.sync_api import sync_playwright
@@ -17,6 +18,10 @@ def publish_to_reddit(
 ):
     print("[TRACE] entering publish_to_reddit")
     print("[TRACE] entering review mode")
+    print(
+        "[PUBLISH TRACE] playwright_received_title_chars="
+        f"{len(title or '')} playwright_received_body_chars={len(body or '')}"
+    )
 
     playwright = sync_playwright().start()
 
@@ -26,6 +31,10 @@ def publish_to_reddit(
 
     context = browser.new_context(
         storage_state="reddit_state.json"
+    )
+    context.grant_permissions(
+        ["clipboard-read", "clipboard-write"],
+        origin="https://www.reddit.com",
     )
 
     page = context.new_page()
@@ -81,13 +90,16 @@ def publish_to_reddit(
 
     print("[REVIEW MODE] Filling body")
 
-    body_editor.click()
+    inserted_chars = insert_large_body(
+        page=page,
+        body_editor=body_editor,
+        body=body,
+    )
 
-    page.wait_for_timeout(1000)
-
-    body_editor.fill(body)
-
-    page.wait_for_timeout(3000)
+    print(
+        "[PUBLISH TRACE] reddit_editor_inserted_chars="
+        f"{inserted_chars} expected_body_chars={len(body or '')}"
+    )
 
     preview_dir = Path("publishing_previews")
 
@@ -172,3 +184,95 @@ def wait_for_manual_browser_close(
             return
 
         time.sleep(2)
+
+
+def insert_large_body(
+    page,
+    body_editor,
+    body: str,
+):
+    body = body or ""
+
+    body_editor.click()
+    page.wait_for_timeout(1000)
+    clear_editor(page)
+
+    try:
+        paste_text(
+            page=page,
+            text=body,
+        )
+    except Exception as error:
+        print(f"[PUBLISH TRACE] clipboard_paste_failed={error}")
+        insert_text_in_chunks(
+            page=page,
+            text=body,
+        )
+
+    page.wait_for_timeout(3000)
+
+    inserted_text = get_editor_text(body_editor)
+
+    if len(inserted_text) < len(body):
+        print(
+            "[PUBLISH TRACE] inserted body shorter than expected; "
+            "retrying with chunked keyboard insertion"
+        )
+        body_editor.click()
+        clear_editor(page)
+        insert_text_in_chunks(
+            page=page,
+            text=body,
+        )
+        page.wait_for_timeout(3000)
+        inserted_text = get_editor_text(body_editor)
+
+    if len(inserted_text) < len(body):
+        raise RuntimeError(
+            "Reddit editor insertion failed: inserted "
+            f"{len(inserted_text)} of {len(body)} characters"
+        )
+
+    return len(inserted_text)
+
+
+def paste_text(
+    page,
+    text: str,
+):
+    page.evaluate(
+        """async (value) => {
+            await navigator.clipboard.writeText(value);
+        }""",
+        text,
+    )
+    page.keyboard.press(paste_shortcut())
+
+
+def insert_text_in_chunks(
+    page,
+    text: str,
+    chunk_size: int = 4000,
+):
+    for start in range(0, len(text), chunk_size):
+        page.keyboard.insert_text(text[start:start + chunk_size])
+        page.wait_for_timeout(150)
+
+
+def clear_editor(page):
+    page.keyboard.press(select_all_shortcut())
+    page.keyboard.press("Backspace")
+
+
+def paste_shortcut():
+    return "Meta+V" if sys.platform == "darwin" else "Control+V"
+
+
+def select_all_shortcut():
+    return "Meta+A" if sys.platform == "darwin" else "Control+A"
+
+
+def get_editor_text(body_editor):
+    return body_editor.evaluate(
+        """(node) => node.innerText || node.textContent || "" """
+    )

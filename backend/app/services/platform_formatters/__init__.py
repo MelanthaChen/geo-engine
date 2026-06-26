@@ -1,0 +1,1 @@
+from app.services.platform_formatters.registry import get_platform_formatter
