@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Pencil, Plus, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ import { EditPropertyDialog } from "@/components/EditPropertyDialog";
 import type { Property } from "@/api/properties";
 import { useProperty } from "@/contexts/PropertyContext";
 
+type QueuedDialog = "create" | "edit";
+
 export function PropertySelector() {
   const {
     activeProperty,
@@ -26,6 +28,7 @@ export function PropertySelector() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const queuedDialogRef = useRef<QueuedDialog | null>(null);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -36,18 +39,40 @@ export function PropertySelector() {
     window.setTimeout(() => setToast(null), 3200);
   }
 
-  function openCreateDialog() {
-    setDropdownOpen(false);
-    window.setTimeout(() => {
-      setCreateDialogOpen(true);
-    }, 80);
+  function openQueuedDialog() {
+    const queuedDialog = queuedDialogRef.current;
+
+    if (!queuedDialog) {
+      return;
+    }
+
+    queuedDialogRef.current = null;
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (queuedDialog === "create") {
+          setCreateDialogOpen(true);
+        }
+
+        if (queuedDialog === "edit") {
+          setEditDialogOpen(true);
+        }
+      });
+    });
   }
 
-  function openEditDialog() {
+  function queueDialog(dialog: QueuedDialog) {
+    queuedDialogRef.current = dialog;
     setDropdownOpen(false);
-    window.setTimeout(() => {
-      setEditDialogOpen(true);
-    }, 80);
+    openQueuedDialog();
+  }
+
+  function handleDropdownOpenChange(nextOpen: boolean) {
+    setDropdownOpen(nextOpen);
+
+    if (!nextOpen) {
+      openQueuedDialog();
+    }
   }
 
   function handleCreated(property: Property) {
@@ -82,7 +107,7 @@ export function PropertySelector() {
         </div>
       )}
 
-      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+      <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
         <DropdownMenuTrigger asChild>
           <button
             className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-left shadow-sm transition hover:border-zinc-700 hover:bg-zinc-900/80 data-[state=open]:border-zinc-700"
@@ -147,7 +172,7 @@ export function PropertySelector() {
             className="gap-2 font-medium text-zinc-100"
             onSelect={(event) => {
               event.preventDefault();
-              openCreateDialog();
+              queueDialog("create");
             }}
           >
             <Plus className="h-4 w-4" />
@@ -158,7 +183,7 @@ export function PropertySelector() {
             disabled={!activeProperty}
             onSelect={(event) => {
               event.preventDefault();
-              openEditDialog();
+              queueDialog("edit");
             }}
           >
             <Pencil className="h-4 w-4" />
