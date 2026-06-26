@@ -24,9 +24,10 @@ class AccountStageRequest(BaseModel):
 def serialize_account(
     account,
     db: Session | None = None,
+    property_id: int | None = None,
 ):
     task_counts = (
-        get_account_task_counts(db, account.id)
+        get_account_task_counts(db, account.id, property_id=property_id)
         if db
         else {
             "assigned_tasks": 0,
@@ -37,6 +38,7 @@ def serialize_account(
 
     return {
         "id": account.id,
+        "property_id": account.property_id,
         "handle": account.handle,
         "account_key": account.account_key,
         "agent_name": account.agent_name,
@@ -57,21 +59,23 @@ def serialize_account(
 
 @router.get("")
 def get_accounts(
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     return [
-        serialize_account(account, db)
-        for account in list_accounts(db)
+        serialize_account(account, db, property_id=property_id)
+        for account in list_accounts(db, property_id=property_id)
     ]
 
 
 @router.post("/seed")
 def seed_accounts(
+    property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     return [
-        serialize_account(account, db)
-        for account in seed_demo_accounts(db)
+        serialize_account(account, db, property_id=property_id)
+        for account in seed_demo_accounts(db, property_id=property_id)
     ]
 
 

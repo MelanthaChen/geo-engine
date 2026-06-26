@@ -31,6 +31,7 @@ from app.services.faq_discovery.ai_faq_service import (
 )
 from app.services.faq_discovery.platform_faq_service import (
     discover_platform_faqs,
+    serialize_platform_question,
 )
 from app.services.history.faq_history_service import (
     get_faq_set,
@@ -406,6 +407,11 @@ def generate_faqs(
             property_id=property_id,
         )
 
+    platform_questions = [
+        serialize_platform_question(question)
+        for question in getattr(faq_set, "_platform_questions", [])
+    ]
+
     questions = [
         f"{idx + 1}. {question}"
         for idx, question in enumerate(
@@ -416,4 +422,5 @@ def generate_faqs(
     return {
         "faq_set": serialize_faq_set(faq_set),
         "text": "\n".join(questions),
+        "platform_questions": platform_questions,
     }

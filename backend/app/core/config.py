@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
+    GITHUB_TOKEN: str | None = None
+
     REDDIT_USERNAME: str | None = None
 
     REDDIT_PASSWORD: str | None = None

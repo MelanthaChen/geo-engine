@@ -5,7 +5,7 @@ import { Card, CardContent } from "../../@/components/ui/card";
 
 import { generateContent } from "@/api/content";
 import { getContentStatus } from "@/api/contentStatus";
-import { generateFaqs } from "@/api/faq";
+import { generateFaqs, type PlatformQuestion } from "@/api/faq";
 import { publishContent } from "@/api/publishing";
 import {
   fetchPublishingTasks,
@@ -88,7 +88,9 @@ function ContentGenerationWorkspace({
   const [aiGeneratedContent, setAiGeneratedContent] = useState("");
   const [platformGeneratedContent, setPlatformGeneratedContent] = useState("");
   const [aiFaqs, setAiFaqs] = useState("");
-  const [platformFaqs, setPlatformFaqs] = useState("");
+  const [platformQuestions, setPlatformQuestions] = useState<
+    PlatformQuestion[]
+  >([]);
   const [aiContentId, setAiContentId] = useState<number | null>(null);
   const [platformContentId, setPlatformContentId] = useState<number | null>(
     null,
@@ -186,7 +188,7 @@ function ContentGenerationWorkspace({
         contentType,
       );
 
-      setPlatformFaqs(result.faqs);
+      setPlatformQuestions(result.platform_questions || []);
 
       return {
         faqs: result.faqs,
@@ -195,6 +197,7 @@ function ContentGenerationWorkspace({
     } catch (error) {
       console.error(error);
       setWorkflowMessage("Failed to generate platform FAQs.");
+      setPlatformQuestions([]);
 
       return {
         faqs: "",
@@ -399,9 +402,9 @@ function ContentGenerationWorkspace({
           title="Generated AI FAQs"
           value={aiFaqs || "No AI FAQs yet."}
         />
-        <FaqPanel
-          title="Generated Platform FAQs"
-          value={platformFaqs || "No platform FAQs yet."}
+        <PlatformQuestionPanel
+          questions={platformQuestions}
+          title="Retrieved Platform Questions"
         />
       </div>
 
@@ -504,6 +507,84 @@ function FaqPanel({ title, value }: FaqPanelProps) {
       </CardContent>
     </Card>
   );
+}
+
+type PlatformQuestionPanelProps = {
+  questions: PlatformQuestion[];
+  title: string;
+};
+
+function PlatformQuestionPanel({
+  questions,
+  title,
+}: PlatformQuestionPanelProps) {
+  return (
+    <Card className="border-zinc-800 bg-zinc-950">
+      <CardContent className="flex h-[430px] flex-col p-6">
+        <h2 className="mb-4 text-xl font-semibold text-zinc-50">{title}</h2>
+        <div className="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-black p-4">
+          {questions.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              No real platform questions retrieved yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {questions.map((question) => (
+                <div
+                  className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+                  key={question.id}
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                    <span className="rounded-full border border-zinc-700 px-2 py-1 uppercase tracking-[0.14em] text-zinc-300">
+                      {formatPlatformName(question.platform)}
+                    </span>
+                    <span>
+                      Score: {question.score ?? "n/a"}
+                    </span>
+                    <span>
+                      {formatQuestionTimestamp(
+                        question.created_at || question.discovered_at,
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium leading-6 text-zinc-100">
+                    {question.title}
+                  </p>
+                  {question.body && (
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-400">
+                      {question.body}
+                    </p>
+                  )}
+                  {question.url && (
+                    <a
+                      className="mt-3 inline-flex text-xs font-medium text-blue-400 underline hover:text-blue-300"
+                      href={question.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open source
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatPlatformName(platform: string) {
+  return platform.replaceAll("_", " ");
+}
+
+function formatQuestionTimestamp(value: string | null) {
+  if (!value) {
+    return "No timestamp";
+  }
+
+  return new Date(value).toLocaleString();
 }
 
 type ContentPanelProps = {

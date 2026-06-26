@@ -3,9 +3,11 @@ from sqlalchemy import (
     Integer,
     String,
     Boolean,
-    DateTime
+    DateTime,
+    ForeignKey
 )
 
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -20,6 +22,13 @@ class Account(Base):
     handle = Column(String, unique=True, nullable=False)
 
     account_key = Column(String, unique=True, nullable=True)
+
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True,
+    )
 
     agent_name = Column(String, nullable=True)
 
@@ -51,3 +60,5 @@ class Account(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+
+    property = relationship("Property", back_populates="accounts")

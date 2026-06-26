@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.repositories.history_repository import (
     create_history_event
 )
+from app.services.account_service import seed_demo_accounts
 from app.utils.title_extractor import (
     extract_article_title
 )
@@ -38,7 +39,17 @@ def publish_content(
         db=db,
         account_id=account_id,
         publish_platform=publish_platform,
+        property_id=content.property_id,
     )
+
+    if not account and content.property_id is not None:
+        seed_demo_accounts(db, property_id=content.property_id)
+        account = select_publish_account(
+            db=db,
+            account_id=account_id,
+            publish_platform=publish_platform,
+            property_id=content.property_id,
+        )
 
     if not account:
         return {
@@ -96,6 +107,7 @@ def select_publish_account(
     db: Session,
     account_id: int | None = None,
     publish_platform: str | None = None,
+    property_id: int | None = None,
 ):
     normalized_platform = (
         publish_platform or "reddit"
@@ -107,19 +119,23 @@ def select_publish_account(
             Account.is_active.is_(True),
         ]
 
+        if property_id is not None:
+            filters.append(Account.property_id == property_id)
+
         if publish_platform:
             filters.append(Account.platform == normalized_platform)
 
         return db.query(Account).filter(*filters).first()
 
-    active_accounts = (
-        db.query(Account)
-        .filter(
-            Account.platform == normalized_platform,
-            Account.is_active.is_(True)
-        )
-        .all()
-    )
+    filters = [
+        Account.platform == normalized_platform,
+        Account.is_active.is_(True),
+    ]
+
+    if property_id is not None:
+        filters.append(Account.property_id == property_id)
+
+    active_accounts = db.query(Account).filter(*filters).all()
 
     if not active_accounts:
         return None
@@ -127,14 +143,29 @@ def select_publish_account(
     return min(
         active_accounts,
         key=lambda account: (
-            db.query(PublishTask)
-            .filter(
-                PublishTask.account_id == account.id,
-                PublishTask.status.in_(["pending", "processing"])
+            count_active_tasks(
+                db=db,
+                account_id=account.id,
+                property_id=property_id,
             )
-            .count()
         )
     )
+
+
+def count_active_tasks(
+    db: Session,
+    account_id: int,
+    property_id: int | None = None,
+):
+    filters = [
+        PublishTask.account_id == account_id,
+        PublishTask.status.in_(["pending", "processing"]),
+    ]
+
+    if property_id is not None:
+        filters.append(PublishTask.property_id == property_id)
+
+    return db.query(PublishTask).filter(*filters).count()
 
 
 def claim_pending_task(

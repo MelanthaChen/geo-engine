@@ -13,6 +13,7 @@ REQUIRED_TABLES = {
     "faq_sets",
     "faqs",
     "history_events",
+    "platform_questions",
     "publish_tasks",
     "properties",
 }

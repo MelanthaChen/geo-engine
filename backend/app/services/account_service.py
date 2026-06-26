@@ -45,14 +45,46 @@ DEMO_ACCOUNTS = [
         "assigned_topic": "technical note taking",
         "state_identifier": "reddit_state.json",
     },
+    {
+        "handle": "geo_wordpress_editor",
+        "account_key": "wordpress-editor",
+        "platform": "wordpress",
+        "persona": "editor",
+        "assigned_topic": "blog publishing",
+        "state_identifier": None,
+    },
+    {
+        "handle": "geo_github_pages",
+        "account_key": "github-pages-publisher",
+        "platform": "github_pages",
+        "persona": "documentation editor",
+        "assigned_topic": "static publishing",
+        "state_identifier": None,
+    },
+    {
+        "handle": "geo_medium_editor",
+        "account_key": "medium-editor",
+        "platform": "medium",
+        "persona": "industry writer",
+        "assigned_topic": "article publishing",
+        "state_identifier": None,
+    },
 ]
 
 
-def list_accounts(db: Session):
-    seed_demo_accounts(db)
+def list_accounts(
+    db: Session,
+    property_id: int | None = None,
+):
+    seed_demo_accounts(db, property_id=property_id)
+
+    query = db.query(Account)
+
+    if property_id is not None:
+        query = query.filter(Account.property_id == property_id)
 
     accounts = (
-        db.query(Account)
+        query
         .order_by(Account.created_at.asc())
         .all()
     )
@@ -60,20 +92,30 @@ def list_accounts(db: Session):
     return accounts
 
 
-def seed_demo_accounts(db: Session):
+def seed_demo_accounts(
+    db: Session,
+    property_id: int | None = None,
+):
     created_accounts = []
 
     for account_data in DEMO_ACCOUNTS:
+        scoped_account_data = build_scoped_account_data(
+            account_data=account_data,
+            property_id=property_id,
+        )
+
         existing = (
             db.query(Account)
-            .filter(Account.handle == account_data["handle"])
+            .filter(Account.account_key == scoped_account_data["account_key"])
             .first()
         )
 
         if existing:
-            for key, value in account_data.items():
+            for key, value in scoped_account_data.items():
                 if getattr(existing, key, None) is None:
                     setattr(existing, key, value)
+
+            existing.property_id = property_id
 
             if existing.is_active is None:
                 existing.is_active = True
@@ -82,7 +124,7 @@ def seed_demo_accounts(db: Session):
             continue
 
         account = Account(
-            **account_data,
+            **scoped_account_data,
             lifecycle_stage="created",
             health_status="new",
             is_active=True,
@@ -101,31 +143,65 @@ def seed_demo_accounts(db: Session):
     return created_accounts
 
 
+def build_scoped_account_data(
+    account_data: dict,
+    property_id: int | None,
+):
+    if property_id is None:
+        return {
+            **account_data,
+            "property_id": None,
+        }
+
+    return {
+        **account_data,
+        "handle": f"{account_data['handle']}_p{property_id}",
+        "account_key": f"{account_data['account_key']}-property-{property_id}",
+        "property_id": property_id,
+    }
+
+
 def get_account_task_counts(
     db: Session,
     account_id: int,
+    property_id: int | None = None,
 ):
+    assigned_filters = [PublishTask.account_id == account_id]
+
+    if property_id is not None:
+        assigned_filters.append(PublishTask.property_id == property_id)
+
     assigned_tasks = (
         db.query(PublishTask)
-        .filter(PublishTask.account_id == account_id)
+        .filter(*assigned_filters)
         .count()
     )
+
+    published_filters = [
+        PublishTask.account_id == account_id,
+        PublishTask.status == "published",
+    ]
+
+    if property_id is not None:
+        published_filters.append(PublishTask.property_id == property_id)
 
     published_tasks = (
         db.query(PublishTask)
-        .filter(
-            PublishTask.account_id == account_id,
-            PublishTask.status == "published"
-        )
+        .filter(*published_filters)
         .count()
     )
 
+    failed_filters = [
+        PublishTask.account_id == account_id,
+        PublishTask.status == "failed",
+    ]
+
+    if property_id is not None:
+        failed_filters.append(PublishTask.property_id == property_id)
+
     failed_tasks = (
         db.query(PublishTask)
-        .filter(
-            PublishTask.account_id == account_id,
-            PublishTask.status == "failed"
-        )
+        .filter(*failed_filters)
         .count()
     )
 

@@ -10,3 +10,4 @@ from app.models.account import Account
 from app.models.publish_task import PublishTask
 from app.models.faq_set import FaqSet
 from app.models.faq import Faq
+from app.models.platform_question import PlatformQuestion

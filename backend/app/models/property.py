@@ -38,3 +38,8 @@ class Property(Base):
     )
     publish_tasks = relationship("PublishTask", back_populates="property")
     citation_tests = relationship("CitationTest", back_populates="property")
+    platform_questions = relationship(
+        "PlatformQuestion",
+        back_populates="property",
+    )
+    accounts = relationship("Account", back_populates="property")

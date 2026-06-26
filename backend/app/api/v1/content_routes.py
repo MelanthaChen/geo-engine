@@ -398,15 +398,13 @@ def generate_faqs_route(
         property_id=property_id,
     )
 
-    print("FAQ RESULT:")
-    print(result["text"])
-
     return {
         "target": target,
         "mode": mode,
         "faqs": result["text"],
         "faq_set": result["faq_set"],
         "faq_set_id": result["faq_set"]["id"],
+        "platform_questions": result.get("platform_questions", []),
     }
 
 
