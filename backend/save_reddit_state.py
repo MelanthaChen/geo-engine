@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from playwright.sync_api import sync_playwright
 
 with sync_playwright() as p:
@@ -20,12 +22,24 @@ with sync_playwright() as p:
 
     input()
 
+    state_path = Path("sessions/reddit/storage_state.json")
+    state_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    context.storage_state(
+        path=str(state_path)
+    )
     context.storage_state(
         path="reddit_state.json"
     )
 
     print(
-        "reddit_state.json saved"
+        f"{state_path} saved"
+    )
+    print(
+        "reddit_state.json saved for backwards compatibility"
     )
 
     browser.close()

@@ -1,9 +1,11 @@
 from app.services.platform_publishers.reddit import RedditPublisher
 from app.services.platform_publishers.unsupported import UnsupportedPublisher
+from app.services.platform_publishers.xiaohongshu import XiaohongshuPublisher
 
 
 PUBLISHER_REGISTRY = {
     "reddit": RedditPublisher,
+    "xiaohongshu": XiaohongshuPublisher,
 }
 
 

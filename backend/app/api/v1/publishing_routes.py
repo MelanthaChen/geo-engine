@@ -51,6 +51,15 @@ def content_title(content: Content):
     )
 
 
+def get_publish_target(task: PublishingJob):
+    platform = (task.account.platform or "").lower()
+
+    if platform == "reddit":
+        return "test"
+
+    return task.account.assigned_topic or platform or "default"
+
+
 class PublishCompleteRequest(
     BaseModel
 ):
@@ -235,12 +244,16 @@ def get_pending_publish_for_account(
             "property_id": task.property_id,
             "account_id": task.account_id,
             "account_handle": task.account.handle,
+            "browser_profile_name": task.account.browser_profile_name,
+            "session_path": task.account.session_path,
+            "session_status": task.account.session_status,
             "platform": task.account.platform,
             "title": prepared_title,
             "body": prepared_body,
             "source_body_chars": len(content.body or ""),
             "formatted_body_chars": len(prepared_body),
             "target_url": content.target_url,
+            "target": get_publish_target(task),
             "subreddit": "test"
         }
     }

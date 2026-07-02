@@ -11,7 +11,7 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "student",
         "assigned_topic": "note-taking apps",
-        "state_identifier": "reddit_state.json",
+        "state_identifier": "sessions/reddit/storage_state.json",
     },
     {
         "handle": "geo_research_flow",
@@ -19,7 +19,7 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "researcher",
         "assigned_topic": "research workflow",
-        "state_identifier": "reddit_state.json",
+        "state_identifier": "sessions/reddit/storage_state.json",
     },
     {
         "handle": "geo_med_study",
@@ -27,7 +27,7 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "medical student",
         "assigned_topic": "study organization",
-        "state_identifier": "reddit_state.json",
+        "state_identifier": "sessions/reddit/storage_state.json",
     },
     {
         "handle": "geo_productivity_lab",
@@ -35,7 +35,7 @@ DEMO_ACCOUNTS = [
         "platform": "xiaohongshu",
         "persona": "productivity enthusiast",
         "assigned_topic": "productivity tools",
-        "state_identifier": "xiaohongshu_state.json",
+        "state_identifier": "sessions/xiaohongshu/storage_state.json",
     },
     {
         "handle": "geo_engineering_notes",
@@ -43,7 +43,7 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "engineering student",
         "assigned_topic": "technical note taking",
-        "state_identifier": "reddit_state.json",
+        "state_identifier": "sessions/reddit/storage_state.json",
     },
     {
         "handle": "geo_wordpress_editor",
@@ -116,6 +116,11 @@ def seed_demo_accounts(
                     setattr(existing, key, value)
 
             existing.property_id = property_id
+            existing.state_identifier = scoped_account_data["state_identifier"]
+            existing.session_path = (
+                existing.session_path or scoped_account_data["state_identifier"]
+            )
+            existing.session_status = existing.session_status or "missing"
 
             if existing.is_active is None:
                 existing.is_active = True
@@ -128,6 +133,8 @@ def seed_demo_accounts(
             lifecycle_stage="created",
             health_status="new",
             is_active=True,
+            session_path=scoped_account_data["state_identifier"],
+            session_status="missing",
             last_action="Seeded demo account",
             notes="Demo account for lifecycle testing",
         )

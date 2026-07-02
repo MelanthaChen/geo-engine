@@ -59,9 +59,13 @@ while True:
                 publisher = get_platform_publisher(task["platform"])
                 result = publisher.publish(
                     PublishRequest(
-                        target=task["subreddit"],
+                        target=task.get("target") or task.get("subreddit", "test"),
                         title=task["title"],
                         body=task["body"],
+                        account_id=task.get("account_id"),
+                        account_handle=task.get("account_handle"),
+                        browser_profile_name=task.get("browser_profile_name"),
+                        session_path=task.get("session_path"),
                     )
                 )
 

@@ -34,6 +34,18 @@ class Account(Base):
 
     state_identifier = Column(String, nullable=True)
 
+    session_path = Column(String, nullable=True)
+
+    session_status = Column(String, nullable=True)
+
+    last_login = Column(DateTime(timezone=True), nullable=True)
+
+    last_session_refresh = Column(DateTime(timezone=True), nullable=True)
+
+    last_session_validation = Column(DateTime(timezone=True), nullable=True)
+
+    browser_profile_name = Column(String, nullable=True)
+
     is_active = Column(Boolean, default=True)
 
     platform = Column(String, nullable=False)
