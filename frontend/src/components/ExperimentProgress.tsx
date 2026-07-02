@@ -1,7 +1,7 @@
 import { Badge } from "../../@/components/ui/badge";
 import { Card, CardContent } from "../../@/components/ui/card";
 
-import { strategyOptions } from "@/data/experimentLabMock";
+import { strategyOptions } from "@/data/experimentLabConfig";
 import type { ExperimentRun, ExperimentStatus } from "@/types/experimentLab";
 
 type ExperimentProgressProps = {

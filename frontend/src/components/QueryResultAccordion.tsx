@@ -1,6 +1,6 @@
 import { Card, CardContent } from "../../@/components/ui/card";
 
-import { strategyOptions } from "@/data/experimentLabMock";
+import { strategyOptions } from "@/data/experimentLabConfig";
 import type {
   QueryExperimentResult,
   StrategyId,

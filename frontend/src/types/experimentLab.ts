@@ -6,7 +6,11 @@ export type StrategyId =
   | "citation"
   | "quotation"
   | "fluency"
-  | "authority";
+  | "authoritative"
+  | "easy_to_understand"
+  | "unique_words"
+  | "technical_terms"
+  | "keyword_stuffing";
 
 export type EvaluationMetricId = "pawc" | "citation_count" | "visibility_score";
 
@@ -39,6 +43,7 @@ export type QueryExperimentResult = {
 };
 
 export type ExperimentRun = {
+  id?: number;
   status: ExperimentStatus;
   currentQuery: string;
   currentStrategy: StrategyId;
@@ -52,4 +57,5 @@ export type ExperimentRun = {
   };
   strategyResults: StrategyResult[];
   queryResults: QueryExperimentResult[];
+  errorMessage?: string | null;
 };

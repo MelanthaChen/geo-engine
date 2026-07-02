@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     GITHUB_TOKEN: str | None = None
 
+    GOOGLE_SEARCH_API_KEY: str | None = None
+
+    GOOGLE_SEARCH_ENGINE_ID: str | None = None
+
     REDDIT_USERNAME: str | None = None
 
     REDDIT_PASSWORD: str | None = None

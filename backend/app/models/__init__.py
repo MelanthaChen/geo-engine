@@ -2,7 +2,12 @@ from app.models.property import Property
 from app.models.query import Query
 from app.models.content import Content
 from app.models.citation_result import CitationResult
-from app.models.experiment import Experiment
+from app.models.experiment import (
+    Experiment,
+    ExperimentDocument,
+    ExperimentQuery,
+    ExperimentStrategyResult,
+)
 from app.models.citation_test import CitationTest
 from app.models.campaign import Campaign
 from app.models.history_event import HistoryEvent

@@ -6,9 +6,10 @@ import { ExperimentSummary } from "@/components/ExperimentSummary";
 import { QueryResultAccordion } from "@/components/QueryResultAccordion";
 import { StrategyComparisonTable } from "@/components/StrategyComparisonTable";
 import {
-  createMockExperimentRun,
-  defaultExperimentConfiguration,
-} from "@/data/experimentLabMock";
+  getExperimentLabRun,
+  startExperimentLab,
+} from "@/api/experimentLab";
+import { defaultExperimentConfiguration } from "@/data/experimentLabConfig";
 import type {
   ExperimentConfigurationValues,
   ExperimentRun,
@@ -18,20 +19,60 @@ export function ExperimentLab() {
   const [configuration, setConfiguration] =
     useState<ExperimentConfigurationValues>(defaultExperimentConfiguration);
   const [run, setRun] = useState<ExperimentRun | null>(null);
+  const isRunning = run?.status === "running" || run?.status === "queued";
 
-  function handleRunExperiment() {
-    const mockRun = createMockExperimentRun(configuration);
-
+  async function handleRunExperiment() {
     setRun({
-      ...mockRun,
       status: "running",
-      completedQueries: Math.max(1, Math.floor(configuration.numberOfQueries / 3)),
-      estimatedRemainingTime: "4 min",
+      currentQuery: "Queued",
+      currentStrategy: configuration.strategies[0] || "original",
+      completedQueries: 0,
+      totalQueries: configuration.numberOfQueries,
+      estimatedRemainingTime: "Calculating",
+      overall: {
+        visibilityScore: 0,
+        citationCount: 0,
+        pawc: 0,
+      },
+      strategyResults: [],
+      queryResults: [],
     });
 
-    window.setTimeout(() => {
-      setRun(mockRun);
-    }, 900);
+    try {
+      let result = await startExperimentLab(configuration);
+      setRun(result);
+
+      while (
+        result.id &&
+        (result.status === "queued" || result.status === "running")
+      ) {
+        await wait(2000);
+        result = await getExperimentLabRun(result.id);
+        setRun(result);
+      }
+    } catch (error) {
+      setRun((currentRun) => ({
+        ...(currentRun || {
+          currentQuery: "",
+          currentStrategy: "original",
+          completedQueries: 0,
+          totalQueries: configuration.numberOfQueries,
+          estimatedRemainingTime: "Not available",
+          overall: {
+            visibilityScore: 0,
+            citationCount: 0,
+            pawc: 0,
+          },
+          strategyResults: [],
+          queryResults: [],
+        }),
+        status: "failed",
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "Experiment failed before completion.",
+      }));
+    }
   }
 
   return (
@@ -51,10 +92,17 @@ export function ExperimentLab() {
       </div>
 
       <ExperimentConfiguration
+        isRunning={isRunning}
         value={configuration}
         onChange={setConfiguration}
         onRunExperiment={handleRunExperiment}
       />
+
+      {run?.status === "failed" && (
+        <div className="rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-100">
+          {run.errorMessage || "Experiment failed before completion."}
+        </div>
+      )}
 
       <ExperimentProgress run={run} />
 
@@ -69,4 +117,8 @@ export function ExperimentLab() {
       />
     </div>
   );
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }

@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import {
   evaluationMetricOptions,
   strategyOptions,
-} from "@/data/experimentLabMock";
+} from "@/data/experimentLabConfig";
 import type {
   EvaluationMetricId,
   ExperimentConfigurationValues,
@@ -18,9 +18,11 @@ type ExperimentConfigurationProps = {
   value: ExperimentConfigurationValues;
   onChange: (value: ExperimentConfigurationValues) => void;
   onRunExperiment: () => void;
+  isRunning?: boolean;
 };
 
 export function ExperimentConfiguration({
+  isRunning = false,
   onChange,
   onRunExperiment,
   value,
@@ -181,12 +183,13 @@ export function ExperimentConfiguration({
         <div className="mt-6 flex justify-end">
           <Button
             disabled={
+              isRunning ||
               value.strategies.length === 0 ||
               value.evaluationMetrics.length === 0
             }
             onClick={onRunExperiment}
           >
-            Run Experiment
+            {isRunning ? "Running..." : "Run Experiment"}
           </Button>
         </div>
       </CardContent>
