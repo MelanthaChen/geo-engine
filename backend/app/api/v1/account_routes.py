@@ -9,6 +9,8 @@ from app.services.account_service import (
     seed_demo_accounts,
     update_account_stage
 )
+from app.models.account import Account
+from app.services.playwright_session_service import PlaywrightSessionService
 
 
 router = APIRouter(
@@ -43,6 +45,12 @@ def serialize_account(
         "account_key": account.account_key,
         "agent_name": account.agent_name,
         "state_identifier": account.state_identifier,
+        "session_path": account.session_path,
+        "session_status": account.session_status,
+        "last_login": account.last_login,
+        "last_session_refresh": account.last_session_refresh,
+        "last_session_validation": account.last_session_validation,
+        "browser_profile_name": account.browser_profile_name,
         "is_active": account.is_active,
         "platform": account.platform,
         "persona": account.persona,
@@ -97,3 +105,64 @@ def patch_account_stage(
         }
 
     return serialize_account(account, db)
+
+
+@router.post("/{account_id}/session")
+def create_account_session(
+    account_id: int,
+    db: Session = Depends(get_db),
+):
+    account = db.query(Account).filter(Account.id == account_id).first()
+
+    if not account:
+        return {
+            "error": "Account not found"
+        }
+
+    session_path = PlaywrightSessionService(db=db).create_session(account)
+
+    return {
+        "status": "session_saved",
+        "account": serialize_account(account, db),
+        "session_path": str(session_path),
+    }
+
+
+@router.post("/{account_id}/session/validate")
+def validate_account_session(
+    account_id: int,
+    db: Session = Depends(get_db),
+):
+    account = db.query(Account).filter(Account.id == account_id).first()
+
+    if not account:
+        return {
+            "error": "Account not found"
+        }
+
+    is_valid = PlaywrightSessionService(db=db).validate_session(account)
+
+    return {
+        "status": "valid" if is_valid else "missing",
+        "account": serialize_account(account, db),
+    }
+
+
+@router.delete("/{account_id}/session")
+def delete_account_session(
+    account_id: int,
+    db: Session = Depends(get_db),
+):
+    account = db.query(Account).filter(Account.id == account_id).first()
+
+    if not account:
+        return {
+            "error": "Account not found"
+        }
+
+    PlaywrightSessionService(db=db).delete_session(account)
+
+    return {
+        "status": "session_deleted",
+        "account": serialize_account(account, db),
+    }

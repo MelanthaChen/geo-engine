@@ -1,3 +1,4 @@
+import json
 import re
 
 from app.models.content import Content
@@ -17,12 +18,20 @@ class XiaohongshuFormatter:
     def prepare(self, content: Content) -> PlatformPost:
         source_body = content.body or ""
         topic = extract_discussion_topic(content)
-        title = build_xiaohongshu_title(content=content, topic=topic)
-        body = build_xiaohongshu_body(
-            content=content,
-            topic=topic,
-            source_body=source_body,
-        )
+        structured_note = parse_xiaohongshu_note(source_body)
+
+        if structured_note:
+            title = structured_note.get(
+                "title"
+            ) or build_xiaohongshu_title(content=content, topic=topic)
+            body = build_xiaohongshu_body_from_note(structured_note)
+        else:
+            title = build_xiaohongshu_title(content=content, topic=topic)
+            body = build_xiaohongshu_body(
+                content=content,
+                topic=topic,
+                source_body=source_body,
+            )
 
         print(
             "[XIAOHONGSHU FORMATTER] source_body_chars="
@@ -38,6 +47,46 @@ class XiaohongshuFormatter:
             formatter_name=self.formatter_name,
             formatter_version=self.formatter_version,
         )
+
+
+def parse_xiaohongshu_note(source_body: str):
+    try:
+        parsed = json.loads(source_body)
+    except Exception:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    if not any(key in parsed for key in {"title", "body", "hashtags", "cta"}):
+        return None
+
+    return parsed
+
+
+def build_xiaohongshu_body_from_note(note: dict):
+    hashtags = note.get("hashtags") or []
+
+    if isinstance(hashtags, str):
+        hashtags = [hashtags]
+
+    normalized_hashtags = [
+        hashtag if str(hashtag).startswith("#") else f"#{hashtag}"
+        for hashtag in hashtags
+        if str(hashtag).strip()
+    ]
+
+    body_parts = [
+        note.get("body", ""),
+        note.get("cta", ""),
+        " ".join(normalized_hashtags),
+    ]
+
+    return "\n\n".join(
+        str(part).strip()
+        for part in body_parts
+        if str(part).strip()
+    )
 
 
 def build_xiaohongshu_title(

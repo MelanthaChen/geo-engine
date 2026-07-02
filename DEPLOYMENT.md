@@ -90,21 +90,21 @@ python -m playwright install chromium
 
 Use this command instead of `playwright install`. During deployment we found that `which playwright` and `which python` can point to different environments. Running Playwright as a Python module keeps the browser installation tied to the virtual environment being used by the publisher agent.
 
-## 7. Generate `reddit_state.json`
+## 7. Generate an Account-Specific Reddit Session
 
 ```bash
-python save_reddit_state.py
+python save_reddit_state.py --handle geo_student_notes
 ```
 
-A Chromium browser window opens. Log in to Reddit manually in that browser. After Reddit login succeeds, return to the terminal and press Enter.
+A Chromium browser window opens. Log in to Reddit manually in that browser for the selected account. After Reddit login succeeds, return to the terminal and press Enter.
 
 The script saves:
 
 ```text
-backend/reddit_state.json
+storage/reddit/<account-handle>.json
 ```
 
-This file contains the local browser authentication state used by Playwright.
+This file contains the local browser authentication state used by Playwright for that one account. Generate one session file per Reddit account.
 
 ## 8. Start `publisher_agent.py`
 
@@ -152,7 +152,7 @@ For a dedicated Mac Mini:
 2. Disable sleep in macOS System Settings.
 3. Clone the repository on the Mac Mini.
 4. Create the virtual environment on the Mac Mini.
-5. Generate a fresh `reddit_state.json` on the Mac Mini.
+5. Generate fresh account-specific Reddit sessions on the Mac Mini.
 6. Start the publisher agent from the Mac Mini terminal.
 
 Recommended manual start command:
@@ -186,28 +186,28 @@ Reattach later:
 tmux attach -t geo-publisher
 ```
 
-## Why `reddit_state.json` Is Local Only
+## Why Account Session Files Are Local Only
 
-`reddit_state.json` must stay local to each publisher machine.
+Files under `storage/reddit/` must stay local to each publisher machine.
 
 - It is not stored in GitHub.
 - It is not stored in Render.
 - It is generated separately on every Mac or Mac Mini.
-- It contains browser authentication state for Reddit.
-- Committing it could expose a Reddit session to anyone with repository access.
+- Each file contains browser authentication state for one Reddit account.
+- Committing a session file could expose a Reddit session to anyone with repository access.
 
-Each user or machine must run:
+Each user or machine must run one command per account:
 
 ```bash
-python save_reddit_state.py
+python save_reddit_state.py --handle <account-handle>
 ```
 
-The generated file should remain only on that machine.
+The generated files should remain only on that machine.
 
-If `reddit_state.json` is already tracked in Git, remove it from Git tracking without deleting the local file:
+If a session file is already tracked in Git, remove it from Git tracking without deleting the local file:
 
 ```bash
-git rm --cached backend/reddit_state.json
+git rm --cached storage/reddit/<account-handle>.json
 git commit -m "Stop tracking local Reddit authentication state"
 ```
 
@@ -230,7 +230,7 @@ Local Publisher Agent
    v
 Playwright Chromium
    |
-   | Uses local reddit_state.json
+   | Uses local storage/reddit/<account>.json
    v
 Reddit
    |

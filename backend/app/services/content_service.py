@@ -69,6 +69,7 @@ def generate_content(
     platform_faq: str | None = None,
     faq_source: str | None = None,
     source_faq_set_id: int | None = None,
+    publish_platform: str | None = "reddit",
     angle: str | None = None,
     perspective: str | None = None,
     archetype: str | None = None,
@@ -87,6 +88,7 @@ def generate_content(
     strategy_type = registry_normalize_content_type(
         content_type=content_type
     )
+    normalized_publish_platform = normalize_publish_platform(publish_platform)
 
     source_faq_set = (
         get_faq_set(db, source_faq_set_id)
@@ -121,6 +123,7 @@ def generate_content(
         ai_faq=ai_faq,
         platform_faq=platform_faq,
         faq_source=normalized_faq_source,
+        publish_platform=normalized_publish_platform,
     )
 
     content_strategy = build_content_strategy(
@@ -129,6 +132,7 @@ def generate_content(
         category=query,
         content_type=strategy_type,
         faq_source=normalized_faq_source,
+        publish_platform=normalized_publish_platform,
         evidence=evidence,
         explicit_angle=angle,
         explicit_perspective=perspective,
@@ -143,6 +147,7 @@ def generate_content(
         target_url=target_url,
         evidence=evidence,
         faq_source=normalized_faq_source,
+        publish_platform=normalized_publish_platform,
         angle=content_strategy["angle"],
         perspective=content_strategy["perspective"],
         archetype=content_strategy["archetype"],
@@ -181,6 +186,11 @@ def generate_content(
         generated_content=generated_content,
         fallback=f"{strategy_type}: {query}"
     )
+    article_title = extract_platform_title(
+        generated_content=generated_content,
+        publish_platform=normalized_publish_platform,
+        fallback=article_title,
+    )
 
     new_content = create_content(
         db=db,
@@ -209,6 +219,9 @@ def generate_content(
         target_persona=persona,
         generation_mode=mode,
     )
+    new_content.publish_platform = normalized_publish_platform
+    db.commit()
+    db.refresh(new_content)
 
     create_history_event(
         db=db,
@@ -244,6 +257,7 @@ def generate_evidence(
     ai_faq: str | None,
     platform_faq: str | None,
     faq_source: str,
+    publish_platform: str = "reddit",
 ):
     ai_faq_items = parse_faq_lines(ai_faq or "")
     platform_faq_items = parse_faq_lines(platform_faq or "")
@@ -314,8 +328,12 @@ def generate_evidence(
             "topic": "content_scope",
             "point": (
                 "Generated content should be a human-readable publishable "
-                "article, not a FAQ dump or source transformation."
+                "platform-native post, not a FAQ dump or source transformation."
             )
+        },
+        {
+            "topic": "publish_platform",
+            "point": platform_generation_goal(publish_platform),
         },
     ]
 
@@ -323,6 +341,8 @@ def generate_evidence(
         "facts": facts,
         "sources": sources,
         "key_points": key_points,
+        "publish_platform": publish_platform,
+        "platform_generation_goal": platform_generation_goal(publish_platform),
     }
 
 
@@ -348,6 +368,27 @@ def parse_faq_lines(faq_text: str):
     return cleaned_lines
 
 
+def extract_platform_title(
+    generated_content: str,
+    publish_platform: str,
+    fallback: str,
+):
+    if publish_platform != "xiaohongshu":
+        return fallback
+
+    try:
+        parsed = json.loads(generated_content)
+    except Exception:
+        return fallback
+
+    if not isinstance(parsed, dict):
+        return fallback
+
+    title = str(parsed.get("title") or "").strip()
+
+    return title or fallback
+
+
 def normalize_faq_source(
     faq_source: str | None,
     mode: str,
@@ -366,6 +407,30 @@ def normalize_faq_source(
     return "ai_faq"
 
 
+def normalize_publish_platform(publish_platform: str | None):
+    return (
+        publish_platform or "reddit"
+    ).strip().lower()
+
+
+def platform_generation_goal(publish_platform: str):
+    if publish_platform == "xiaohongshu":
+        return (
+            "Generate native Xiaohongshu note content with structured title, "
+            "body, hashtags, CTA, cover suggestion, and optional image prompts."
+        )
+
+    if publish_platform == "reddit":
+        return (
+            "Generate native Reddit discussion content that invites replies, "
+            "uses conversational framing, and avoids article formatting."
+        )
+
+    return (
+        "Generate content shaped for the selected publishing platform."
+    )
+
+
 def normalize_property_url(domain: str):
     normalized_domain = domain.strip()
 
@@ -380,6 +445,7 @@ def generate_faqs(
     mode: str,
     db: Session | None = None,
     content_type: str = "comparison",
+    publish_platform: str = "reddit",
     website_url: str | None = None,
     property_id: int | None = None,
 ):
@@ -405,6 +471,7 @@ def generate_faqs(
             category=target,
             website_url=website_url,
             property_id=property_id,
+            publish_platform=publish_platform,
         )
 
     platform_questions = [

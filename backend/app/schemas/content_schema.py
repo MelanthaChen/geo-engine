@@ -23,6 +23,8 @@ class ContentGenerationRequest(BaseModel):
 
     source_faq_set_id: int | None = None
 
+    publish_platform: str | None = "reddit"
+
     angle: str | None = None
 
     perspective: str | None = None

@@ -81,20 +81,20 @@ Then start the agent with the same Python:
 python publisher_agent.py
 ```
 
-## Issue: `reddit_state.json` Missing
+## Issue: Reddit Account Session Missing
 
 ### Cause
 
-The Reddit browser session has not been generated on this machine. The state file is intentionally local and is not committed to GitHub.
+The Reddit browser session has not been generated on this machine for the selected account. Session files are intentionally local and are not committed to GitHub.
 
 ### Fix
 
-Generate the state file:
+Generate the state file for the account:
 
 ```bash
 cd /path/to/geo-engine/backend
 source venv/bin/activate
-python save_reddit_state.py
+python save_reddit_state.py --handle <account-handle>
 ```
 
 Log in to Reddit in the browser window. Return to the terminal and press Enter when login is complete.
@@ -102,7 +102,7 @@ Log in to Reddit in the browser window. Return to the terminal and press Enter w
 Confirm the file exists:
 
 ```bash
-ls -l reddit_state.json
+ls -l ../storage/reddit/<account-handle>.json
 ```
 
 ## Issue: Reddit Asks for Login Again
@@ -113,12 +113,12 @@ The saved Reddit session expired, was invalidated, or no longer matches the brow
 
 ### Fix
 
-Regenerate the state file:
+Regenerate the account session file:
 
 ```bash
 cd /path/to/geo-engine/backend
 source venv/bin/activate
-python save_reddit_state.py
+python save_reddit_state.py --handle <account-handle>
 ```
 
 Log in again, then restart the publisher agent:
@@ -165,7 +165,7 @@ If the agent still reports no pending tasks, confirm that `publisher_agent.py` p
 
 This is expected if the local publisher agent is not running. Render hosts the backend API, but Reddit publishing occurs on the local Mac or Mac Mini through Playwright.
 
-Render does not store `reddit_state.json`, does not log in to Reddit, and does not run the browser-based publisher.
+Render does not store local Reddit session files, does not log in to Reddit, and does not run the browser-based publisher.
 
 ### Fix
 
@@ -182,13 +182,13 @@ Confirm these local files exist:
 ```bash
 ls -l publisher_agent.py
 ls -l save_reddit_state.py
-ls -l reddit_state.json
+ls -l ../storage/reddit/<account-handle>.json
 ```
 
-If `reddit_state.json` is missing or expired, regenerate it:
+If the account session is missing or expired, regenerate it:
 
 ```bash
-python save_reddit_state.py
+python save_reddit_state.py --handle <account-handle>
 ```
 
 Then start the agent again:
@@ -197,7 +197,7 @@ Then start the agent again:
 python publisher_agent.py
 ```
 
-## Issue: `reddit_state.json` Was Accidentally Added to Git
+## Issue: A Reddit Session File Was Accidentally Added to Git
 
 ### Cause
 
@@ -209,7 +209,7 @@ Remove it from Git tracking while keeping the local file on disk:
 
 ```bash
 cd /path/to/geo-engine
-git rm --cached backend/reddit_state.json
+git rm --cached storage/reddit/<account-handle>.json
 git commit -m "Stop tracking local Reddit authentication state"
 ```
 

@@ -157,7 +157,12 @@ function ContentGenerationWorkspace({
     try {
       setLoading(true);
 
-      const result = await generateFaqs(query, "ai", contentType);
+      const result = await generateFaqs(
+        query,
+        "ai",
+        contentType,
+        publishPlatform,
+      );
 
       setAiFaqs(result.faqs);
 
@@ -186,6 +191,7 @@ function ContentGenerationWorkspace({
         query,
         "platform",
         contentType,
+        publishPlatform,
       );
 
       setPlatformQuestions(result.platform_questions || []);
@@ -225,6 +231,7 @@ function ContentGenerationWorkspace({
         "",
         "ai_faq",
         aiFaqResult.faqSetId,
+        publishPlatform,
       );
 
       setAiGeneratedContent(aiResult.generated_content);
@@ -241,6 +248,7 @@ function ContentGenerationWorkspace({
         platformFaqResult.faqs,
         "platform_faq",
         platformFaqResult.faqSetId,
+        publishPlatform,
       );
 
       setPlatformGeneratedContent(platformResult.generated_content);
@@ -416,6 +424,7 @@ function ContentGenerationWorkspace({
           status={aiStatus}
           title="AI FAQ-Based Content"
           url={aiUrl}
+          platform={publishPlatform}
         />
         <ContentPanel
           body={
@@ -426,6 +435,7 @@ function ContentGenerationWorkspace({
           status={platformStatus}
           title="Platform FAQ-Based Content"
           url={platformUrl}
+          platform={publishPlatform}
         />
       </div>
 
@@ -591,6 +601,7 @@ type ContentPanelProps = {
   body: string;
   contentId: number | null;
   onPublish: (contentId: number) => void;
+  platform: string;
   status: string;
   title: string;
   url: string;
@@ -600,10 +611,13 @@ function ContentPanel({
   body,
   contentId,
   onPublish,
+  platform,
   status,
   title,
   url,
 }: ContentPanelProps) {
+  const preview = buildPlatformPreview(body, platform);
+
   return (
     <Card className="border-zinc-800 bg-zinc-950">
       <CardContent className="flex h-[560px] flex-col p-6">
@@ -638,9 +652,43 @@ function ContentPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-800 bg-black p-4 text-sm leading-6 text-zinc-300">
-          {body}
+          {preview}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function buildPlatformPreview(body: string, platform: string) {
+  if (platform !== "xiaohongshu") {
+    return body;
+  }
+
+  try {
+    const parsed = JSON.parse(body) as {
+      title?: string;
+      body?: string;
+      hashtags?: string[];
+      cta?: string;
+      coverSuggestion?: string;
+      imagePrompts?: string[];
+    };
+
+    return [
+      parsed.title ? `标题\n${parsed.title}` : "",
+      parsed.body ? `正文\n${parsed.body}` : "",
+      parsed.hashtags?.length
+        ? `标签\n${parsed.hashtags.join(" ")}`
+        : "",
+      parsed.cta ? `互动引导\n${parsed.cta}` : "",
+      parsed.coverSuggestion
+        ? `封面建议\n${parsed.coverSuggestion}`
+        : "",
+      parsed.imagePrompts?.length
+        ? `图片提示\n${parsed.imagePrompts.join("\n")}`
+        : "",
+    ].filter(Boolean).join("\n\n");
+  } catch {
+    return body;
+  }
 }

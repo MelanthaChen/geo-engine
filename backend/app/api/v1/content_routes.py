@@ -207,6 +207,7 @@ def generate_content_route(
         platform_faq=request.platform_faq,
         faq_source=request.faq_source,
         source_faq_set_id=request.source_faq_set_id,
+        publish_platform=request.publish_platform,
         angle=request.angle,
         perspective=request.perspective,
         archetype=request.archetype,
@@ -454,6 +455,7 @@ def generate_faqs_route(
     target: str,
     mode: str,
     content_type: str = "comparison",
+    publish_platform: str = "reddit",
     website_url: str | None = None,
     property_id: int | None = None,
     db: Session = Depends(get_db),
@@ -464,6 +466,7 @@ def generate_faqs_route(
         mode=mode,
         db=db,
         content_type=content_type,
+        publish_platform=publish_platform,
         website_url=website_url,
         property_id=property_id,
     )

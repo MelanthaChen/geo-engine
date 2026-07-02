@@ -32,10 +32,12 @@ export async function generateFaqs(
   target: string,
   mode: string,
   contentType: string = "comparison",
+  publishPlatform: string = "reddit",
 ): Promise<GenerateFaqsResponse> {
   const params = new URLSearchParams({
     mode,
     content_type: contentType,
+    publish_platform: publishPlatform,
   });
 
   const response = await apiClient.get(

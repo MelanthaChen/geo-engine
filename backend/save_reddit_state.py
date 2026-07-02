@@ -1,45 +1,48 @@
-from pathlib import Path
+import argparse
 
-from playwright.sync_api import sync_playwright
+from app.core.database import SessionLocal
+from app.models.account import Account
+from app.services.playwright_session_service import PlaywrightSessionService
 
-with sync_playwright() as p:
 
-    browser = p.chromium.launch(
-        headless=False
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Create a Reddit Playwright session for one account."
     )
+    selector = parser.add_mutually_exclusive_group(required=True)
+    selector.add_argument("--account-id", type=int)
+    selector.add_argument("--handle")
+    return parser.parse_args()
 
-    context = browser.new_context()
 
-    page = context.new_page()
+def load_account(db, account_id: int | None, handle: str | None):
+    query = db.query(Account).filter(Account.platform == "reddit")
 
-    page.goto(
-        "https://www.reddit.com/login/"
-    )
+    if account_id is not None:
+        return query.filter(Account.id == account_id).first()
 
-    print(
-        "Login to Reddit in the browser, then press Enter here."
-    )
+    return query.filter(Account.handle == handle).first()
 
-    input()
 
-    state_path = Path("sessions/reddit/storage_state.json")
-    state_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+def main():
+    args = parse_args()
+    db = SessionLocal()
 
-    context.storage_state(
-        path=str(state_path)
-    )
-    context.storage_state(
-        path="reddit_state.json"
-    )
+    try:
+        account = load_account(
+            db=db,
+            account_id=args.account_id,
+            handle=args.handle,
+        )
 
-    print(
-        f"{state_path} saved"
-    )
-    print(
-        "reddit_state.json saved for backwards compatibility"
-    )
+        if not account:
+            raise SystemExit("Reddit account not found.")
 
-    browser.close()
+        session_path = PlaywrightSessionService(db=db).create_session(account)
+        print(f"Saved Reddit session for {account.handle}: {session_path}")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

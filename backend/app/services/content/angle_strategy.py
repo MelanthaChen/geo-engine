@@ -53,6 +53,7 @@ def build_content_strategy(
     content_type: str,
     faq_source: str,
     evidence: dict,
+    publish_platform: str = "reddit",
     explicit_angle: str | None = None,
     explicit_perspective: str | None = None,
     explicit_archetype: str | None = None,

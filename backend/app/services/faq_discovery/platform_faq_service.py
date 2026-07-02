@@ -53,8 +53,12 @@ def discover_platform_faqs(
     category: str,
     website_url: str | None,
     property_id: int | None = None,
+    publish_platform: str = "reddit",
 ):
-    retrieved_questions = collect_external_platform_questions(category)
+    retrieved_questions = collect_external_platform_questions(
+        category=category,
+        publish_platform=publish_platform,
+    )
     saved_questions = save_platform_questions(
         db=db,
         property_id=property_id,
@@ -76,16 +80,11 @@ def discover_platform_faqs(
 
 def collect_external_platform_questions(
     category: str,
+    publish_platform: str = "reddit",
 ) -> list[RetrievedPlatformQuestion]:
     questions: list[RetrievedPlatformQuestion] = []
 
-    collectors = [
-        ("reddit", fetch_reddit_questions),
-        ("github_discussions", fetch_github_discussion_questions),
-        ("github_issues", fetch_github_issue_questions),
-        ("hacker_news", fetch_hacker_news_questions),
-        ("stack_overflow", fetch_stack_overflow_questions),
-    ]
+    collectors = platform_collectors(publish_platform)
 
     for platform, collector in collectors:
         try:
@@ -105,6 +104,65 @@ def collect_external_platform_questions(
         )
 
     return questions
+
+
+def platform_collectors(publish_platform: str):
+    normalized_platform = (
+        publish_platform or "reddit"
+    ).strip().lower()
+
+    if normalized_platform == "reddit":
+        return [
+            ("reddit", fetch_reddit_questions),
+        ]
+
+    if normalized_platform == "xiaohongshu":
+        logger.info(
+            "[PLATFORM DISCOVERY] xiaohongshu direct retrieval unsupported: %s",
+            UNSUPPORTED_PLATFORM_REASONS["xiaohongshu"],
+        )
+        return [
+            ("xiaohongshu_strategy", build_xiaohongshu_note_topics),
+        ]
+
+    return [
+        ("reddit", fetch_reddit_questions),
+        ("github_discussions", fetch_github_discussion_questions),
+        ("github_issues", fetch_github_issue_questions),
+        ("hacker_news", fetch_hacker_news_questions),
+        ("stack_overflow", fetch_stack_overflow_questions),
+    ]
+
+
+def build_xiaohongshu_note_topics(
+    category: str,
+) -> list[RetrievedPlatformQuestion]:
+    topic_templates = [
+        f"{category} 新手最容易忽略的选择标准",
+        f"{category} 使用前应该先想清楚的三个场景",
+        f"{category} 对比时不要只看功能列表",
+        f"{category} 适合学生/新手吗？先看这些取舍",
+        f"{category} 从真实工作流角度怎么判断值不值得用",
+        f"{category} 常见误区和避坑角度整理",
+        f"{category} 免费方案和付费方案该怎么比较",
+        f"{category} 如果只解决一个问题，应该优先解决什么",
+    ]
+
+    return [
+        RetrievedPlatformQuestion(
+            platform="xiaohongshu_strategy",
+            title=title,
+            body=(
+                "Derived platform-native note angle for Xiaohongshu. "
+                "No direct Xiaohongshu retrieval source is configured."
+            ),
+            url=None,
+            author=None,
+            score=None,
+            created_at=None,
+        )
+        for title in topic_templates
+    ]
 
 
 def fetch_reddit_questions(category: str) -> list[RetrievedPlatformQuestion]:

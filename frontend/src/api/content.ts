@@ -9,6 +9,7 @@ export async function generateContent(
   platformFaq: string = "",
   faqSource: string = "ai_faq",
   sourceFaqSetId?: number | null,
+  publishPlatform: string = "reddit",
 ) {
 
   const response = await apiClient.post(
@@ -21,6 +22,7 @@ export async function generateContent(
       platform_faq: platformFaq,
       faq_source: faqSource,
       source_faq_set_id: sourceFaqSetId,
+      publish_platform: publishPlatform,
       mode,
     }
   );

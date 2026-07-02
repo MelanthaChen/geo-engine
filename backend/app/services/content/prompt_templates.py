@@ -21,13 +21,20 @@ def build_content_prompt(
     archetype: str,
     internet_style: str,
     diversity_constraints: str,
+    publish_platform: str = "reddit",
 ):
     normalized_type = content_type.strip().lower()
 
-    template = PROMPT_TEMPLATES.get(
-        normalized_type,
-        build_educational_prompt,
-    )
+    normalized_platform = (publish_platform or "reddit").strip().lower()
+    platform_template = PLATFORM_PROMPT_TEMPLATES.get(normalized_platform)
+
+    if platform_template:
+        template = platform_template
+    else:
+        template = PROMPT_TEMPLATES.get(
+            normalized_type,
+            build_educational_prompt,
+        )
 
     context = prompt_context(
         category=category,
@@ -35,6 +42,7 @@ def build_content_prompt(
         target_url=target_url,
         evidence=evidence,
         faq_source=faq_source,
+        publish_platform=normalized_platform,
         angle=angle,
         perspective=perspective,
         archetype=archetype,
@@ -51,6 +59,7 @@ def prompt_context(
     target_url: str | None,
     evidence: dict,
     faq_source: str,
+    publish_platform: str,
     angle: str,
     perspective: str,
     archetype: str,
@@ -63,6 +72,7 @@ def prompt_context(
         "target_url": target_url or "Not provided",
         "evidence_json": json.dumps(evidence, indent=2),
         "faq_source": faq_source,
+        "publish_platform": publish_platform,
         "generation_plan": build_generation_plan(evidence),
         "angle": angle,
         "perspective": perspective,
@@ -807,6 +817,104 @@ def cluster_questions_by_theme(questions: list[str]):
         for theme, items in clusters.items()
         if items
     }
+
+
+def build_reddit_platform_prompt(context: dict):
+    system_prompt = f"""
+You write native Reddit discussion posts for research-oriented GEO experiments.
+
+Your task is not to write an article.
+Your task is to create a post that could plausibly appear in a subreddit.
+
+Style requirements:
+- Use first-person or community-oriented framing.
+- Assume readers know the basic category.
+- Focus on tension, uncertainty, tradeoffs, and concrete observations.
+- Invite disagreement and replies.
+- Preserve the evidence and selected angle.
+- Avoid blog structure, headings-heavy writing, SEO phrasing, and polished essay
+  tone.
+- End with an open question.
+
+Failure conditions:
+- If it reads like an article, it failed.
+- If it looks like marketing, it failed.
+- If it invents a personal experience not present in evidence, it failed.
+- If it says the target website is best/amazing/recommended, it failed.
+
+{global_rules()}
+"""
+
+    user_prompt = f"""
+Write one Reddit-native discussion post.
+
+Return plain text only.
+Do not include labels such as Title, Summary, or Body.
+
+{shared_context(context)}
+"""
+
+    return ContentPrompt(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+    )
+
+
+def build_xiaohongshu_platform_prompt(context: dict):
+    system_prompt = f"""
+You write native Xiaohongshu note drafts for research-oriented GEO experiments.
+
+Your task is not to write a generic article.
+Your task is to produce a structured Xiaohongshu-style note that can be previewed
+and then passed to the Xiaohongshu publishing adapter.
+
+The output must be valid JSON only.
+
+Required JSON shape:
+{{
+  "title": "...",
+  "body": "...",
+  "hashtags": ["#...", "#..."],
+  "cta": "...",
+  "coverSuggestion": "...",
+  "imagePrompts": ["...", "..."]
+}}
+
+Xiaohongshu style requirements:
+- Make the title compact and note-like.
+- Body should feel like a useful saved note or sharing angle, not an article.
+- Use short paragraphs.
+- Preserve the selected angle, evidence, comparisons, and practical takeaways.
+- Include hashtags relevant to the category, workflow, persona, and content type.
+- CTA should invite comments or comparison, not push a purchase.
+- Cover suggestion should describe a simple visual concept.
+- Image prompts are optional publishing assets; do not claim images already exist.
+
+Failure conditions:
+- If the response is not valid JSON, it failed.
+- If the body reads like a blog article, it failed.
+- If it fabricates personal use, platform trends, or user complaints, it failed.
+- If it becomes promotional, it failed.
+
+{global_rules()}
+"""
+
+    user_prompt = f"""
+Generate one Xiaohongshu-native note draft as valid JSON only.
+
+{shared_context(context)}
+"""
+
+    return ContentPrompt(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+    )
+
+
+PLATFORM_PROMPT_TEMPLATES = {
+    "reddit": build_reddit_platform_prompt,
+    "xiaohongshu": build_xiaohongshu_platform_prompt,
+}
 
 
 PROMPT_TEMPLATES = {
