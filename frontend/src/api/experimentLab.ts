@@ -7,6 +7,11 @@ import type {
 export async function startExperimentLab(
   configuration: ExperimentConfigurationValues,
 ) {
+  const queries =
+    configuration.benchmarkSource === "manual"
+      ? [configuration.manualQuery]
+      : configuration.uploadedQueries;
+
   const response = await apiClient.post<ExperimentRun>(
     "/api/v1/experiment-lab/run",
     {
@@ -14,8 +19,9 @@ export async function startExperimentLab(
       description: configuration.description || null,
       llm: configuration.llm,
       dataset: configuration.dataset,
+      queries,
       strategies: configuration.strategies,
-      number_of_queries: configuration.numberOfQueries,
+      number_of_queries: queries.length || configuration.numberOfQueries,
       random_seed: configuration.randomSeed,
       temperature: configuration.temperature,
       evaluation_metrics: configuration.evaluationMetrics,

@@ -25,6 +25,7 @@ class ExperimentRepository:
         description: str | None,
         llm_model: str,
         dataset_name: str,
+        benchmark_queries: list[str],
         strategies: list[str],
         metrics: list[str],
         number_of_queries: int,
@@ -38,11 +39,14 @@ class ExperimentRepository:
             status="queued",
             llm_model=llm_model,
             dataset_name=dataset_name,
+            benchmark_queries_json=json.dumps(benchmark_queries),
             strategies_json=json.dumps(strategies),
             metrics_json=json.dumps(metrics),
             number_of_queries=number_of_queries,
             random_seed=random_seed,
             temperature=temperature,
+            current_sample=0,
+            total_samples=5,
             completed_queries=0,
             total_queries=number_of_queries,
             estimated_remaining_time="Calculating",
@@ -74,6 +78,7 @@ class ExperimentRepository:
     ):
         experiment.current_query = current_query
         experiment.current_strategy = current_strategy
+        experiment.current_sample = 0
         experiment.completed_queries = completed_queries
         remaining = max((experiment.total_queries or 0) - completed_queries, 0)
         experiment.estimated_remaining_time = f"{remaining} query batches"
@@ -86,9 +91,11 @@ class ExperimentRepository:
         *,
         current_query: str,
         current_strategy: str,
+        current_sample: int = 0,
     ):
         experiment.current_query = current_query
         experiment.current_strategy = current_strategy
+        experiment.current_sample = current_sample
         self.db.commit()
         self.db.refresh(experiment)
 
@@ -127,6 +134,7 @@ class ExperimentRepository:
                 ExperimentStrategyResult(
                     experiment_query_id=experiment_query.id,
                     strategy=output["strategy"],
+                    sample_index=output["sample_index"],
                     modified_document_text=output["modified_document_text"],
                     prompt=output["prompt"],
                     answer=output["answer"],
@@ -163,14 +171,10 @@ class ExperimentRepository:
             experiment.pawc = sum(result.pawc for result in results) / len(results)
 
             for query in experiment.queries:
-                winner = max(
-                    query.strategy_results,
-                    key=lambda result: result.visibility_score,
-                    default=None,
-                )
+                winner_strategy = self._winner_strategy(query.strategy_results)
 
-                if winner:
-                    winner.is_winner = True
+                for result in query.strategy_results:
+                    result.is_winner = result.strategy == winner_strategy
 
         self.db.commit()
         self.db.refresh(experiment)
@@ -203,10 +207,17 @@ class ExperimentRepository:
         query_results = []
 
         for query in experiment.queries:
-            winner = max(
+            winner_strategy = self._winner_strategy(query.strategy_results)
+            representative_results = self._representative_results(
                 query.strategy_results,
-                key=lambda result: result.visibility_score,
-                default=None,
+            )
+            selected_document = next(
+                (
+                    document
+                    for document in query.documents
+                    if document.is_selected
+                ),
+                None,
             )
             query_results.append(
                 {
@@ -214,10 +225,50 @@ class ExperimentRepository:
                     "query": query.query,
                     "responses": {
                         result.strategy: result.answer
-                        for result in query.strategy_results
+                        for result in representative_results
                     },
-                    "evaluationResult": self._evaluation_summary(winner),
-                    "winnerStrategy": winner.strategy if winner else "original",
+                    "evaluationResult": self._evaluation_summary(
+                        query.strategy_results,
+                        winner_strategy,
+                    ),
+                    "winnerStrategy": winner_strategy or "original",
+                    "evidence": {
+                        "topDocuments": [
+                            {
+                                "rank": document.rank,
+                                "title": document.title,
+                                "url": document.url,
+                                "isSelected": document.is_selected,
+                            }
+                            for document in sorted(
+                                query.documents,
+                                key=lambda document: document.rank,
+                            )
+                        ],
+                        "selectedDocumentRank": query.selected_document_rank,
+                        "originalDocument": (
+                            selected_document.plain_text
+                            if selected_document
+                            else ""
+                        ),
+                        "strategyDetails": [
+                            {
+                                "strategy": result.strategy,
+                                "sampleIndex": result.sample_index,
+                                "modifiedDocument": result.modified_document_text,
+                                "finalPrompt": result.prompt,
+                                "generatedAnswer": result.answer,
+                                "metrics": {
+                                    "wordCount": result.word_count,
+                                    "position": result.position,
+                                    "pawc": result.pawc,
+                                    "citationCount": result.citation_count,
+                                    "visibilityScore": result.visibility_score,
+                                },
+                            }
+                            for result in representative_results
+                        ],
+                    },
                 }
             )
 
@@ -226,6 +277,8 @@ class ExperimentRepository:
             "status": experiment.status,
             "currentQuery": experiment.current_query or "",
             "currentStrategy": experiment.current_strategy or "original",
+            "currentSample": experiment.current_sample or 0,
+            "totalSamples": experiment.total_samples or 5,
             "completedQueries": experiment.completed_queries or 0,
             "totalQueries": experiment.total_queries or 0,
             "estimatedRemainingTime": (
@@ -241,16 +294,50 @@ class ExperimentRepository:
             "errorMessage": experiment.error_message,
         }
 
+    def _winner_strategy(self, results):
+        if not results:
+            return None
+
+        grouped = {}
+
+        for result in results:
+            grouped.setdefault(result.strategy, []).append(result.visibility_score)
+
+        return max(
+            grouped.items(),
+            key=lambda item: sum(item[1]) / len(item[1]),
+        )[0]
+
+    def _representative_results(self, results):
+        representative = {}
+
+        for result in sorted(results, key=lambda item: item.sample_index):
+            representative.setdefault(result.strategy, result)
+
+        return list(representative.values())
+
     def _evaluation_summary(
         self,
-        winner: ExperimentStrategyResult | None,
+        results,
+        winner_strategy: str | None,
     ) -> str:
-        if not winner:
+        if not winner_strategy:
             return "No strategy results were produced."
 
-        label = STRATEGY_LABELS.get(winner.strategy, winner.strategy)
+        winner_rows = [
+            result
+            for result in results
+            if result.strategy == winner_strategy
+        ]
+        avg_visibility = sum(
+            result.visibility_score for result in winner_rows
+        ) / len(winner_rows)
+        avg_pawc = sum(result.pawc for result in winner_rows) / len(winner_rows)
+        citation_count = sum(result.citation_count for result in winner_rows)
+        label = STRATEGY_LABELS.get(winner_strategy, winner_strategy)
         return (
-            f"{label} produced the strongest visibility score for this query "
-            f"(visibility {winner.visibility_score:.2f}, "
-            f"PAWC {winner.pawc:.2f}, citations {winner.citation_count})."
+            f"{label} produced the strongest mean visibility score across "
+            f"the five sampled answers for this query "
+            f"(visibility {avg_visibility:.4f}, "
+            f"PAWC {avg_pawc:.4f}, citations {citation_count})."
         )

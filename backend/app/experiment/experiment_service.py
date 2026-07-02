@@ -42,6 +42,7 @@ class ExperimentService:
         number_of_queries: int,
         random_seed: int,
         temperature: float,
+        queries: list[str] | None = None,
     ) -> dict:
         self._validate_strategies(strategies)
         experiment = self.create_experiment(
@@ -50,9 +51,10 @@ class ExperimentService:
             description=description,
             llm_model=llm_model,
             dataset_name=dataset_name,
+            queries=queries,
             strategies=strategies,
             metrics=metrics,
-            number_of_queries=len(queries),
+            number_of_queries=number_of_queries,
             random_seed=random_seed,
             temperature=temperature,
         )
@@ -72,9 +74,10 @@ class ExperimentService:
         number_of_queries: int,
         random_seed: int,
         temperature: float,
+        queries: list[str] | None = None,
     ) -> Experiment:
         self._validate_strategies(strategies)
-        queries = self._load_queries(number_of_queries)
+        benchmark_queries = self._load_queries(number_of_queries, queries)
 
         return self.repository.create_run(
             property_id=property_id,
@@ -82,9 +85,10 @@ class ExperimentService:
             description=description,
             llm_model=llm_model,
             dataset_name=dataset_name,
+            benchmark_queries=benchmark_queries,
             strategies=strategies,
             metrics=metrics,
-            number_of_queries=len(queries),
+            number_of_queries=len(benchmark_queries),
             random_seed=random_seed,
             temperature=temperature,
         )
@@ -96,7 +100,10 @@ class ExperimentService:
             raise ValueError(f"Experiment {experiment_id} not found")
 
         strategies = json.loads(experiment.strategies_json or "[]")
-        queries = self._load_queries(experiment.number_of_queries or 1)
+        queries = self._load_queries(
+            experiment.number_of_queries or 1,
+            json.loads(experiment.benchmark_queries_json or "[]"),
+        )
 
         try:
             self.repository.mark_running(experiment)
@@ -111,14 +118,24 @@ class ExperimentService:
                 result = self.ge_service.run_query(
                     query=query,
                     strategies=strategies,
-                    model=experiment.llm_model or "gpt-5.5",
-                    temperature=experiment.temperature or 0.2,
+                    model=experiment.llm_model or "gpt-3.5-turbo",
+                    temperature=experiment.temperature or 0.7,
                     random_seed=(experiment.random_seed or 0) + index,
                     on_strategy=lambda strategy, current_query=query: (
                         self.repository.update_current_strategy(
                             experiment,
                             current_query=current_query,
                             current_strategy=strategy,
+                        )
+                    ),
+                    on_sample=(
+                        lambda strategy, sample, total, current_query=query: (
+                            self.repository.update_current_strategy(
+                                experiment,
+                                current_query=current_query,
+                                current_strategy=strategy,
+                                current_sample=sample,
+                            )
                         )
                     ),
                 )
@@ -136,7 +153,20 @@ class ExperimentService:
 
         return experiment
 
-    def _load_queries(self, number_of_queries: int) -> list[str]:
+    def _load_queries(
+        self,
+        number_of_queries: int,
+        queries: list[str] | None = None,
+    ) -> list[str]:
+        if queries:
+            cleaned_queries = [
+                query.strip()
+                for query in queries
+                if query and query.strip()
+            ]
+
+            return cleaned_queries[: max(1, number_of_queries)]
+
         limit = max(1, min(number_of_queries, len(CUSTOM_BENCHMARK_QUERIES)))
         return CUSTOM_BENCHMARK_QUERIES[:limit]
 

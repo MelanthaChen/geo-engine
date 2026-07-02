@@ -37,6 +37,8 @@ class Experiment(Base):
 
     dataset_name = Column(String, nullable=True)
 
+    benchmark_queries_json = Column(Text, nullable=True)
+
     strategies_json = Column(Text, nullable=True)
 
     metrics_json = Column(Text, nullable=True)
@@ -50,6 +52,10 @@ class Experiment(Base):
     current_query = Column(Text, nullable=True)
 
     current_strategy = Column(String, nullable=True)
+
+    current_sample = Column(Integer, default=0)
+
+    total_samples = Column(Integer, default=5)
 
     completed_queries = Column(Integer, default=0)
 
@@ -171,6 +177,8 @@ class ExperimentStrategyResult(Base):
     )
 
     strategy = Column(String, nullable=False, index=True)
+
+    sample_index = Column(Integer, default=0, nullable=False)
 
     modified_document_text = Column(Text, nullable=False)
 

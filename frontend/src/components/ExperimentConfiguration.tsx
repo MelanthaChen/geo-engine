@@ -100,9 +100,9 @@ export function ExperimentConfiguration({
             id="experiment-llm"
             label="LLM"
             value={value.llm}
-            onChange={() => updateField("llm", "gpt-5.5")}
+            onChange={() => updateField("llm", "gpt-3.5-turbo")}
           >
-            <option value="gpt-5.5">GPT-5.5</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
           </SelectField>
 
           <SelectField

@@ -18,12 +18,13 @@ class ExperimentRunRequest(BaseModel):
     property_id: int | None = None
     experiment_name: str = Field(default="Princeton GEO Reproduction")
     description: str | None = None
-    llm: str = Field(default="gpt-5.5")
+    llm: str = Field(default="gpt-3.5-turbo")
     dataset: str = Field(default="custom")
+    queries: list[str] | None = None
     strategies: list[str]
     number_of_queries: int = Field(default=1, ge=1)
     random_seed: int = Field(default=42)
-    temperature: float = Field(default=0.2, ge=0, le=2)
+    temperature: float = Field(default=0.7, ge=0, le=2)
     evaluation_metrics: list[str]
 
 
@@ -41,6 +42,7 @@ def run_experiment(
         description=request.description,
         llm_model=request.llm,
         dataset_name=request.dataset,
+        queries=request.queries,
         strategies=request.strategies,
         metrics=request.evaluation_metrics,
         number_of_queries=request.number_of_queries,

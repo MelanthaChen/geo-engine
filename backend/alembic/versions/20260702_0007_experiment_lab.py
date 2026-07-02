@@ -19,6 +19,11 @@ EXPERIMENT_COLUMNS = {
     "description": sa.Column("description", sa.Text(), nullable=True),
     "llm_model": sa.Column("llm_model", sa.String(), nullable=True),
     "dataset_name": sa.Column("dataset_name", sa.String(), nullable=True),
+    "benchmark_queries_json": sa.Column(
+        "benchmark_queries_json",
+        sa.Text(),
+        nullable=True,
+    ),
     "strategies_json": sa.Column("strategies_json", sa.Text(), nullable=True),
     "metrics_json": sa.Column("metrics_json", sa.Text(), nullable=True),
     "number_of_queries": sa.Column("number_of_queries", sa.Integer(), nullable=True),
@@ -26,6 +31,8 @@ EXPERIMENT_COLUMNS = {
     "temperature": sa.Column("temperature", sa.Float(), nullable=True),
     "current_query": sa.Column("current_query", sa.Text(), nullable=True),
     "current_strategy": sa.Column("current_strategy", sa.String(), nullable=True),
+    "current_sample": sa.Column("current_sample", sa.Integer(), nullable=True),
+    "total_samples": sa.Column("total_samples", sa.Integer(), nullable=True),
     "completed_queries": sa.Column("completed_queries", sa.Integer(), nullable=True),
     "total_queries": sa.Column("total_queries", sa.Integer(), nullable=True),
     "estimated_remaining_time": sa.Column(
@@ -174,6 +181,7 @@ def upgrade():
             sa.Column("id", sa.Integer(), nullable=False),
             sa.Column("experiment_query_id", sa.Integer(), nullable=False),
             sa.Column("strategy", sa.String(), nullable=False),
+            sa.Column("sample_index", sa.Integer(), nullable=False),
             sa.Column("modified_document_text", sa.Text(), nullable=False),
             sa.Column("prompt", sa.Text(), nullable=False),
             sa.Column("answer", sa.Text(), nullable=False),
@@ -214,6 +222,17 @@ def upgrade():
             ["strategy"],
             unique=False,
         )
+
+    if not _column_exists("experiment_strategy_results", "sample_index"):
+        with op.batch_alter_table("experiment_strategy_results") as batch_op:
+            batch_op.add_column(
+                sa.Column(
+                    "sample_index",
+                    sa.Integer(),
+                    nullable=False,
+                    server_default="0",
+                )
+            )
 
 
 def downgrade():

@@ -12,6 +12,7 @@ class LLMRunner(Protocol):
         user_prompt: str,
         model: str,
         temperature: float,
+        top_p: float = 1,
     ) -> str:
         ...
 
@@ -26,14 +27,20 @@ class OpenAILLMRunner:
         user_prompt: str,
         model: str,
         temperature: float,
+        top_p: float = 1,
     ) -> str:
+        messages = []
+
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.append({"role": "user", "content": user_prompt})
+
         response = self.client.chat.completions.create(
             model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
             temperature=temperature,
+            top_p=top_p,
         )
 
         return response.choices[0].message.content or ""

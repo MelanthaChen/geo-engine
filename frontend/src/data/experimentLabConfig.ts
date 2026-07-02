@@ -15,7 +15,7 @@ export const strategyOptions: Array<{
     label: "Statistics Addition",
     tableLabel: "Statistics",
   },
-  { id: "citation", label: "Citation Addition", tableLabel: "Citation" },
+  { id: "citation", label: "Cite Sources", tableLabel: "Cite Sources" },
   { id: "quotation", label: "Quotation Addition", tableLabel: "Quotation" },
   {
     id: "fluency",
@@ -70,11 +70,14 @@ export const evaluationMetricOptions: Array<{
 export const defaultExperimentConfiguration: ExperimentConfigurationValues = {
   experimentName: "Princeton GEO Reproduction",
   description: "",
-  llm: "gpt-5.5",
+  llm: "gpt-3.5-turbo",
   dataset: "custom",
+  benchmarkSource: "manual",
+  manualQuery: "Best AI Resume Builder",
+  uploadedQueries: [],
   strategies: strategyOptions.map((strategy) => strategy.id),
   numberOfQueries: 1,
   randomSeed: 42,
-  temperature: 0.2,
+  temperature: 0.7,
   evaluationMetrics: evaluationMetricOptions.map((metric) => metric.id),
 };

@@ -1,7 +1,6 @@
 import math
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 
 @dataclass
@@ -20,78 +19,67 @@ class Evaluator:
         selected_document_text: str,
         selected_title: str,
         selected_url: str,
+        selected_rank: int,
     ) -> EvaluationResult:
-        answer_words = self._words(answer)
-        source_words = set(self._words(selected_document_text))
-        overlap_count = sum(1 for word in answer_words if word in source_words)
-        position = self._first_source_position(
-            answer=answer,
-            selected_title=selected_title,
-            selected_url=selected_url,
+        cited_sentences = self._sentences_with_citations(answer)
+        total_words = sum(len(self._words(sentence)) for sentence, _ in cited_sentences)
+        selected_sentence_records = [
+            (sentence, citations)
+            for sentence, citations in cited_sentences
+            if selected_rank in citations
+        ]
+
+        shared_word_count = 0.0
+        citation_positions = []
+
+        for index, (sentence, citations) in enumerate(
+            selected_sentence_records,
+            start=1,
+        ):
+            citation_positions.append(index)
+            # Section 2.2.1 states that a sentence cited by multiple sources
+            # shares word count among those sources. The exact tokenization is
+            # not specified, so this approximation uses regex word tokens.
+            shared_word_count += len(self._words(sentence)) / max(len(citations), 1)
+
+        normalized_word_count = (
+            shared_word_count / total_words
+            if total_words > 0
+            else 0.0
         )
-        adjusted_position = position if position is not None else len(answer_words)
-        pawc = (
-            overlap_count / math.log2(adjusted_position + 2)
-            if adjusted_position >= 0
-            else 0
+        position = min(citation_positions) if citation_positions else None
+        position_adjustment = (
+            1 / math.exp(position - 1)
+            if position is not None
+            else 0.0
         )
-        citation_count = self._citation_count(
-            answer=answer,
-            selected_title=selected_title,
-            selected_url=selected_url,
-        )
-        visibility_score = round(pawc + (citation_count * 10), 3)
+        pawc = normalized_word_count * position_adjustment
 
         return EvaluationResult(
-            word_count=overlap_count,
+            word_count=round(shared_word_count),
             position=position,
-            pawc=round(pawc, 3),
-            citation_count=citation_count,
-            visibility_score=visibility_score,
+            pawc=round(pawc, 6),
+            citation_count=len(selected_sentence_records),
+            # The paper reports Position-Adjusted Word Count as one objective
+            # impression metric. We expose it as visibility_score here because
+            # the UI needs one scalar comparison column.
+            visibility_score=round(pawc, 6),
         )
+
+    def _sentences_with_citations(self, answer: str) -> list[tuple[str, set[int]]]:
+        sentence_candidates = re.split(r"(?<=[.!?])\s+", answer or "")
+        rows = []
+
+        for sentence in sentence_candidates:
+            citations = {
+                int(match)
+                for match in re.findall(r"\[(\d+)\]", sentence)
+            }
+
+            if citations:
+                rows.append((sentence, citations))
+
+        return rows
 
     def _words(self, text: str) -> list[str]:
-        return re.findall(r"[a-zA-Z][a-zA-Z0-9'-]*", (text or "").lower())
-
-    def _first_source_position(
-        self,
-        answer: str,
-        selected_title: str,
-        selected_url: str,
-    ) -> int | None:
-        lowered = answer.lower()
-        candidates = self._source_markers(selected_title, selected_url)
-        positions = [
-            len(self._words(answer[:index]))
-            for marker in candidates
-            if (index := lowered.find(marker)) >= 0
-        ]
-
-        return min(positions) if positions else None
-
-    def _citation_count(
-        self,
-        answer: str,
-        selected_title: str,
-        selected_url: str,
-    ) -> int:
-        lowered = answer.lower()
-        return sum(
-            lowered.count(marker)
-            for marker in self._source_markers(selected_title, selected_url)
-        )
-
-    def _source_markers(
-        self,
-        selected_title: str,
-        selected_url: str,
-    ) -> list[str]:
-        parsed = urlparse(selected_url)
-        domain = parsed.netloc.lower().removeprefix("www.")
-        title = (selected_title or "").lower().strip()
-
-        return [
-            marker
-            for marker in [domain, selected_url.lower(), title]
-            if marker
-        ]
+        return re.findall(r"[a-zA-Z][a-zA-Z0-9'-]*", text or "")

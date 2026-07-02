@@ -13,12 +13,16 @@ export type StrategyId =
   | "keyword_stuffing";
 
 export type EvaluationMetricId = "pawc" | "citation_count" | "visibility_score";
+export type BenchmarkSource = "manual" | "csv" | "geo_bench";
 
 export type ExperimentConfigurationValues = {
   experimentName: string;
   description: string;
-  llm: "gpt-5.5";
+  llm: "gpt-3.5-turbo";
   dataset: "custom";
+  benchmarkSource: BenchmarkSource;
+  manualQuery: string;
+  uploadedQueries: string[];
   strategies: StrategyId[];
   numberOfQueries: number;
   randomSeed: number;
@@ -40,6 +44,34 @@ export type QueryExperimentResult = {
   responses: Record<StrategyId, string>;
   evaluationResult: string;
   winnerStrategy: StrategyId;
+  evidence?: QueryEvidence;
+};
+
+export type QueryEvidence = {
+  topDocuments: Array<{
+    rank: number;
+    title: string | null;
+    url: string;
+    isSelected: boolean;
+  }>;
+  selectedDocumentRank: number | null;
+  originalDocument: string;
+  strategyDetails: StrategyEvidence[];
+};
+
+export type StrategyEvidence = {
+  strategy: StrategyId;
+  sampleIndex: number;
+  modifiedDocument: string;
+  finalPrompt: string;
+  generatedAnswer: string;
+  metrics: {
+    wordCount: number;
+    position: number | null;
+    pawc: number;
+    citationCount: number;
+    visibilityScore: number;
+  };
 };
 
 export type ExperimentRun = {
@@ -47,6 +79,8 @@ export type ExperimentRun = {
   status: ExperimentStatus;
   currentQuery: string;
   currentStrategy: StrategyId;
+  currentSample: number;
+  totalSamples: number;
   completedQueries: number;
   totalQueries: number;
   estimatedRemainingTime: string;
