@@ -28,7 +28,15 @@ class PlatformQuestion(Base):
 
     author = Column(String, nullable=True)
 
+    hashtags = Column(Text, nullable=True)
+
     score = Column(Integer, nullable=True)
+
+    engagement_metrics = Column(Text, nullable=True)
+
+    retrieval_method = Column(String, nullable=True)
+
+    raw_metadata = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=True)
 

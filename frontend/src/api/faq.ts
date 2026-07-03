@@ -8,7 +8,11 @@ export type PlatformQuestion = {
   body: string | null;
   url: string | null;
   author: string | null;
+  hashtags?: string[];
   score: number | null;
+  engagement_metrics?: Record<string, unknown>;
+  retrieval_method?: string | null;
+  raw_metadata?: Record<string, unknown>;
   created_at: string | null;
   discovered_at: string | null;
   content_hash: string;

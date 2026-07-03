@@ -2,8 +2,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import html
+import json
 import logging
+from pathlib import Path
 import re
+import shlex
+import subprocess
+import tempfile
+from typing import Protocol
 from urllib.parse import quote_plus
 
 import requests
@@ -44,8 +50,90 @@ class RetrievedPlatformQuestion:
     body: str | None = None
     url: str | None = None
     author: str | None = None
+    hashtags: list[str] | None = None
     score: int | None = None
+    engagement_metrics: dict | None = None
     created_at: datetime | None = None
+    retrieval_method: str | None = None
+    raw_metadata: dict | None = None
+
+
+class PlatformDiscoveryProvider(Protocol):
+    platform: str
+
+    def retrieve(
+        self,
+        category: str,
+        db: Session,
+        property_id: int | None,
+    ) -> list[RetrievedPlatformQuestion]:
+        ...
+
+
+class RedditDiscoveryProvider:
+    platform = "reddit"
+
+    def retrieve(
+        self,
+        category: str,
+        db: Session,
+        property_id: int | None,
+    ) -> list[RetrievedPlatformQuestion]:
+        return fetch_reddit_questions(category)
+
+
+class XiaohongshuDiscoveryProvider:
+    platform = "xiaohongshu"
+    max_attempts = 2
+
+    def retrieve(
+        self,
+        category: str,
+        db: Session,
+        property_id: int | None,
+    ) -> list[RetrievedPlatformQuestion]:
+        last_error = None
+
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                questions = run_xiaohongshu_external_retrieval(category)
+
+                if questions:
+                    return questions
+            except Exception as error:
+                last_error = error
+                logger.warning(
+                    "[PLATFORM DISCOVERY] xiaohongshu retrieval attempt "
+                    "%s/%s failed: %s",
+                    attempt,
+                    self.max_attempts,
+                    error,
+                )
+
+        cached_questions = load_cached_platform_questions(
+            db=db,
+            property_id=property_id,
+            platform="xiaohongshu",
+            category=category,
+            limit=settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
+        )
+
+        if cached_questions:
+            logger.info(
+                "[PLATFORM DISCOVERY] xiaohongshu using cached results "
+                "after retrieval failure."
+            )
+            return cached_questions
+
+        logger.warning(
+            "[PLATFORM DISCOVERY] xiaohongshu falling back to synthetic "
+            "strategy topics. Last retrieval error: %s",
+            last_error,
+        )
+        return build_xiaohongshu_note_topics(
+            category=category,
+            fallback_reason=str(last_error or "external retrieval unavailable"),
+        )
 
 
 def discover_platform_faqs(
@@ -56,7 +144,9 @@ def discover_platform_faqs(
     publish_platform: str = "reddit",
 ):
     retrieved_questions = collect_external_platform_questions(
+        db=db,
         category=category,
+        property_id=property_id,
         publish_platform=publish_platform,
     )
     saved_questions = save_platform_questions(
@@ -79,63 +169,69 @@ def discover_platform_faqs(
 
 
 def collect_external_platform_questions(
+    db: Session,
     category: str,
+    property_id: int | None = None,
     publish_platform: str = "reddit",
 ) -> list[RetrievedPlatformQuestion]:
-    questions: list[RetrievedPlatformQuestion] = []
+    provider = get_platform_discovery_provider(publish_platform)
 
-    collectors = platform_collectors(publish_platform)
-
-    for platform, collector in collectors:
-        try:
-            questions.extend(collector(category))
-        except Exception as error:
-            logger.warning(
-                "[PLATFORM DISCOVERY] %s discovery failed: %s",
-                platform,
-                error,
-            )
-
-    for platform, reason in UNSUPPORTED_PLATFORM_REASONS.items():
-        logger.info(
-            "[PLATFORM DISCOVERY] %s unsupported: %s",
-            platform,
-            reason,
-        )
-
-    return questions
+    return provider.retrieve(
+        category=category,
+        db=db,
+        property_id=property_id,
+    )
 
 
-def platform_collectors(publish_platform: str):
+def get_platform_discovery_provider(publish_platform: str):
     normalized_platform = (
         publish_platform or "reddit"
     ).strip().lower()
 
     if normalized_platform == "reddit":
-        return [
-            ("reddit", fetch_reddit_questions),
-        ]
+        return RedditDiscoveryProvider()
 
     if normalized_platform == "xiaohongshu":
-        logger.info(
-            "[PLATFORM DISCOVERY] xiaohongshu direct retrieval unsupported: %s",
-            UNSUPPORTED_PLATFORM_REASONS["xiaohongshu"],
-        )
-        return [
-            ("xiaohongshu_strategy", build_xiaohongshu_note_topics),
+        return XiaohongshuDiscoveryProvider()
+
+    return WebDiscussionDiscoveryProvider()
+
+
+class WebDiscussionDiscoveryProvider:
+    platform = "web_discussions"
+
+    def retrieve(
+        self,
+        category: str,
+        db: Session,
+        property_id: int | None,
+    ) -> list[RetrievedPlatformQuestion]:
+        questions: list[RetrievedPlatformQuestion] = []
+
+        collectors = [
+            ("reddit", fetch_reddit_questions),
+            ("github_discussions", fetch_github_discussion_questions),
+            ("github_issues", fetch_github_issue_questions),
+            ("hacker_news", fetch_hacker_news_questions),
+            ("stack_overflow", fetch_stack_overflow_questions),
         ]
 
-    return [
-        ("reddit", fetch_reddit_questions),
-        ("github_discussions", fetch_github_discussion_questions),
-        ("github_issues", fetch_github_issue_questions),
-        ("hacker_news", fetch_hacker_news_questions),
-        ("stack_overflow", fetch_stack_overflow_questions),
-    ]
+        for platform, collector in collectors:
+            try:
+                questions.extend(collector(category))
+            except Exception as error:
+                logger.warning(
+                    "[PLATFORM DISCOVERY] %s discovery failed: %s",
+                    platform,
+                    error,
+                )
+
+        return questions
 
 
 def build_xiaohongshu_note_topics(
     category: str,
+    fallback_reason: str | None = None,
 ) -> list[RetrievedPlatformQuestion]:
     topic_templates = [
         f"{category} 新手最容易忽略的选择标准",
@@ -153,16 +249,359 @@ def build_xiaohongshu_note_topics(
             platform="xiaohongshu_strategy",
             title=title,
             body=(
-                "Derived platform-native note angle for Xiaohongshu. "
-                "No direct Xiaohongshu retrieval source is configured."
+                "Synthetic fallback platform-native note angle for "
+                "Xiaohongshu. Real retrieval failed or was unavailable."
             ),
             url=None,
             author=None,
+            hashtags=["#小红书选题", "#平台洞察"],
             score=None,
+            engagement_metrics=None,
             created_at=None,
+            retrieval_method="synthetic_fallback",
+            raw_metadata={
+                "fallback": True,
+                "reason": fallback_reason,
+            },
         )
         for title in topic_templates
     ]
+
+
+def run_xiaohongshu_external_retrieval(
+    category: str,
+) -> list[RetrievedPlatformQuestion]:
+    command_template = settings.XIAOHONGSHU_RETRIEVAL_COMMAND
+
+    if not command_template:
+        raise RuntimeError(
+            "XIAOHONGSHU_RETRIEVAL_COMMAND is not configured. Configure a "
+            "MediaCrawler wrapper command that writes normalized JSON/JSONL."
+        )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_path = Path(temp_dir) / "xiaohongshu_results.jsonl"
+        session_path = resolve_xiaohongshu_session_path()
+        command = render_retrieval_command(
+            template=command_template,
+            query=category,
+            output_path=output_path,
+            session_path=session_path,
+            limit=settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
+        )
+
+        logger.info(
+            "[PLATFORM DISCOVERY] running xiaohongshu retrieval backend: %s",
+            command[0] if command else "unknown",
+        )
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            cwd=None,
+            text=True,
+            timeout=settings.XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Xiaohongshu retrieval backend failed with exit code "
+                f"{result.returncode}: {result.stderr[-1200:]}"
+            )
+
+        payload_text = ""
+
+        if output_path.exists():
+            payload_text = output_path.read_text(encoding="utf-8")
+
+        if not payload_text.strip():
+            payload_text = result.stdout
+
+        notes = parse_external_retrieval_payload(payload_text)
+
+        return [
+            normalize_xiaohongshu_external_note(note)
+            for note in notes
+            if normalize_external_title(note)
+        ][:settings.XIAOHONGSHU_RETRIEVAL_LIMIT]
+
+
+def render_retrieval_command(
+    template: str,
+    query: str,
+    output_path: Path,
+    session_path: Path | None,
+    limit: int,
+):
+    rendered = template.format(
+        query=query,
+        output=str(output_path),
+        session_path=str(session_path or ""),
+        limit=limit,
+    )
+
+    return shlex.split(rendered)
+
+
+def resolve_xiaohongshu_session_path():
+    candidates = [
+        settings.XIAOHONGSHU_SESSION_PATH,
+        "sessions/xiaohongshu/storage_state.json",
+        "storage/xiaohongshu/geo_productivity_lab.json",
+        "xiaohongshu_state.json",
+    ]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+
+        path = Path(candidate)
+
+        if path.exists():
+            return path
+
+    return None
+
+
+def parse_external_retrieval_payload(payload_text: str):
+    payload_text = payload_text.strip()
+
+    if not payload_text:
+        return []
+
+    try:
+        payload = json.loads(payload_text)
+        return extract_note_list(payload)
+    except json.JSONDecodeError:
+        notes = []
+
+        for line in payload_text.splitlines():
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                notes.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.debug(
+                    "[PLATFORM DISCOVERY] skipping non-JSON retrieval line: %s",
+                    line[:200],
+                )
+
+        return notes
+
+
+def extract_note_list(payload):
+    if isinstance(payload, list):
+        return payload
+
+    if not isinstance(payload, dict):
+        return []
+
+    for key in ["notes", "items", "data", "results", "records"]:
+        value = payload.get(key)
+
+        if isinstance(value, list):
+            return value
+
+    nested_data = payload.get("data")
+
+    if isinstance(nested_data, dict):
+        return extract_note_list(nested_data)
+
+    return []
+
+
+def normalize_xiaohongshu_external_note(note: dict):
+    title = normalize_external_title(note)
+    body = first_present(
+        note,
+        [
+            "body",
+            "content",
+            "desc",
+            "description",
+            "note_desc",
+            "text",
+        ],
+    )
+    hashtags = normalize_external_hashtags(note, body)
+    engagement_metrics = normalize_external_engagement(note)
+
+    return RetrievedPlatformQuestion(
+        platform="xiaohongshu",
+        title=title,
+        body=clean_text(str(body or ""))[:4000] or None,
+        url=first_present(note, ["url", "note_url", "web_url", "share_url"]),
+        author=normalize_external_author(note),
+        hashtags=hashtags,
+        score=primary_engagement_score(engagement_metrics),
+        engagement_metrics=engagement_metrics,
+        created_at=parse_datetime(
+            first_present(note, ["created_at", "time", "publish_time"])
+        ),
+        retrieval_method="external_xiaohongshu_backend",
+        raw_metadata=note,
+    )
+
+
+def first_present(payload: dict, keys: list[str]):
+    for key in keys:
+        value = payload.get(key)
+
+        if value not in (None, ""):
+            return value
+
+    return None
+
+
+def normalize_external_title(note: dict):
+    return clean_text(
+        str(
+            first_present(
+                note,
+                ["title", "display_title", "note_title", "name"],
+            ) or ""
+        )
+    )
+
+
+def normalize_external_author(note: dict):
+    author = note.get("author") or note.get("user") or note.get("user_info")
+
+    if isinstance(author, dict):
+        return first_present(
+            author,
+            ["nickname", "name", "user_name", "username", "display_name"],
+        )
+
+    return str(author) if author else None
+
+
+def normalize_external_hashtags(note: dict, body: str | None):
+    raw_hashtags = (
+        note.get("hashtags")
+        or note.get("tags")
+        or note.get("tag_list")
+        or []
+    )
+
+    if isinstance(raw_hashtags, str):
+        hashtags = re.findall(r"#[^\s#]+", raw_hashtags)
+    elif isinstance(raw_hashtags, list):
+        hashtags = [
+            normalize_hashtag_item(item)
+            for item in raw_hashtags
+        ]
+    else:
+        hashtags = []
+
+    hashtags.extend(
+        re.findall(r"#[^\s#]+", body or "")
+    )
+
+    normalized = []
+
+    for hashtag in hashtags:
+        if hashtag and hashtag not in normalized:
+            normalized.append(hashtag)
+
+    return normalized
+
+
+def normalize_hashtag_item(item):
+    if isinstance(item, dict):
+        item = first_present(item, ["name", "tag_name", "title"])
+
+    value = str(item or "").strip()
+
+    if not value:
+        return ""
+
+    return value if value.startswith("#") else f"#{value}"
+
+
+def normalize_external_engagement(note: dict):
+    engagement = note.get("engagement_metrics")
+
+    if isinstance(engagement, dict):
+        return engagement
+
+    mapping = {
+        "liked_count": ["liked_count", "like_count", "likes"],
+        "collected_count": ["collected_count", "collect_count", "saves"],
+        "comment_count": ["comment_count", "comments"],
+        "share_count": ["share_count", "shares"],
+    }
+
+    return {
+        key: parse_first_integer(str(first_present(note, aliases) or ""))
+        for key, aliases in mapping.items()
+        if first_present(note, aliases) is not None
+    }
+
+
+def primary_engagement_score(engagement_metrics: dict | None):
+    if not engagement_metrics:
+        return None
+
+    for key in [
+        "liked_count",
+        "like_count",
+        "likes",
+        "collected_count",
+        "comment_count",
+    ]:
+        value = engagement_metrics.get(key)
+
+        if value is not None:
+            return parse_first_integer(str(value))
+
+    return None
+
+
+def load_cached_platform_questions(
+    db: Session,
+    property_id: int | None,
+    platform: str,
+    category: str,
+    limit: int,
+) -> list[RetrievedPlatformQuestion]:
+    query = db.query(PlatformQuestion).filter(
+        PlatformQuestion.property_id == property_id,
+        PlatformQuestion.platform == platform,
+    )
+
+    cached_rows = (
+        query.order_by(PlatformQuestion.discovered_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        platform_question_to_retrieved_question(row, "cache")
+        for row in cached_rows
+    ]
+
+
+def platform_question_to_retrieved_question(
+    row: PlatformQuestion,
+    retrieval_method: str,
+):
+    return RetrievedPlatformQuestion(
+        platform=row.platform,
+        title=row.title,
+        body=row.body,
+        url=row.url,
+        author=row.author,
+        hashtags=parse_json_field(row.hashtags, []),
+        score=row.score,
+        engagement_metrics=parse_json_field(row.engagement_metrics, {}),
+        created_at=row.created_at,
+        retrieval_method=retrieval_method,
+        raw_metadata=parse_json_field(row.raw_metadata, {}),
+    )
 
 
 def fetch_reddit_questions(category: str) -> list[RetrievedPlatformQuestion]:
@@ -441,7 +880,11 @@ def save_platform_questions(
             body=question.body,
             url=question.url,
             author=question.author,
+            hashtags=json.dumps(question.hashtags or []),
             score=question.score,
+            engagement_metrics=json.dumps(question.engagement_metrics or {}),
+            retrieval_method=question.retrieval_method,
+            raw_metadata=json.dumps(question.raw_metadata or {}),
             created_at=question.created_at,
             content_hash=content_hash,
         )
@@ -465,7 +908,11 @@ def serialize_platform_question(question: PlatformQuestion):
         "body": question.body,
         "url": question.url,
         "author": question.author,
+        "hashtags": parse_json_field(question.hashtags, []),
         "score": question.score,
+        "engagement_metrics": parse_json_field(question.engagement_metrics, {}),
+        "retrieval_method": question.retrieval_method,
+        "raw_metadata": parse_json_field(question.raw_metadata, {}),
         "created_at": question.created_at,
         "discovered_at": question.discovered_at,
         "content_hash": question.content_hash,
@@ -527,6 +974,16 @@ def build_content_hash(
 
 def normalize_text(value: str):
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def parse_json_field(value: str | None, fallback):
+    if not value:
+        return fallback
+
+    try:
+        return json.loads(value)
+    except Exception:
+        return fallback
 
 
 def clean_text(value: str):

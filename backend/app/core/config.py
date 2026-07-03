@@ -32,6 +32,14 @@ class Settings(BaseSettings):
 
     AGENT_NAME: str | None = None
 
+    XIAOHONGSHU_RETRIEVAL_COMMAND: str | None = None
+
+    XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS: int = 180
+
+    XIAOHONGSHU_RETRIEVAL_LIMIT: int = 20
+
+    XIAOHONGSHU_SESSION_PATH: str | None = None
+
     class Config:
         env_file = ".env"
 
