@@ -1,14 +1,39 @@
 # Xiaohongshu Retrieval Backend
 
-GEO Engine does not import MediaCrawler internals directly.
+GEO Engine uses MediaCrawler as the default Xiaohongshu retrieval backend when
+`external/MediaCrawler` is present.
 
-Instead, Xiaohongshu retrieval is connected through a command adapter:
+By default, the backend runs:
+
+```bash
+uv run main.py \
+  --platform xhs \
+  --lt qrcode \
+  --type search \
+  --keywords "<query>" \
+  --get_comment true \
+  --get_sub_comment false \
+  --headless false \
+  --save_data_option jsonl \
+  --save_data_path "<temporary directory>" \
+  --crawler_max_notes_count "<limit>"
+```
+
+Then GEO reads MediaCrawler's real note and comment JSONL output from:
+
+```text
+<temporary directory>/xhs/jsonl/search_contents_*.jsonl
+<temporary directory>/xhs/jsonl/search_comments_*.jsonl
+```
+
+If you need a different retrieval backend, set a command adapter:
 
 ```bash
 XIAOHONGSHU_RETRIEVAL_COMMAND="python /path/to/xhs_geo_wrapper.py --query {query} --output {output} --session {session_path} --limit {limit}"
 ```
 
-The command should write JSON or JSONL to `{output}` or stdout.
+The command should write JSON or JSONL to `{output}` or stdout. It can also
+write MediaCrawler-style files to `{save_data_path}`.
 
 ## Expected Output
 
@@ -40,44 +65,33 @@ Supported note fields:
 Alternative field names from external engines are normalized in
 `app/services/faq_discovery/platform_faq_service.py`.
 
-## MediaCrawler
-
-MediaCrawler can be used as the external retrieval engine or wrapped by a small
-script that:
-
-1. Runs MediaCrawler for `--platform xhs --type search`.
-2. Reads its stored Xiaohongshu results.
-3. Writes normalized JSON/JSONL to the path passed as `{output}`.
-
-Keep MediaCrawler installed outside this repository so GEO can replace or
-upgrade the retrieval backend without changing application code.
-
 ## Session Reuse
 
-The command receives `{session_path}` from GEO. Preferred path:
+Custom commands receive `{session_path}` from GEO. Preferred path:
 
 ```text
 sessions/xiaohongshu/storage_state.json
 ```
 
-If your external backend uses its own cookie/cache format, the wrapper should
-translate or copy GEO's session state into the backend-specific format.
+When `sessions/xiaohongshu/storage_state.json` exists, GEO converts its
+Xiaohongshu/Rednote cookies into MediaCrawler's `--lt cookie --cookies ...`
+login mode. This reuses the same session file created by:
+
+```bash
+python save_platform_state.py xiaohongshu
+```
+
+If no GEO storage state exists, MediaCrawler falls back to its own QR/CDP login
+state under its working directory. GEO does not create a second account system.
 
 ## Fallback Order
 
 When Xiaohongshu retrieval runs:
 
-1. Retry the external command.
+1. Retry real retrieval.
 2. Return cached `platform_questions` rows for Xiaohongshu if available.
-3. Use synthetic Xiaohongshu note-angle fallback only as the final fallback.
+3. Raise a retrieval error.
 
-Synthetic rows are marked with:
-
-```json
-{
-  "retrieval_method": "synthetic_fallback",
-  "raw_metadata": {
-    "fallback": true
-  }
-}
-```
+GEO does not generate synthetic Xiaohongshu notes or synthetic platform
+questions. Everything before FAQ generation must come from real retrieved
+Xiaohongshu content or previously cached real rows.

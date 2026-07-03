@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import tempfile
 from typing import Protocol
@@ -120,19 +121,14 @@ class XiaohongshuDiscoveryProvider:
 
         if cached_questions:
             logger.info(
-                "[PLATFORM DISCOVERY] xiaohongshu using cached results "
+                "[PLATFORM DISCOVERY] xiaohongshu using cached real results "
                 "after retrieval failure."
             )
             return cached_questions
 
-        logger.warning(
-            "[PLATFORM DISCOVERY] xiaohongshu falling back to synthetic "
-            "strategy topics. Last retrieval error: %s",
-            last_error,
-        )
-        return build_xiaohongshu_note_topics(
-            category=category,
-            fallback_reason=str(last_error or "external retrieval unavailable"),
+        raise RuntimeError(
+            "Real Xiaohongshu retrieval failed and no cached real "
+            f"Xiaohongshu notes are available. Last error: {last_error}"
         )
 
 
@@ -229,75 +225,49 @@ class WebDiscussionDiscoveryProvider:
         return questions
 
 
-def build_xiaohongshu_note_topics(
-    category: str,
-    fallback_reason: str | None = None,
-) -> list[RetrievedPlatformQuestion]:
-    topic_templates = [
-        f"{category} 新手最容易忽略的选择标准",
-        f"{category} 使用前应该先想清楚的三个场景",
-        f"{category} 对比时不要只看功能列表",
-        f"{category} 适合学生/新手吗？先看这些取舍",
-        f"{category} 从真实工作流角度怎么判断值不值得用",
-        f"{category} 常见误区和避坑角度整理",
-        f"{category} 免费方案和付费方案该怎么比较",
-        f"{category} 如果只解决一个问题，应该优先解决什么",
-    ]
-
-    return [
-        RetrievedPlatformQuestion(
-            platform="xiaohongshu_strategy",
-            title=title,
-            body=(
-                "Synthetic fallback platform-native note angle for "
-                "Xiaohongshu. Real retrieval failed or was unavailable."
-            ),
-            url=None,
-            author=None,
-            hashtags=["#小红书选题", "#平台洞察"],
-            score=None,
-            engagement_metrics=None,
-            created_at=None,
-            retrieval_method="synthetic_fallback",
-            raw_metadata={
-                "fallback": True,
-                "reason": fallback_reason,
-            },
-        )
-        for title in topic_templates
-    ]
-
-
 def run_xiaohongshu_external_retrieval(
     category: str,
 ) -> list[RetrievedPlatformQuestion]:
     command_template = settings.XIAOHONGSHU_RETRIEVAL_COMMAND
 
-    if not command_template:
-        raise RuntimeError(
-            "XIAOHONGSHU_RETRIEVAL_COMMAND is not configured. Configure a "
-            "MediaCrawler wrapper command that writes normalized JSON/JSONL."
-        )
-
     with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
         output_path = Path(temp_dir) / "xiaohongshu_results.jsonl"
+        mediacrawler_output_dir = temp_path / "mediacrawler_output"
         session_path = resolve_xiaohongshu_session_path()
-        command = render_retrieval_command(
-            template=command_template,
-            query=category,
-            output_path=output_path,
-            session_path=session_path,
-            limit=settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
-        )
+
+        if command_template:
+            command = render_retrieval_command(
+                template=command_template,
+                query=category,
+                output_path=output_path,
+                session_path=session_path,
+                limit=settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
+                save_data_path=mediacrawler_output_dir,
+            )
+            cwd = None
+            backend_name = "configured command"
+        else:
+            command = build_default_mediacrawler_command(
+                query=category,
+                save_data_path=mediacrawler_output_dir,
+                limit=settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
+                session_path=session_path,
+            )
+            cwd = resolve_mediacrawler_path()
+            backend_name = "MediaCrawler"
 
         logger.info(
-            "[PLATFORM DISCOVERY] running xiaohongshu retrieval backend: %s",
-            command[0] if command else "unknown",
+            "[PLATFORM DISCOVERY] running xiaohongshu retrieval backend=%s "
+            "query=%r limit=%s",
+            backend_name,
+            category,
+            settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
         )
         result = subprocess.run(
             command,
             capture_output=True,
-            cwd=None,
+            cwd=cwd,
             text=True,
             timeout=settings.XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS,
             check=False,
@@ -309,6 +279,13 @@ def run_xiaohongshu_external_retrieval(
                 f"{result.returncode}: {result.stderr[-1200:]}"
             )
 
+        logger.info(
+            "[PLATFORM DISCOVERY] xiaohongshu retrieval stdout=%s stderr=%s",
+            result.stdout[-1200:],
+            result.stderr[-1200:],
+        )
+
+        notes = parse_mediacrawler_xhs_output(mediacrawler_output_dir)
         payload_text = ""
 
         if output_path.exists():
@@ -317,13 +294,203 @@ def run_xiaohongshu_external_retrieval(
         if not payload_text.strip():
             payload_text = result.stdout
 
-        notes = parse_external_retrieval_payload(payload_text)
+        if not notes:
+            notes = parse_external_retrieval_payload(payload_text)
 
-        return [
+        if not notes:
+            raise RuntimeError(
+                "Xiaohongshu retrieval completed but returned zero real "
+                "notes. Check MediaCrawler login/session state and XHS "
+                "anti-bot responses."
+            )
+
+        normalized = [
             normalize_xiaohongshu_external_note(note)
             for note in notes
             if normalize_external_title(note)
         ][:settings.XIAOHONGSHU_RETRIEVAL_LIMIT]
+
+        logger.info(
+            "[PLATFORM DISCOVERY] xiaohongshu normalized %s real notes",
+            len(normalized),
+        )
+
+        return normalized
+
+
+def resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def resolve_mediacrawler_path() -> Path:
+    media_crawler_path = resolve_repo_root() / "external" / "MediaCrawler"
+
+    if not (media_crawler_path / "main.py").exists():
+        raise RuntimeError(
+            "MediaCrawler is not installed at external/MediaCrawler. Clone "
+            "https://github.com/NanmiCoder/MediaCrawler into external/MediaCrawler "
+            "or set XIAOHONGSHU_RETRIEVAL_COMMAND."
+        )
+
+    return media_crawler_path
+
+
+def build_default_mediacrawler_command(
+    query: str,
+    save_data_path: Path,
+    limit: int,
+    session_path: Path | None,
+) -> list[str]:
+    uv_binary = shutil.which("uv")
+
+    if not uv_binary:
+        raise RuntimeError(
+            "uv is required to run the default MediaCrawler backend. Install "
+            "uv or set XIAOHONGSHU_RETRIEVAL_COMMAND to a custom retriever."
+        )
+
+    login_args = build_mediacrawler_login_args(session_path)
+
+    return [
+        uv_binary,
+        "run",
+        "main.py",
+        "--platform",
+        "xhs",
+        *login_args,
+        "--type",
+        "search",
+        "--keywords",
+        query,
+        "--get_comment",
+        "true",
+        "--get_sub_comment",
+        "false",
+        "--headless",
+        "false",
+        "--save_data_option",
+        "jsonl",
+        "--save_data_path",
+        str(save_data_path),
+        "--crawler_max_notes_count",
+        str(max(limit, 20)),
+        "--max_comments_count_singlenotes",
+        "20",
+    ]
+
+
+def build_mediacrawler_login_args(session_path: Path | None) -> list[str]:
+    cookie_string = build_cookie_string_from_storage_state(session_path)
+
+    if cookie_string:
+        logger.info(
+            "[PLATFORM DISCOVERY] using GEO Xiaohongshu storage_state cookies "
+            "for MediaCrawler login."
+        )
+        return ["--lt", "cookie", "--cookies", cookie_string]
+
+    logger.info(
+        "[PLATFORM DISCOVERY] no GEO Xiaohongshu storage_state found; "
+        "MediaCrawler will use its own QR/CDP login state."
+    )
+    return ["--lt", "qrcode"]
+
+
+def build_cookie_string_from_storage_state(session_path: Path | None) -> str | None:
+    if not session_path or not session_path.exists():
+        return None
+
+    try:
+        storage_state = json.loads(session_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        logger.warning(
+            "[PLATFORM DISCOVERY] failed to read Xiaohongshu storage_state "
+            "%s: %s",
+            session_path,
+            error,
+        )
+        return None
+
+    cookies = storage_state.get("cookies") or []
+    xhs_cookies = []
+
+    for cookie in cookies:
+        domain = str(cookie.get("domain") or "")
+
+        if "xiaohongshu.com" not in domain and "rednote.com" not in domain:
+            continue
+
+        name = cookie.get("name")
+        value = cookie.get("value")
+
+        if not name or value is None:
+            continue
+
+        xhs_cookies.append(f"{name}={value}")
+
+    return "; ".join(xhs_cookies) if xhs_cookies else None
+
+
+def parse_mediacrawler_xhs_output(save_data_path: Path) -> list[dict]:
+    jsonl_dir = save_data_path / "xhs" / "jsonl"
+
+    if not jsonl_dir.exists():
+        logger.warning(
+            "[PLATFORM DISCOVERY] MediaCrawler XHS output directory missing: %s",
+            jsonl_dir,
+        )
+        return []
+
+    content_files = sorted(jsonl_dir.glob("*_contents_*.jsonl"))
+    comment_files = sorted(jsonl_dir.glob("*_comments_*.jsonl"))
+    notes = read_jsonl_files(content_files)
+    comments = read_jsonl_files(comment_files)
+
+    logger.info(
+        "[PLATFORM DISCOVERY] MediaCrawler XHS files contents=%s comments=%s "
+        "notes=%s comment_rows=%s",
+        [file.name for file in content_files],
+        [file.name for file in comment_files],
+        len(notes),
+        len(comments),
+    )
+
+    comments_by_note_id: dict[str, list[dict]] = {}
+
+    for comment in comments:
+        note_id = str(comment.get("note_id") or "").strip()
+
+        if not note_id:
+            continue
+
+        comments_by_note_id.setdefault(note_id, []).append(comment)
+
+    for note in notes:
+        note_id = str(note.get("note_id") or note.get("id") or "").strip()
+        note["comments"] = comments_by_note_id.get(note_id, [])
+
+    return notes
+
+
+def read_jsonl_files(files: list[Path]) -> list[dict]:
+    items: list[dict] = []
+
+    for file_path in files:
+        for line in file_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning(
+                    "[PLATFORM DISCOVERY] skipping invalid JSONL row in %s",
+                    file_path,
+                )
+
+    return items
 
 
 def render_retrieval_command(
@@ -332,12 +499,14 @@ def render_retrieval_command(
     output_path: Path,
     session_path: Path | None,
     limit: int,
+    save_data_path: Path,
 ):
     rendered = template.format(
         query=query,
         output=str(output_path),
         session_path=str(session_path or ""),
         limit=limit,
+        save_data_path=str(save_data_path),
     )
 
     return shlex.split(rendered)
@@ -415,24 +584,34 @@ def extract_note_list(payload):
 
 def normalize_xiaohongshu_external_note(note: dict):
     title = normalize_external_title(note)
-    body = first_present(
-        note,
-        [
-            "body",
-            "content",
-            "desc",
-            "description",
-            "note_desc",
-            "text",
-        ],
+    body = clean_text(
+        str(
+            first_present(
+                note,
+                [
+                    "body",
+                    "content",
+                    "desc",
+                    "description",
+                    "note_desc",
+                    "text",
+                ],
+            )
+            or ""
+        )
     )
-    hashtags = normalize_external_hashtags(note, body)
+    comments = normalize_xiaohongshu_comments(note.get("comments") or [])
+    body_with_comments = build_xiaohongshu_body_with_comments(body, comments)
+    hashtags = normalize_external_hashtags(note, body_with_comments)
     engagement_metrics = normalize_external_engagement(note)
+
+    raw_metadata = dict(note)
+    raw_metadata["normalized_comments"] = comments
 
     return RetrievedPlatformQuestion(
         platform="xiaohongshu",
         title=title,
-        body=clean_text(str(body or ""))[:4000] or None,
+        body=body_with_comments or None,
         url=first_present(note, ["url", "note_url", "web_url", "share_url"]),
         author=normalize_external_author(note),
         hashtags=hashtags,
@@ -441,9 +620,71 @@ def normalize_xiaohongshu_external_note(note: dict):
         created_at=parse_datetime(
             first_present(note, ["created_at", "time", "publish_time"])
         ),
-        retrieval_method="external_xiaohongshu_backend",
-        raw_metadata=note,
+        retrieval_method="mediacrawler_xiaohongshu",
+        raw_metadata=raw_metadata,
     )
+
+
+def normalize_xiaohongshu_comments(comments: list[dict]) -> list[dict]:
+    normalized_comments = []
+
+    for comment in comments:
+        content = clean_text(
+            str(
+                first_present(
+                    comment,
+                    ["content", "comment_text", "text", "body"],
+                )
+                or ""
+            )
+        )
+
+        if not content:
+            continue
+
+        normalized_comments.append(
+            {
+                "content": content,
+                "author": normalize_external_author(comment),
+                "score": parse_first_integer(
+                    str(
+                        first_present(
+                            comment,
+                            ["like_count", "liked_count", "score"],
+                        )
+                        or ""
+                    )
+                ),
+                "created_at": first_present(
+                    comment,
+                    ["create_time", "created_at", "time"],
+                ),
+            }
+        )
+
+    return normalized_comments
+
+
+def build_xiaohongshu_body_with_comments(
+    body: str,
+    comments: list[dict],
+) -> str:
+    sections = []
+
+    if body:
+        sections.append(body)
+
+    if comments:
+        comment_lines = [
+            f"- {comment['content']}"
+            for comment in comments[:20]
+            if comment.get("content")
+        ]
+
+        if comment_lines:
+            sections.append("真实评论摘录:\n" + "\n".join(comment_lines))
+
+    return "\n\n".join(sections).strip()
 
 
 def first_present(payload: dict, keys: list[str]):
@@ -468,7 +709,12 @@ def normalize_external_title(note: dict):
 
 
 def normalize_external_author(note: dict):
-    author = note.get("author") or note.get("user") or note.get("user_info")
+    author = (
+        note.get("author")
+        or note.get("user")
+        or note.get("user_info")
+        or note.get("nickname")
+    )
 
     if isinstance(author, dict):
         return first_present(
@@ -1011,7 +1257,15 @@ def parse_datetime(value: str | None):
         return None
 
     try:
+        if isinstance(value, int | float) or str(value).isdigit():
+            timestamp = int(value)
+
+            if timestamp > 10_000_000_000:
+                timestamp = timestamp / 1000
+
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
         normalized = value.replace("Z", "+00:00")
         return datetime.fromisoformat(normalized)
-    except ValueError:
+    except (OSError, OverflowError, ValueError):
         return None

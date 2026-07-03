@@ -30,6 +30,9 @@ backend/sessions/
 # Local publishing previews
 backend/publishing_previews/
 
+# Local external retrieval engines
+external/MediaCrawler/
+
 # Database
 *.sqlite3
 
