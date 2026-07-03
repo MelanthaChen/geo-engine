@@ -138,12 +138,19 @@ def seed_demo_accounts(
             created_accounts.append(existing)
             continue
 
-        account = Account(
+        account_payload = {
             **scoped_account_data,
+            "session_path": (
+                scoped_account_data.get("session_path")
+                or scoped_account_data.get("state_identifier")
+            ),
+        }
+
+        account = Account(
+            **account_payload,
             lifecycle_stage="created",
             health_status="new",
             is_active=True,
-            session_path=scoped_account_data["state_identifier"],
             session_status="missing",
             last_action="Seeded demo account",
             notes="Demo account for lifecycle testing",
