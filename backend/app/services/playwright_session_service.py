@@ -8,6 +8,7 @@ from playwright.sync_api import sync_playwright
 from sqlalchemy.orm import Session
 
 from app.models.account import Account
+from app.services.session_resolver import SessionResolver
 
 
 PLATFORM_LOGIN_URLS = {
@@ -20,16 +21,13 @@ class PlaywrightSessionService:
     def __init__(
         self,
         db: Session | None = None,
-        storage_root: Path | str | None = None,
     ):
         self.db = db
-        self.storage_root = Path(storage_root or "storage")
+        self.session_resolver = SessionResolver()
 
     def locate_storage_path(self, account: Account) -> Path:
         platform = (account.platform or "reddit").strip().lower()
-        username = account.handle or account.account_key or f"account-{account.id}"
-        filename = f"{self._slugify(username)}.json"
-        return self.storage_root / platform / filename
+        return self.session_resolver.canonical_path(platform)
 
     def load_session(self, account: Account) -> str:
         session_path = account.session_path
@@ -39,22 +37,22 @@ class PlaywrightSessionService:
                 f"Account {account.handle} does not have a Playwright session path."
             )
 
-        path = Path(session_path)
-
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Playwright session file not found for {account.handle}: {path}"
-            )
+        path = self.session_resolver.resolve(
+            platform=account.platform,
+            session_path=session_path,
+        )
 
         return str(path)
 
-    def load_session_path(self, session_path: str | Path) -> str:
-        path = Path(session_path)
-
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Playwright session file not found: {path}"
-            )
+    def load_session_path(
+        self,
+        session_path: str | Path,
+        platform: str = "reddit",
+    ) -> str:
+        path = self.session_resolver.resolve(
+            platform=platform,
+            session_path=session_path,
+        )
 
         return str(path)
 
@@ -119,12 +117,9 @@ class PlaywrightSessionService:
         return True
 
     def delete_session(self, account: Account) -> None:
-        session_path = account.session_path
-
-        if session_path:
-            path = Path(session_path)
-            if path.exists():
-                path.unlink()
+        path = self.locate_storage_path(account)
+        if path.exists():
+            path.unlink()
 
         account.session_path = None
         account.session_status = "missing"

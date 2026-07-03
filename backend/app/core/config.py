@@ -38,8 +38,6 @@ class Settings(BaseSettings):
 
     XIAOHONGSHU_RETRIEVAL_LIMIT: int = 20
 
-    XIAOHONGSHU_SESSION_PATH: str | None = None
-
     class Config:
         env_file = ".env"
 

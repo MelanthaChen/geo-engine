@@ -8,7 +8,10 @@ from app.core.config import settings
 from app.repositories.history_repository import (
     create_history_event
 )
-from app.services.account_service import seed_demo_accounts
+from app.services.account_service import (
+    apply_canonical_session_path,
+    seed_demo_accounts,
+)
 from app.services.platform_formatters import get_platform_formatter
 from app.utils.title_extractor import (
     extract_article_title
@@ -174,7 +177,13 @@ def select_publish_account(
         if publish_platform:
             filters.append(Account.platform == normalized_platform)
 
-        return db.query(Account).filter(*filters).first()
+        account = db.query(Account).filter(*filters).first()
+
+        if account:
+            apply_canonical_session_path(account)
+            db.commit()
+
+        return account
 
     filters = [
         Account.platform == normalized_platform,
@@ -189,7 +198,7 @@ def select_publish_account(
     if not active_accounts:
         return None
 
-    return min(
+    account = min(
         active_accounts,
         key=lambda account: (
             count_active_tasks(
@@ -199,6 +208,11 @@ def select_publish_account(
             )
         )
     )
+
+    apply_canonical_session_path(account)
+    db.commit()
+
+    return account
 
 
 def count_active_tasks(

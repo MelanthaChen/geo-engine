@@ -9,6 +9,7 @@ from app.services.platform_review_browser import (
     publish_with_review_adapter,
     wait_for_manual_browser_close,
 )
+from app.services.session_resolver import SessionResolver
 
 
 class RedditSubmissionAdapter:
@@ -20,9 +21,10 @@ class RedditSubmissionAdapter:
         self.session_path = Path(session_path)
 
     def storage_state_paths(self) -> list[Path]:
-        return [
-            self.session_path,
-        ]
+        return SessionResolver().candidate_paths(
+            platform=self.platform,
+            session_path=self.session_path,
+        )
 
     def open_submission_page(self, page: Page, target: str) -> None:
         subreddit = target or "test"

@@ -20,6 +20,7 @@ from app.services.publishing_service import (
     mark_task_failed,
     publish_content
 )
+from app.services.account_service import apply_canonical_session_path
 from app.repositories.history_repository import (
     create_history_event
 )
@@ -192,7 +193,9 @@ def get_pending_publish_for_account(
 
     if agent_name:
         task.account.agent_name = agent_name
-        db.commit()
+
+    apply_canonical_session_path(task.account)
+    db.commit()
 
     content = task.content
 

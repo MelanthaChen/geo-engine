@@ -471,11 +471,11 @@ def build_mediacrawler_login_args(session_path: Path | None) -> list[str]:
         )
         return ["--lt", "cookie", "--cookies", cookie_string]
 
-    logger.info(
-        "[PLATFORM DISCOVERY] no GEO Xiaohongshu storage_state found; "
-        "MediaCrawler will use its own QR/CDP login state."
+    raise RuntimeError(
+        "Canonical Xiaohongshu storage_state.json did not contain "
+        "Xiaohongshu/Rednote cookies. Recreate the session at "
+        f"{session_path}."
     )
-    return ["--lt", "qrcode"]
 
 
 def build_cookie_string_from_storage_state(session_path: Path | None) -> str | None:
@@ -595,14 +595,9 @@ def render_retrieval_command(
 
 
 def resolve_xiaohongshu_session_path(account: Account | None = None):
-    explicit_session_path = (
-        (account.session_path if account else None)
-        or settings.XIAOHONGSHU_SESSION_PATH
-    )
-
     return SessionResolver().resolve(
         platform="xiaohongshu",
-        session_path=explicit_session_path,
+        session_path=account.session_path if account else None,
     )
 
 

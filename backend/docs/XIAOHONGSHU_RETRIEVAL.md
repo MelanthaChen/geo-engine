@@ -67,25 +67,25 @@ Alternative field names from external engines are normalized in
 
 ## Session Reuse
 
-Custom commands receive `{session_path}` from GEO. Preferred path:
+Custom commands receive `{session_path}` from GEO. The only valid
+Xiaohongshu session path is:
 
 ```text
 sessions/xiaohongshu/storage_state.json
 ```
 
 GEO resolves Xiaohongshu sessions through the shared `SessionResolver` used by
-the publisher. Account-specific `session_path` values are checked first, then
-the shared platform defaults. When the resolved Playwright storage state exists,
-GEO converts its Xiaohongshu/Rednote cookies into MediaCrawler's
-`--lt cookie --cookies ...` login mode. This reuses the same session file
+the publisher. Retrieval and publishing use the same canonical Playwright
+storage state. GEO converts the Xiaohongshu/Rednote cookies from that file into
+MediaCrawler's `--lt cookie --cookies ...` login mode. This session file is
 created by:
 
 ```bash
 python save_platform_state.py xiaohongshu
 ```
 
-If no GEO storage state exists, MediaCrawler falls back to its own QR/CDP login
-state under its working directory. GEO does not create a second account system.
+Legacy files such as `xiaohongshu_state.json`, `backend/xiaohongshu_state.json`,
+and `backend/sessions/xiaohongshu/storage_state.json` are not supported.
 
 ## Fallback Order
 

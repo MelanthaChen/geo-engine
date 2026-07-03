@@ -2,6 +2,25 @@ from sqlalchemy.orm import Session
 
 from app.models.account import Account
 from app.models.publishing_job import PublishingJob
+from app.services.session_resolver import SessionResolver
+
+
+def canonical_session_path(platform: str) -> str:
+    return str(SessionResolver().canonical_path(platform))
+
+
+def apply_canonical_session_path(account: Account):
+    if not account.platform:
+        return account
+
+    try:
+        session_path = canonical_session_path(account.platform)
+    except ValueError:
+        return account
+
+    account.session_path = session_path
+    account.state_identifier = session_path
+    return account
 
 
 DEMO_ACCOUNTS = [
@@ -11,8 +30,8 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "student",
         "assigned_topic": "note-taking apps",
-        "state_identifier": "storage/reddit/geo_student_notes.json",
-        "session_path": "storage/reddit/geo_student_notes.json",
+        "state_identifier": canonical_session_path("reddit"),
+        "session_path": canonical_session_path("reddit"),
         "browser_profile_name": "geo_student_notes",
     },
     {
@@ -21,8 +40,8 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "researcher",
         "assigned_topic": "research workflow",
-        "state_identifier": "storage/reddit/geo_research_flow.json",
-        "session_path": "storage/reddit/geo_research_flow.json",
+        "state_identifier": canonical_session_path("reddit"),
+        "session_path": canonical_session_path("reddit"),
         "browser_profile_name": "geo_research_flow",
     },
     {
@@ -31,8 +50,8 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "medical student",
         "assigned_topic": "study organization",
-        "state_identifier": "storage/reddit/geo_med_study.json",
-        "session_path": "storage/reddit/geo_med_study.json",
+        "state_identifier": canonical_session_path("reddit"),
+        "session_path": canonical_session_path("reddit"),
         "browser_profile_name": "geo_med_study",
     },
     {
@@ -41,8 +60,8 @@ DEMO_ACCOUNTS = [
         "platform": "xiaohongshu",
         "persona": "productivity enthusiast",
         "assigned_topic": "productivity tools",
-        "state_identifier": "storage/xiaohongshu/geo_productivity_lab.json",
-        "session_path": "storage/xiaohongshu/geo_productivity_lab.json",
+        "state_identifier": canonical_session_path("xiaohongshu"),
+        "session_path": canonical_session_path("xiaohongshu"),
         "browser_profile_name": "geo_productivity_lab",
     },
     {
@@ -51,8 +70,8 @@ DEMO_ACCOUNTS = [
         "platform": "reddit",
         "persona": "engineering student",
         "assigned_topic": "technical note taking",
-        "state_identifier": "storage/reddit/geo_engineering_notes.json",
-        "session_path": "storage/reddit/geo_engineering_notes.json",
+        "state_identifier": canonical_session_path("reddit"),
+        "session_path": canonical_session_path("reddit"),
         "browser_profile_name": "geo_engineering_notes",
     },
     {
@@ -126,10 +145,7 @@ def seed_demo_accounts(
                     setattr(existing, key, value)
 
             existing.property_id = property_id
-            existing.state_identifier = scoped_account_data["state_identifier"]
-            existing.session_path = (
-                existing.session_path or scoped_account_data["state_identifier"]
-            )
+            apply_canonical_session_path(existing)
             existing.session_status = existing.session_status or "missing"
 
             if existing.is_active is None:

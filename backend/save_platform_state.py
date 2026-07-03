@@ -3,6 +3,8 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from app.services.session_resolver import SessionResolver
+
 
 PLATFORM_LOGIN_URLS = {
     "reddit": "https://www.reddit.com/login/",
@@ -21,7 +23,7 @@ def main():
     )
     args = parser.parse_args()
 
-    state_path = Path("sessions") / args.platform / "storage_state.json"
+    state_path = SessionResolver().canonical_path(args.platform)
     state_path.parent.mkdir(
         parents=True,
         exist_ok=True,

@@ -20,12 +20,7 @@ build/
 *.log
 
 # Local authentication state
-reddit_state.json
-xiaohongshu_state.json
 sessions/
-backend/reddit_state.json
-backend/xiaohongshu_state.json
-backend/sessions/
 
 # Local publishing previews
 backend/publishing_previews/
