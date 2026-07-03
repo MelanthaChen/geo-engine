@@ -30,6 +30,13 @@ class PlaywrightSessionService:
         return self.session_resolver.canonical_path(platform)
 
     def load_session(self, account: Account) -> str:
+        canonical_session_path = str(self.locate_storage_path(account))
+
+        if account.session_path != canonical_session_path:
+            account.session_path = canonical_session_path
+            account.state_identifier = canonical_session_path
+            self._commit(account)
+
         session_path = account.session_path
 
         if not session_path:
@@ -69,7 +76,10 @@ class PlaywrightSessionService:
         session_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=False)
+            browser = playwright.chromium.launch(
+                channel="chrome",
+                headless=False,
+            )
             context = browser.new_context()
             page = context.new_page()
             page.goto(login_url)

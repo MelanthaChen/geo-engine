@@ -23,6 +23,35 @@ def apply_canonical_session_path(account: Account):
     return account
 
 
+def migrate_canonical_session_paths(
+    db: Session,
+    property_id: int | None = None,
+):
+    query = db.query(Account)
+
+    if property_id is not None:
+        query = query.filter(Account.property_id == property_id)
+
+    migrated_accounts = []
+
+    for account in query.all():
+        previous_session_path = account.session_path
+        previous_state_identifier = account.state_identifier
+
+        apply_canonical_session_path(account)
+
+        if (
+            account.session_path != previous_session_path
+            or account.state_identifier != previous_state_identifier
+        ):
+            migrated_accounts.append(account)
+
+    if migrated_accounts:
+        db.commit()
+
+    return migrated_accounts
+
+
 DEMO_ACCOUNTS = [
     {
         "handle": "geo_student_notes",
@@ -106,6 +135,7 @@ def list_accounts(
     property_id: int | None = None,
 ):
     seed_demo_accounts(db, property_id=property_id)
+    migrate_canonical_session_paths(db, property_id=property_id)
 
     query = db.query(Account)
 
@@ -126,6 +156,7 @@ def seed_demo_accounts(
     property_id: int | None = None,
 ):
     created_accounts = []
+    migrate_canonical_session_paths(db, property_id=property_id)
 
     for account_data in DEMO_ACCOUNTS:
         scoped_account_data = build_scoped_account_data(

@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
 from app.services.account_service import (
+    apply_canonical_session_path,
     get_account_task_counts,
     list_accounts,
+    migrate_canonical_session_paths,
     seed_demo_accounts,
     update_account_stage
 )
@@ -81,6 +83,8 @@ def seed_accounts(
     property_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    migrate_canonical_session_paths(db, property_id=property_id)
+
     return [
         serialize_account(account, db, property_id=property_id)
         for account in seed_demo_accounts(db, property_id=property_id)
@@ -119,6 +123,8 @@ def create_account_session(
             "error": "Account not found"
         }
 
+    apply_canonical_session_path(account)
+    db.commit()
     session_path = PlaywrightSessionService(db=db).create_session(account)
 
     return {
@@ -140,6 +146,8 @@ def validate_account_session(
             "error": "Account not found"
         }
 
+    apply_canonical_session_path(account)
+    db.commit()
     is_valid = PlaywrightSessionService(db=db).validate_session(account)
 
     return {
@@ -160,6 +168,8 @@ def delete_account_session(
             "error": "Account not found"
         }
 
+    apply_canonical_session_path(account)
+    db.commit()
     PlaywrightSessionService(db=db).delete_session(account)
 
     return {

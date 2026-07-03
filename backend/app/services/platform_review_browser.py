@@ -61,6 +61,7 @@ def publish_with_review_adapter(
     playwright = sync_playwright().start()
 
     browser = playwright.chromium.launch(
+        channel="chrome",
         headless=False
     )
 

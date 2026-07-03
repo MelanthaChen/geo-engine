@@ -31,6 +31,7 @@ def main():
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(
+            channel="chrome",
             headless=False
         )
         context = browser.new_context()
