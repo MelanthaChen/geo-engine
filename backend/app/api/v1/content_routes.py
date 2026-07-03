@@ -458,6 +458,7 @@ def generate_faqs_route(
     publish_platform: str = "reddit",
     website_url: str | None = None,
     property_id: int | None = None,
+    account_id: int | None = None,
     db: Session = Depends(get_db),
 ):
 
@@ -469,6 +470,7 @@ def generate_faqs_route(
         publish_platform=publish_platform,
         website_url=website_url,
         property_id=property_id,
+        account_id=account_id,
     )
 
     return {

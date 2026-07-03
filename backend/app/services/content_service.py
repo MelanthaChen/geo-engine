@@ -448,6 +448,7 @@ def generate_faqs(
     publish_platform: str = "reddit",
     website_url: str | None = None,
     property_id: int | None = None,
+    account_id: int | None = None,
 ):
     if db is None:
         raise ValueError("Database session is required for FAQ discovery")
@@ -472,6 +473,7 @@ def generate_faqs(
             website_url=website_url,
             property_id=property_id,
             publish_platform=publish_platform,
+            account_id=account_id,
         )
 
     platform_questions = [

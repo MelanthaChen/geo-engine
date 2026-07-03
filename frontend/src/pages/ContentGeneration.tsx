@@ -162,6 +162,7 @@ function ContentGenerationWorkspace({
         "ai",
         contentType,
         publishPlatform,
+        activeProperty?.id,
       );
 
       setAiFaqs(result.faqs);
@@ -192,6 +193,7 @@ function ContentGenerationWorkspace({
         "platform",
         contentType,
         publishPlatform,
+        activeProperty?.id,
       );
 
       setPlatformQuestions(result.platform_questions || []);
@@ -232,6 +234,7 @@ function ContentGenerationWorkspace({
         "ai_faq",
         aiFaqResult.faqSetId,
         publishPlatform,
+        activeProperty?.id,
       );
 
       setAiGeneratedContent(aiResult.generated_content);
@@ -249,6 +252,7 @@ function ContentGenerationWorkspace({
         "platform_faq",
         platformFaqResult.faqSetId,
         publishPlatform,
+        activeProperty?.id,
       );
 
       setPlatformGeneratedContent(platformResult.generated_content);

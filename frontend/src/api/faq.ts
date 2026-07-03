@@ -37,12 +37,22 @@ export async function generateFaqs(
   mode: string,
   contentType: string = "comparison",
   publishPlatform: string = "reddit",
+  propertyId?: number | null,
+  accountId?: number | null,
 ): Promise<GenerateFaqsResponse> {
   const params = new URLSearchParams({
     mode,
     content_type: contentType,
     publish_platform: publishPlatform,
   });
+
+  if (propertyId) {
+    params.set("property_id", String(propertyId));
+  }
+
+  if (accountId) {
+    params.set("account_id", String(accountId));
+  }
 
   const response = await apiClient.get(
     `/api/v1/content/faqs/${encodeURIComponent(target)}?${params.toString()}`

@@ -7,6 +7,7 @@ from app.services.platform_review_browser import (
     insert_into_first_visible_editor,
     publish_with_review_adapter,
 )
+from app.services.session_resolver import SessionResolver
 
 
 class XiaohongshuSubmissionAdapter:
@@ -18,15 +19,10 @@ class XiaohongshuSubmissionAdapter:
         self.session_path = session_path
 
     def storage_state_paths(self) -> list[Path]:
-        paths = [
-            Path("sessions/xiaohongshu/storage_state.json"),
-            Path("xiaohongshu_state.json"),
-        ]
-
-        if self.session_path:
-            paths.insert(0, Path(self.session_path))
-
-        return paths
+        return SessionResolver().candidate_paths(
+            platform=self.platform,
+            session_path=self.session_path,
+        )
 
     def open_submission_page(self, page: Page, target: str) -> None:
         page.goto(

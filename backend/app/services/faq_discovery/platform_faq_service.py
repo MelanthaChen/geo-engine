@@ -18,8 +18,12 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.account import Account
 from app.models.platform_question import PlatformQuestion
 from app.services.history.faq_history_service import create_faq_set
+from app.services.account_service import seed_demo_accounts
+from app.services.publishing_service import select_publish_account
+from app.services.session_resolver import SessionResolver
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +71,7 @@ class PlatformDiscoveryProvider(Protocol):
         category: str,
         db: Session,
         property_id: int | None,
+        account: Account | None = None,
     ) -> list[RetrievedPlatformQuestion]:
         ...
 
@@ -79,6 +84,7 @@ class RedditDiscoveryProvider:
         category: str,
         db: Session,
         property_id: int | None,
+        account: Account | None = None,
     ) -> list[RetrievedPlatformQuestion]:
         return fetch_reddit_questions(category)
 
@@ -92,12 +98,16 @@ class XiaohongshuDiscoveryProvider:
         category: str,
         db: Session,
         property_id: int | None,
+        account: Account | None = None,
     ) -> list[RetrievedPlatformQuestion]:
         last_error = None
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                questions = run_xiaohongshu_external_retrieval(category)
+                questions = run_xiaohongshu_external_retrieval(
+                    category=category,
+                    account=account,
+                )
 
                 if questions:
                     return questions
@@ -138,12 +148,20 @@ def discover_platform_faqs(
     website_url: str | None,
     property_id: int | None = None,
     publish_platform: str = "reddit",
+    account_id: int | None = None,
 ):
+    selected_account = select_discovery_account(
+        db=db,
+        account_id=account_id,
+        publish_platform=publish_platform,
+        property_id=property_id,
+    )
     retrieved_questions = collect_external_platform_questions(
         db=db,
         category=category,
         property_id=property_id,
         publish_platform=publish_platform,
+        account=selected_account,
     )
     saved_questions = save_platform_questions(
         db=db,
@@ -169,6 +187,7 @@ def collect_external_platform_questions(
     category: str,
     property_id: int | None = None,
     publish_platform: str = "reddit",
+    account: Account | None = None,
 ) -> list[RetrievedPlatformQuestion]:
     provider = get_platform_discovery_provider(publish_platform)
 
@@ -176,7 +195,38 @@ def collect_external_platform_questions(
         category=category,
         db=db,
         property_id=property_id,
+        account=account,
     )
+
+
+def select_discovery_account(
+    db: Session,
+    account_id: int | None,
+    publish_platform: str,
+    property_id: int | None,
+):
+    normalized_platform = (publish_platform or "reddit").strip().lower()
+
+    if normalized_platform != "xiaohongshu":
+        return None
+
+    account = select_publish_account(
+        db=db,
+        account_id=account_id,
+        publish_platform=normalized_platform,
+        property_id=property_id,
+    )
+
+    if not account and property_id is not None:
+        seed_demo_accounts(db, property_id=property_id)
+        account = select_publish_account(
+            db=db,
+            account_id=account_id,
+            publish_platform=normalized_platform,
+            property_id=property_id,
+        )
+
+    return account
 
 
 def get_platform_discovery_provider(publish_platform: str):
@@ -201,6 +251,7 @@ class WebDiscussionDiscoveryProvider:
         category: str,
         db: Session,
         property_id: int | None,
+        account: Account | None = None,
     ) -> list[RetrievedPlatformQuestion]:
         questions: list[RetrievedPlatformQuestion] = []
 
@@ -227,6 +278,7 @@ class WebDiscussionDiscoveryProvider:
 
 def run_xiaohongshu_external_retrieval(
     category: str,
+    account: Account | None = None,
 ) -> list[RetrievedPlatformQuestion]:
     command_template = settings.XIAOHONGSHU_RETRIEVAL_COMMAND
 
@@ -234,7 +286,7 @@ def run_xiaohongshu_external_retrieval(
         temp_path = Path(temp_dir)
         output_path = Path(temp_dir) / "xiaohongshu_results.jsonl"
         mediacrawler_output_dir = temp_path / "mediacrawler_output"
-        session_path = resolve_xiaohongshu_session_path()
+        session_path = resolve_xiaohongshu_session_path(account=account)
 
         if command_template:
             command = render_retrieval_command(
@@ -264,14 +316,24 @@ def run_xiaohongshu_external_retrieval(
             category,
             settings.XIAOHONGSHU_RETRIEVAL_LIMIT,
         )
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            cwd=cwd,
-            text=True,
-            timeout=settings.XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                cwd=cwd,
+                text=True,
+                timeout=settings.XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            stdout = error.stdout.decode("utf-8", "replace") if isinstance(error.stdout, bytes) else (error.stdout or "")
+            stderr = error.stderr.decode("utf-8", "replace") if isinstance(error.stderr, bytes) else (error.stderr or "")
+            raise RuntimeError(
+                "Xiaohongshu retrieval timed out before returning real notes. "
+                "This usually means MediaCrawler is waiting for a valid "
+                "Xiaohongshu login/session or is blocked before search. "
+                f"stdout={stdout[-800:]} stderr={stderr[-800:]}"
+            ) from error
 
         if result.returncode != 0:
             raise RuntimeError(
@@ -354,7 +416,27 @@ def build_default_mediacrawler_command(
     return [
         uv_binary,
         "run",
-        "main.py",
+        "python",
+        "-c",
+        (
+            "import config; "
+            "config.ENABLE_CDP_MODE=False; "
+            "config.CDP_CONNECT_EXISTING=False; "
+            "from playwright.async_api import Page; "
+            "_geo_goto=Page.goto; "
+            "exec(\"async def _geo_safe_goto(self, url, **kwargs):\\n"
+            "    kwargs.setdefault('wait_until', 'commit')\\n"
+            "    kwargs.setdefault('timeout', 60000)\\n"
+            "    try:\\n"
+            "        return await _geo_goto(self, url, **kwargs)\\n"
+            "    except Exception as error:\\n"
+            "        print(f'[GEO XHS] continuing after page.goto failure: {error}')\\n"
+            "        return None\\n\"); "
+            "Page.goto=_geo_safe_goto; "
+            "from main import main, async_cleanup; "
+            "from tools.app_runner import run; "
+            "run(main, async_cleanup, cleanup_timeout_seconds=15.0)"
+        ),
         "--platform",
         "xhs",
         *login_args,
@@ -512,24 +594,16 @@ def render_retrieval_command(
     return shlex.split(rendered)
 
 
-def resolve_xiaohongshu_session_path():
-    candidates = [
-        settings.XIAOHONGSHU_SESSION_PATH,
-        "sessions/xiaohongshu/storage_state.json",
-        "storage/xiaohongshu/geo_productivity_lab.json",
-        "xiaohongshu_state.json",
-    ]
+def resolve_xiaohongshu_session_path(account: Account | None = None):
+    explicit_session_path = (
+        (account.session_path if account else None)
+        or settings.XIAOHONGSHU_SESSION_PATH
+    )
 
-    for candidate in candidates:
-        if not candidate:
-            continue
-
-        path = Path(candidate)
-
-        if path.exists():
-            return path
-
-    return None
+    return SessionResolver().resolve(
+        platform="xiaohongshu",
+        session_path=explicit_session_path,
+    )
 
 
 def parse_external_retrieval_payload(payload_text: str):

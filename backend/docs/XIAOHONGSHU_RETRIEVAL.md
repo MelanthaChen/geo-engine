@@ -73,9 +73,12 @@ Custom commands receive `{session_path}` from GEO. Preferred path:
 sessions/xiaohongshu/storage_state.json
 ```
 
-When `sessions/xiaohongshu/storage_state.json` exists, GEO converts its
-Xiaohongshu/Rednote cookies into MediaCrawler's `--lt cookie --cookies ...`
-login mode. This reuses the same session file created by:
+GEO resolves Xiaohongshu sessions through the shared `SessionResolver` used by
+the publisher. Account-specific `session_path` values are checked first, then
+the shared platform defaults. When the resolved Playwright storage state exists,
+GEO converts its Xiaohongshu/Rednote cookies into MediaCrawler's
+`--lt cookie --cookies ...` login mode. This reuses the same session file
+created by:
 
 ```bash
 python save_platform_state.py xiaohongshu
