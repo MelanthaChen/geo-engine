@@ -1,9 +1,11 @@
 from fastapi import (
     APIRouter,
-    Depends
+    Depends,
+    HTTPException,
 )
 
 import json
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -40,6 +42,15 @@ router = APIRouter(
     prefix="/api/v1/content",
     tags=["Content Engine"]
 )
+
+logger = logging.getLogger(__name__)
+
+
+def log_platform_faq_debug(event: str, **fields):
+    logger.info(
+        "[PLATFORM FAQ DEBUG] %s",
+        json.dumps({"event": event, **fields}, default=str),
+    )
 
 
 def content_title(content: Content):
@@ -461,16 +472,50 @@ def generate_faqs_route(
     account_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-
-    result = generate_faqs(
+    log_platform_faq_debug(
+        "generate_faqs_route.received",
         target=target,
         mode=mode,
-        db=db,
         content_type=content_type,
         publish_platform=publish_platform,
         website_url=website_url,
         property_id=property_id,
         account_id=account_id,
+    )
+
+    try:
+        result = generate_faqs(
+            target=target,
+            mode=mode,
+            db=db,
+            content_type=content_type,
+            publish_platform=publish_platform,
+            website_url=website_url,
+            property_id=property_id,
+            account_id=account_id,
+        )
+    except Exception as error:
+        logger.exception(
+            "[PLATFORM FAQ DEBUG] generate_faqs_route.exception "
+            "publish_platform=%s target=%s",
+            publish_platform,
+            target,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(error),
+                "error_type": type(error).__name__,
+                "publish_platform": publish_platform,
+                "target": target,
+            },
+        ) from error
+
+    log_platform_faq_debug(
+        "generate_faqs_route.success",
+        publish_platform=publish_platform,
+        faq_set_id=result["faq_set"]["id"],
+        platform_question_count=len(result.get("platform_questions", [])),
     )
 
     return {

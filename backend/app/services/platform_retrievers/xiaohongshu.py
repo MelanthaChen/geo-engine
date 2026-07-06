@@ -25,6 +25,13 @@ from app.services.session_resolver import SessionResolver
 logger = logging.getLogger(__name__)
 
 
+def log_platform_faq_debug(event: str, **fields):
+    logger.info(
+        "[PLATFORM FAQ DEBUG] %s",
+        json.dumps({"event": event, **fields}, default=str),
+    )
+
+
 class XiaohongshuRetriever:
     platform = "xiaohongshu"
 
@@ -37,6 +44,15 @@ class XiaohongshuRetriever:
         **_,
     ) -> list[RetrievedPlatformQuestion]:
         command_template = settings.XIAOHONGSHU_RETRIEVAL_COMMAND
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.search.received",
+            query=query,
+            limit=limit,
+            account_id=getattr(account, "id", None),
+            account_handle=getattr(account, "handle", None),
+            account_session_path=getattr(account, "session_path", None),
+            has_custom_command=bool(command_template),
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -71,20 +87,47 @@ class XiaohongshuRetriever:
                 query,
                 limit,
             )
+            log_platform_faq_debug(
+                "xiaohongshu_retriever.subprocess.command",
+                backend=backend_name,
+                query=query,
+                limit=limit,
+                cwd=str(cwd) if cwd else None,
+                command=shlex.join(command),
+                save_data_path=str(save_data_path),
+                output_path=str(output_path),
+                session_path=str(session_path) if session_path else None,
+            )
 
             result = run_retrieval_command(command=command, cwd=cwd)
             notes = parse_mediacrawler_xhs_output(save_data_path)
+            log_platform_faq_debug(
+                "xiaohongshu_retriever.after_jsonl_parse",
+                notes_count=len(notes),
+                save_data_path=str(save_data_path),
+            )
 
             if not notes:
                 payload_text = ""
 
                 if output_path.exists():
                     payload_text = output_path.read_text(encoding="utf-8")
+                log_platform_faq_debug(
+                    "xiaohongshu_retriever.fallback_payload",
+                    output_path=str(output_path),
+                    output_path_exists=output_path.exists(),
+                    output_path_chars=len(payload_text),
+                    stdout_chars=len(result.stdout or ""),
+                )
 
                 if not payload_text.strip():
                     payload_text = result.stdout
 
                 notes = parse_external_retrieval_payload(payload_text)
+                log_platform_faq_debug(
+                    "xiaohongshu_retriever.after_payload_parse",
+                    notes_count=len(notes),
+                )
 
             if not notes:
                 raise RetrievalError(
@@ -98,6 +141,11 @@ class XiaohongshuRetriever:
                 for note in notes
                 if normalize_external_title(note)
             ][:limit]
+            log_platform_faq_debug(
+                "xiaohongshu_retriever.normalized",
+                raw_notes_count=len(notes),
+                normalized_question_count=len(normalized),
+            )
 
             if not normalized:
                 raise RetrievalError(
@@ -161,6 +209,13 @@ def run_retrieval_command(command: list[str], cwd: Path | None):
             "Xiaohongshu login/session or is blocked before search. "
             f"stdout={stdout[-800:]} stderr={stderr[-800:]}"
         ) from error
+
+    log_platform_faq_debug(
+        "xiaohongshu_retriever.subprocess.completed",
+        returncode=result.returncode,
+        stdout_first_1000=(result.stdout or "")[:1000],
+        stderr_first_1000=(result.stderr or "")[:1000],
+    )
 
     if result.returncode != 0:
         raise RetrievalError(
@@ -316,12 +371,26 @@ def parse_mediacrawler_xhs_output(save_data_path: Path) -> list[dict]:
             "[RETRIEVAL] MediaCrawler XHS output directory missing: %s",
             jsonl_dir,
         )
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.jsonl.missing",
+            jsonl_dir=str(jsonl_dir),
+            jsonl_generated=False,
+        )
         return []
 
     content_files = sorted(jsonl_dir.glob("*_contents_*.jsonl"))
     comment_files = sorted(jsonl_dir.glob("*_comments_*.jsonl"))
     notes = read_jsonl_files(content_files)
     comments = read_jsonl_files(comment_files)
+    log_platform_faq_debug(
+        "xiaohongshu_retriever.jsonl.generated",
+        jsonl_dir=str(jsonl_dir),
+        jsonl_generated=bool(content_files or comment_files),
+        content_file_paths=[str(file) for file in content_files],
+        comment_file_paths=[str(file) for file in comment_files],
+        parsed_notes_count=len(notes),
+        parsed_comments_count=len(comments),
+    )
 
     logger.info(
         "[RETRIEVAL] MediaCrawler XHS files contents=%s comments=%s "

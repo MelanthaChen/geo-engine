@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,16 @@ from app.services.platform_retrievers.utils import normalize_text
 from app.services.publishing_service import select_publish_account
 
 
+logger = logging.getLogger(__name__)
+
+
+def log_platform_faq_debug(event: str, **fields):
+    logger.info(
+        "[PLATFORM FAQ DEBUG] %s",
+        json.dumps({"event": event, **fields}, default=str),
+    )
+
+
 def discover_platform_faqs(
     db: Session,
     category: str,
@@ -24,24 +35,56 @@ def discover_platform_faqs(
     publish_platform: str = "reddit",
     account_id: int | None = None,
 ):
-    selected_account = select_discovery_account(
-        db=db,
-        account_id=account_id,
-        publish_platform=publish_platform,
-        property_id=property_id,
-    )
-    retrieved_questions = collect_external_platform_questions(
-        db=db,
+    log_platform_faq_debug(
+        "discover_platform_faqs.received",
         category=category,
+        website_url=website_url,
         property_id=property_id,
         publish_platform=publish_platform,
-        account=selected_account,
+        account_id=account_id,
     )
-    saved_questions = save_platform_questions(
-        db=db,
-        property_id=property_id,
-        questions=retrieved_questions,
-    )
+
+    try:
+        selected_account = select_discovery_account(
+            db=db,
+            account_id=account_id,
+            publish_platform=publish_platform,
+            property_id=property_id,
+        )
+        log_platform_faq_debug(
+            "discover_platform_faqs.selected_account",
+            publish_platform=publish_platform,
+            account_id=getattr(selected_account, "id", None),
+            account_handle=getattr(selected_account, "handle", None),
+            session_path=getattr(selected_account, "session_path", None),
+        )
+
+        retrieved_questions = collect_external_platform_questions(
+            db=db,
+            category=category,
+            property_id=property_id,
+            publish_platform=publish_platform,
+            account=selected_account,
+        )
+        log_platform_faq_debug(
+            "discover_platform_faqs.retrieved",
+            publish_platform=publish_platform,
+            retrieved_question_count=len(retrieved_questions),
+        )
+
+        saved_questions = save_platform_questions(
+            db=db,
+            property_id=property_id,
+            questions=retrieved_questions,
+        )
+    except Exception:
+        logger.exception(
+            "[PLATFORM FAQ DEBUG] discover_platform_faqs.exception "
+            "publish_platform=%s category=%s",
+            publish_platform,
+            category,
+        )
+        raise
 
     faq_set = create_faq_set(
         db=db,
@@ -66,13 +109,41 @@ def collect_external_platform_questions(
     retriever = get_platform_retriever(publish_platform)
     limit = retrieval_limit_for_platform(publish_platform)
 
-    return retriever.search(
-        query=category,
+    log_platform_faq_debug(
+        "collect_external_platform_questions.start_retriever",
+        publish_platform=publish_platform,
+        retriever_class=type(retriever).__name__,
+        category=category,
         limit=limit,
-        db=db,
         property_id=property_id,
-        account=account,
+        account_id=getattr(account, "id", None),
     )
+
+    try:
+        questions = retriever.search(
+            query=category,
+            limit=limit,
+            db=db,
+            property_id=property_id,
+            account=account,
+        )
+    except Exception:
+        logger.exception(
+            "[PLATFORM FAQ DEBUG] collect_external_platform_questions.exception "
+            "publish_platform=%s retriever_class=%s category=%s",
+            publish_platform,
+            type(retriever).__name__,
+            category,
+        )
+        raise
+
+    log_platform_faq_debug(
+        "collect_external_platform_questions.completed",
+        publish_platform=publish_platform,
+        retriever_class=type(retriever).__name__,
+        retrieved_question_count=len(questions),
+    )
+    return questions
 
 
 def select_discovery_account(
@@ -119,6 +190,11 @@ def save_platform_questions(
     property_id: int | None,
     questions: list[RetrievedPlatformQuestion],
 ) -> list[PlatformQuestion]:
+    log_platform_faq_debug(
+        "save_platform_questions.received",
+        property_id=property_id,
+        retrieved_question_count=len(questions),
+    )
     saved_questions: list[PlatformQuestion] = []
     seen_hashes: set[str] = set()
 
@@ -171,6 +247,11 @@ def save_platform_questions(
     for question in saved_questions:
         db.refresh(question)
 
+    log_platform_faq_debug(
+        "save_platform_questions.completed",
+        property_id=property_id,
+        saved_question_count=len(saved_questions),
+    )
     return saved_questions
 
 

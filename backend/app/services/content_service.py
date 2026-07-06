@@ -1,6 +1,7 @@
 from openai import OpenAI
 
 import json
+import logging
 import re
 
 from sqlalchemy.orm import Session
@@ -45,6 +46,15 @@ from app.utils.title_extractor import (
 client = OpenAI(
     api_key=settings.OPENAI_API_KEY
 )
+
+logger = logging.getLogger(__name__)
+
+
+def log_platform_faq_debug(event: str, **fields):
+    logger.info(
+        "[PLATFORM FAQ DEBUG] %s",
+        json.dumps({"event": event, **fields}, default=str),
+    )
 
 
 def fetch_all_contents(
@@ -450,36 +460,75 @@ def generate_faqs(
     property_id: int | None = None,
     account_id: int | None = None,
 ):
+    log_platform_faq_debug(
+        "generate_faqs.received",
+        target=target,
+        mode=mode,
+        content_type=content_type,
+        publish_platform=publish_platform,
+        website_url=website_url,
+        property_id=property_id,
+        account_id=account_id,
+    )
+
     if db is None:
         raise ValueError("Database session is required for FAQ discovery")
 
-    property_record = get_property(db, property_id) if property_id else None
+    try:
+        property_record = get_property(db, property_id) if property_id else None
 
-    if property_record:
-        website_url = normalize_property_url(property_record.domain)
+        if property_record:
+            website_url = normalize_property_url(property_record.domain)
 
-    if mode == "ai":
-        faq_set = discover_ai_faqs(
-            db=db,
-            category=target,
-            content_type=content_type,
-            property_id=property_id,
-        )
-
-    else:
-        faq_set = discover_platform_faqs(
-            db=db,
-            category=target,
-            website_url=website_url,
-            property_id=property_id,
+        log_platform_faq_debug(
+            "generate_faqs.resolved_context",
+            target=target,
+            mode=mode,
             publish_platform=publish_platform,
-            account_id=account_id,
+            property_id=property_id,
+            property_name=getattr(property_record, "name", None),
+            website_url=website_url,
         )
 
-    platform_questions = [
-        serialize_platform_question(question)
-        for question in getattr(faq_set, "_platform_questions", [])
-    ]
+        if mode == "ai":
+            faq_set = discover_ai_faqs(
+                db=db,
+                category=target,
+                content_type=content_type,
+                property_id=property_id,
+            )
+
+        else:
+            faq_set = discover_platform_faqs(
+                db=db,
+                category=target,
+                website_url=website_url,
+                property_id=property_id,
+                publish_platform=publish_platform,
+                account_id=account_id,
+            )
+
+        platform_questions = [
+            serialize_platform_question(question)
+            for question in getattr(faq_set, "_platform_questions", [])
+        ]
+
+        log_platform_faq_debug(
+            "generate_faqs.completed",
+            target=target,
+            mode=mode,
+            publish_platform=publish_platform,
+            faq_set_id=getattr(faq_set, "id", None),
+            platform_question_count=len(platform_questions),
+        )
+    except Exception:
+        logger.exception(
+            "[PLATFORM FAQ DEBUG] generate_faqs.exception "
+            "publish_platform=%s target=%s",
+            publish_platform,
+            target,
+        )
+        raise
 
     questions = [
         f"{idx + 1}. {question}"
