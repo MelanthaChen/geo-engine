@@ -8,6 +8,9 @@ Create Date: 2026-06-25
 from alembic import op
 import sqlalchemy as sa
 
+from app.core.database import Base
+from app.models import *
+
 
 revision = "20260625_0001"
 down_revision = None
@@ -40,6 +43,9 @@ def _add_column_if_missing(table_name: str, column: sa.Column):
 
 
 def upgrade():
+    bind = op.get_bind()
+    Base.metadata.create_all(bind=bind)
+
     if not _table_exists("properties"):
         op.create_table(
             "properties",
