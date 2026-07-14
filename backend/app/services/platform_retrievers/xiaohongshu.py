@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from urllib.parse import quote_plus
 
 from app.core.config import settings
 from app.models.account import Account
@@ -20,9 +21,36 @@ from app.services.platform_retrievers.utils import (
     parse_first_integer,
 )
 from app.services.session_resolver import SessionResolver
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 
 
 logger = logging.getLogger(__name__)
+
+
+SEARCH_URL = "https://www.rednote.com/search_result?keyword={query}"
+SEARCH_RESULT_WAIT_MS = 20_000
+NOTE_PAGE_WAIT_MS = 10_000
+SCROLL_PAUSE_MS = 1200
+MAX_SEARCH_SCROLLS = 10
+MAX_COMMENTS_PER_NOTE = 30
+MIN_EXPECTED_NOTE_ITEMS = 20
+
+SEARCH_RESULT_SELECTORS = [
+    'a[href*="/explore/"]',
+    'a[href*="/discovery/item/"]',
+    ".note-item",
+    "section.note-item",
+]
+
+NOTE_CONTENT_SELECTORS = [
+    "#detail-title",
+    "#detail-desc",
+    ".note-content",
+    ".note-detail-mask",
+    ".interaction-container",
+    'meta[property="og:title"]',
+]
 
 
 def log_platform_faq_debug(event: str, **fields):
@@ -32,7 +60,7 @@ def log_platform_faq_debug(event: str, **fields):
     )
 
 
-class XiaohongshuRetriever:
+class BrowserSearchRetriever:
     platform = "xiaohongshu"
 
     def search(
@@ -43,121 +71,58 @@ class XiaohongshuRetriever:
         account: Account | None = None,
         **_,
     ) -> list[RetrievedPlatformQuestion]:
-        command_template = settings.XIAOHONGSHU_RETRIEVAL_COMMAND
+        session_path = resolve_xiaohongshu_session_path(account=account)
         log_platform_faq_debug(
             "xiaohongshu_retriever.search.received",
+            backend="browser_search",
             query=query,
             limit=limit,
             account_id=getattr(account, "id", None),
             account_handle=getattr(account, "handle", None),
             account_session_path=getattr(account, "session_path", None),
-            has_custom_command=bool(command_template),
+            session_path=str(session_path),
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            output_path = temp_path / "xiaohongshu_results.jsonl"
-            save_data_path = temp_path / "mediacrawler_output"
-            session_path = resolve_xiaohongshu_session_path(account=account)
+        notes = run_browser_search(
+            query=query,
+            limit=limit,
+            session_path=session_path,
+        )
 
-            if command_template:
-                command = render_retrieval_command(
-                    template=command_template,
-                    query=query,
-                    output_path=output_path,
-                    session_path=session_path,
-                    limit=limit,
-                    save_data_path=save_data_path,
-                )
-                cwd = None
-                backend_name = "configured command"
-            else:
-                command = build_default_mediacrawler_command(
-                    query=query,
-                    save_data_path=save_data_path,
-                    limit=limit,
-                    session_path=session_path,
-                )
-                cwd = resolve_mediacrawler_path()
-                backend_name = "MediaCrawler"
-
-            logger.info(
-                "[RETRIEVAL] running Xiaohongshu backend=%s query=%r limit=%s",
-                backend_name,
-                query,
-                limit,
-            )
-            log_platform_faq_debug(
-                "xiaohongshu_retriever.subprocess.command",
-                backend=backend_name,
-                query=query,
-                limit=limit,
-                cwd=str(cwd) if cwd else None,
-                command=shlex.join(command),
-                save_data_path=str(save_data_path),
-                output_path=str(output_path),
-                session_path=str(session_path) if session_path else None,
+        if not notes:
+            raise RetrievalError(
+                "Browser-based Xiaohongshu retrieval returned zero real notes. "
+                "Check the web login session, Xiaohongshu page structure, and "
+                "whether the search results page is showing risk-control UI."
             )
 
-            result = run_retrieval_command(command=command, cwd=cwd)
-            notes = parse_mediacrawler_xhs_output(save_data_path)
-            log_platform_faq_debug(
-                "xiaohongshu_retriever.after_jsonl_parse",
-                notes_count=len(notes),
-                save_data_path=str(save_data_path),
+        normalized = [
+            normalize_xiaohongshu_note(note)
+            for note in notes
+            if normalize_external_title(note)
+        ][:limit]
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.normalized",
+            backend="browser_search",
+            raw_notes_count=len(notes),
+            normalized_question_count=len(normalized),
+            selectors={
+                "search_results": SEARCH_RESULT_SELECTORS,
+                "note_content": NOTE_CONTENT_SELECTORS,
+            },
+        )
+
+        if not normalized:
+            raise RetrievalError(
+                "Browser-based Xiaohongshu retrieval found pages, but no rows "
+                "had a usable title after normalization."
             )
 
-            if not notes:
-                payload_text = ""
-
-                if output_path.exists():
-                    payload_text = output_path.read_text(encoding="utf-8")
-                log_platform_faq_debug(
-                    "xiaohongshu_retriever.fallback_payload",
-                    output_path=str(output_path),
-                    output_path_exists=output_path.exists(),
-                    output_path_chars=len(payload_text),
-                    stdout_chars=len(result.stdout or ""),
-                )
-
-                if not payload_text.strip():
-                    payload_text = result.stdout
-
-                notes = parse_external_retrieval_payload(payload_text)
-                log_platform_faq_debug(
-                    "xiaohongshu_retriever.after_payload_parse",
-                    notes_count=len(notes),
-                )
-
-            if not notes:
-                raise RetrievalError(
-                    "Xiaohongshu retrieval completed but returned zero real "
-                    "notes. Check MediaCrawler login/session state and XHS "
-                    "anti-bot responses."
-                )
-
-            normalized = [
-                normalize_xiaohongshu_note(note)
-                for note in notes
-                if normalize_external_title(note)
-            ][:limit]
-            log_platform_faq_debug(
-                "xiaohongshu_retriever.normalized",
-                raw_notes_count=len(notes),
-                normalized_question_count=len(normalized),
-            )
-
-            if not normalized:
-                raise RetrievalError(
-                    "Xiaohongshu retrieval returned rows, but no rows had "
-                    "a usable title after normalization."
-                )
-
-            logger.info(
-                "[RETRIEVAL] Xiaohongshu normalized %s real notes",
-                len(normalized),
-            )
-            return normalized
+        logger.info(
+            "[RETRIEVAL] Xiaohongshu browser search normalized %s real notes",
+            len(normalized),
+        )
+        return normalized
 
     def fetch_post(
         self,
@@ -165,10 +130,12 @@ class XiaohongshuRetriever:
         *,
         account: Account | None = None,
     ) -> RetrievedPlatformQuestion:
-        raise RetrievalError(
-            "Xiaohongshu fetch_post is delegated to MediaCrawler search output "
-            "for now; direct note fetch is not exposed separately."
+        session_path = resolve_xiaohongshu_session_path(account=account)
+        note = run_browser_note_fetch(
+            url=url,
+            session_path=session_path,
         )
+        return normalize_xiaohongshu_note(note)
 
     def fetch_comments(
         self,
@@ -176,10 +143,560 @@ class XiaohongshuRetriever:
         *,
         account: Account | None = None,
     ) -> list[dict]:
-        raise RetrievalError(
-            "Xiaohongshu fetch_comments is delegated to MediaCrawler search "
-            "with comment collection for now."
+        session_path = resolve_xiaohongshu_session_path(account=account)
+        note = run_browser_note_fetch(
+            url=url,
+            session_path=session_path,
         )
+        return normalize_xiaohongshu_comments(note.get("comments") or [])
+
+
+class XiaohongshuRetriever(BrowserSearchRetriever):
+    """Active Xiaohongshu retriever using browser search."""
+
+
+def run_browser_search(
+    query: str,
+    limit: int,
+    session_path: Path,
+) -> list[dict]:
+    search_url = SEARCH_URL.format(query=quote_plus(query))
+
+    logger.info(
+        "[RETRIEVAL] Xiaohongshu browser search query=%r limit=%s url=%s",
+        query,
+        limit,
+        search_url,
+    )
+    log_platform_faq_debug(
+        "xiaohongshu_retriever.browser_search.start",
+        query=query,
+        limit=limit,
+        search_url=search_url,
+        session_path=str(session_path),
+    )
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            channel="chrome",
+            headless=False,
+        )
+        context = browser.new_context(
+            storage_state=str(session_path),
+            locale="zh-CN",
+            viewport={"width": 1440, "height": 1100},
+        )
+        page = context.new_page()
+
+        try:
+            goto_xiaohongshu_page(page, search_url)
+            submit_search_form_if_needed(page, query)
+            wait_for_search_results(page)
+            wait_for_note_item_count(
+                page=page,
+                minimum=MIN_EXPECTED_NOTE_ITEMS,
+            )
+            search_items = collect_search_results(
+                page=page,
+                limit=limit,
+            )
+
+            notes = []
+            for item in search_items[:limit]:
+                try:
+                    note = fetch_note_from_page(
+                        context=context,
+                        search_item=item,
+                    )
+                    notes.append(note)
+                except Exception as error:
+                    logger.warning(
+                        "[RETRIEVAL] failed to fetch Xiaohongshu note %s: %s",
+                        item.get("url"),
+                        error,
+                    )
+                    fallback_note = dict(item)
+                    fallback_note["comments"] = []
+                    fallback_note["retrieval_error"] = str(error)
+                    notes.append(fallback_note)
+
+            log_platform_faq_debug(
+                "xiaohongshu_retriever.browser_search.completed",
+                search_items_count=len(search_items),
+                notes_count=len(notes),
+                note_urls=[note.get("url") for note in notes],
+            )
+            return notes
+        finally:
+            context.close()
+            browser.close()
+
+
+def run_browser_note_fetch(
+    url: str,
+    session_path: Path,
+) -> dict:
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(
+            channel="chrome",
+            headless=False,
+        )
+        context = browser.new_context(
+            storage_state=str(session_path),
+            locale="zh-CN",
+            viewport={"width": 1440, "height": 1100},
+        )
+        try:
+            return fetch_note_from_page(
+                context=context,
+                search_item={"url": url},
+            )
+        finally:
+            context.close()
+            browser.close()
+
+
+def wait_for_search_results(page):
+    for selector in SEARCH_RESULT_SELECTORS:
+        try:
+            page.wait_for_selector(selector, timeout=SEARCH_RESULT_WAIT_MS)
+            log_platform_faq_debug(
+                "xiaohongshu_retriever.browser_search.selector_ready",
+                selector=selector,
+            )
+            return
+        except PlaywrightTimeoutError:
+            continue
+
+    page_text = extract_page_text_snippet(page)
+    login_hint = "登录探索更多内容" in page_text or "登录" in page_text[:200]
+    log_platform_faq_debug(
+        "xiaohongshu_retriever.browser_search.no_results",
+        current_url=page.url,
+        selectors=SEARCH_RESULT_SELECTORS,
+        login_hint=login_hint,
+        page_text_first_1000=page_text[:1000],
+    )
+    raise RetrievalError(
+        "Xiaohongshu search page loaded, but no result selector appeared. "
+        f"Tried selectors: {SEARCH_RESULT_SELECTORS}. "
+        f"Current URL: {page.url}. "
+        f"Login hint: {login_hint}. "
+        f"Page text: {page_text[:500]}"
+    )
+
+
+def wait_for_note_item_count(page, minimum: int):
+    try:
+        page.wait_for_function(
+            """
+            (minimum) => document.querySelectorAll('.note-item').length >= minimum
+            """,
+            arg=minimum,
+            timeout=SEARCH_RESULT_WAIT_MS,
+        )
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.browser_search.note_items_ready",
+            minimum=minimum,
+            note_item_count=page.locator(".note-item").count(),
+        )
+    except PlaywrightTimeoutError:
+        note_item_count = page.locator(".note-item").count()
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.browser_search.note_items_timeout",
+            minimum=minimum,
+            note_item_count=note_item_count,
+            current_url=page.url,
+            page_text_first_500=extract_page_text_snippet(page)[:500],
+        )
+
+        if note_item_count == 0:
+            raise RetrievalError(
+                "Xiaohongshu search page did not expose any .note-item cards "
+                f"before timeout. Current URL: {page.url}."
+            )
+
+
+def extract_page_text_snippet(page) -> str:
+    try:
+        return page.locator("body").inner_text(timeout=3000)
+    except Exception:
+        return ""
+
+
+def submit_search_form_if_needed(page, query: str):
+    if extract_search_results(page):
+        return
+
+    input_locator = page.locator(
+        'input.search-input, input[placeholder*="搜索"], input[type="text"]'
+    ).first
+
+    try:
+        if input_locator.count() == 0:
+            return
+
+        input_locator.click(timeout=5000)
+        input_locator.fill(query, timeout=5000)
+        input_locator.press("Enter", timeout=5000)
+        page.wait_for_timeout(2500)
+
+        if extract_search_results(page):
+            return
+
+        button_locator = page.locator(
+            'button:has-text("搜索"), button.min-width-search-icon, button[type="submit"]'
+        ).first
+
+        if button_locator.count() > 0:
+            button_locator.click(timeout=5000)
+            page.wait_for_timeout(2500)
+    except PlaywrightTimeoutError:
+        logger.warning(
+            "[RETRIEVAL] Xiaohongshu search input submission timed out; "
+            "continuing with selector wait. url=%s",
+            page.url,
+        )
+
+
+def collect_search_results(page, limit: int) -> list[dict]:
+    previous_count = -1
+    stable_scrolls = 0
+
+    for scroll_index in range(MAX_SEARCH_SCROLLS + 1):
+        results = extract_search_results(page)
+        log_platform_faq_debug(
+            "xiaohongshu_retriever.browser_search.scroll",
+            scroll_index=scroll_index,
+            parsed_results=len(results),
+            current_url=page.url,
+        )
+
+        if len(results) >= limit:
+            return results[:limit]
+
+        if len(results) == previous_count:
+            stable_scrolls += 1
+        else:
+            stable_scrolls = 0
+            previous_count = len(results)
+
+        if stable_scrolls >= 3:
+            return results[:limit]
+
+        page.mouse.wheel(0, 1800)
+        page.wait_for_timeout(SCROLL_PAUSE_MS)
+
+    return extract_search_results(page)[:limit]
+
+
+def extract_search_results(page) -> list[dict]:
+    return page.evaluate(
+        """
+        () => {
+          const normalizeText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+          const absoluteUrl = (href) => {
+            if (!href) return null;
+            try { return new URL(href, window.location.origin).toString(); }
+            catch (_) { return href; }
+          };
+          const firstText = (root, selectors) => {
+            for (const selector of selectors) {
+              const element = root.querySelector(selector);
+              const text = normalizeText(element?.innerText || element?.textContent || '');
+              if (text) return text;
+            }
+            return '';
+          };
+          const isVisible = (element) => {
+            if (!element) return false;
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 &&
+              style.display !== 'none' && style.visibility !== 'hidden';
+          };
+          const parseCount = (value) => {
+            const text = normalizeText(value);
+            if (!text) return null;
+            const lower = text.toLowerCase();
+            const match = lower.match(/[\\d,.]+/);
+            if (!match) return null;
+            const number = Number(match[0].replace(/,/g, ''));
+            if (Number.isNaN(number)) return null;
+            if (/[万w]/i.test(lower)) return Math.round(number * 10000);
+            if (/k/i.test(lower)) return Math.round(number * 1000);
+            return Math.round(number);
+          };
+          const noteCards = Array.from(document.querySelectorAll('.note-item, section.note-item'));
+          const seen = new Set();
+          const items = [];
+
+          for (const card of noteCards) {
+            const anchors = Array.from(
+              card.querySelectorAll(
+                'a[href*="/search_result/"], a[href*="/explore/"], ' +
+                'a[href*="/discovery/item/"], a[href*="/note/"]'
+              )
+            );
+            const anchor =
+              anchors.find((candidate) =>
+                isVisible(candidate) && candidate.href.includes('xsec_token=')
+              ) ||
+              anchors.find((candidate) =>
+                isVisible(candidate) && !candidate.href.includes('/user/profile/')
+              ) ||
+              anchors.find((candidate) => !candidate.href.includes('/user/profile/'));
+            if (!anchor) continue;
+            const url = absoluteUrl(anchor.getAttribute('href'));
+            if (!url || seen.has(url) || !/(search_result|explore|discovery|note|item)/i.test(url)) continue;
+            seen.add(url);
+
+            const title = firstText(card, [
+              '.title',
+              '.note-title',
+              '.note-title span',
+              '.footer .title',
+              '[class*="title"]',
+              'a[title]'
+            ]) || normalizeText(anchor.innerText || anchor.textContent || '');
+            const author = firstText(card, [
+              '.author .name',
+              '.author-wrapper .name',
+              '.name-time-wrapper .name',
+              '.author',
+              '.author-wrapper',
+              '.name',
+              '.nickname',
+              '[class*="author"]',
+              '[class*="name"]',
+              '[class*="nick"]'
+            ]);
+            const likes = firstText(card, [
+              '.like-wrapper',
+              '.count',
+              '.likes',
+              '[class*="like"]',
+              '[class*="count"]'
+            ]);
+            const publishTime = firstText(card, [
+              'time',
+              '.author .time',
+              '.author-wrapper [class*="time"]',
+              '.name-time-wrapper [class*="time"]',
+              '.date',
+              '[class*="date"]',
+              '[class*="time"]'
+            ]);
+
+            if (!title && !normalizeText(card.innerText || card.textContent || '')) continue;
+
+            items.push({
+              title,
+              url,
+              author,
+              likes,
+              liked_count: parseCount(likes),
+              publish_time: publishTime,
+              search_card_text: normalizeText(card.innerText || card.textContent || '')
+            });
+          }
+
+          return items;
+        }
+        """
+    )
+
+
+def fetch_note_from_page(context, search_item: dict) -> dict:
+    url = search_item.get("url")
+
+    if not url:
+        raise RetrievalError("Cannot fetch Xiaohongshu note without a URL.")
+
+    page = context.new_page()
+
+    try:
+        goto_xiaohongshu_page(page, url)
+        wait_for_note_content(page)
+        scroll_note_comments(page)
+        note = extract_note_detail(page)
+        note.update({key: value for key, value in search_item.items() if value})
+        note["url"] = page.url or url
+        note["retrieval_method"] = "browser_xiaohongshu"
+        return note
+    finally:
+        page.close()
+
+
+def goto_xiaohongshu_page(page, url: str):
+    try:
+        page.goto(
+            url,
+            wait_until="commit",
+            timeout=NOTE_PAGE_WAIT_MS,
+        )
+    except PlaywrightTimeoutError:
+        logger.warning(
+            "[RETRIEVAL] Xiaohongshu navigation timed out after commit wait; "
+            "continuing with DOM polling. url=%s current_url=%s",
+            url,
+            page.url,
+        )
+
+
+def wait_for_note_content(page):
+    try:
+        page.wait_for_selector(
+            ", ".join(NOTE_CONTENT_SELECTORS),
+            timeout=NOTE_PAGE_WAIT_MS,
+        )
+        return
+    except PlaywrightTimeoutError:
+        pass
+
+    logger.warning(
+        "[RETRIEVAL] Xiaohongshu note content selectors did not appear. "
+        "Continuing with DOM fallback. url=%s selectors=%s",
+        page.url,
+        NOTE_CONTENT_SELECTORS,
+    )
+
+
+def scroll_note_comments(page):
+    for _ in range(8):
+        page.mouse.wheel(0, 1000)
+        page.wait_for_timeout(800)
+
+
+def extract_note_detail(page) -> dict:
+    return page.evaluate(
+        f"""
+        () => {{
+          const normalizeText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+          const firstTextFromRoot = (root, selectors) => {{
+            for (const selector of selectors) {{
+              const element = root.querySelector(selector);
+              const text = normalizeText(element?.innerText || element?.textContent || '');
+              if (text) return text;
+            }}
+            return '';
+          }};
+          const firstText = (selectors) => {{
+            for (const selector of selectors) {{
+              const element = document.querySelector(selector);
+              const text = normalizeText(element?.innerText || element?.textContent || element?.getAttribute?.('content') || '');
+              if (text) return text;
+            }}
+            return '';
+          }};
+          const extractHashtags = (text) => {{
+            const tags = new Set();
+            for (const match of (text || '').matchAll(/#[^\\s#]+/g)) {{
+              tags.add(match[0]);
+            }}
+            document.querySelectorAll('a[href*="search_result"], a[href*="hashtag"], span').forEach((element) => {{
+              const value = normalizeText(element.innerText || element.textContent || '');
+              if (value.startsWith('#')) tags.add(value);
+            }});
+            return Array.from(tags);
+          }};
+          const parseComments = () => {{
+            const selectors = [
+              '.comment-item',
+              '[class*="comment-item"]',
+              '[class*="commentItem"]',
+              '.parent-comment',
+              '[class*="parent-comment"]',
+              '[class*="comment"]'
+            ];
+            const nodes = [];
+            for (const selector of selectors) {{
+              document.querySelectorAll(selector).forEach((node) => nodes.push(node));
+              if (nodes.length) break;
+            }}
+            const seen = new Set();
+            return nodes.map((node) => {{
+              const content = firstTextFromRoot(node, [
+                '.content',
+                '.comment-content',
+                '.comment-inner-content',
+                '[class*="content"]',
+                '[class*="text"]',
+                'span'
+              ]) || normalizeText(node.innerText || node.textContent || '');
+              const author = firstTextFromRoot(node, [
+                '.author',
+                '.name',
+                '.nickname',
+                '[class*="author"]',
+                '[class*="name"]',
+                '[class*="nick"]'
+              ]);
+              const score = firstTextFromRoot(node, [
+                '.like',
+                '.count',
+                '.like-count',
+                '[class*="like"]',
+                '[class*="count"]'
+              ]);
+              const key = `${{author}}|${{content}}`;
+              if (!content || seen.has(key)) return null;
+              seen.add(key);
+              return {{ content, author, score }};
+            }}).filter(Boolean).slice(0, {MAX_COMMENTS_PER_NOTE});
+          }};
+
+          const title = firstText([
+            '#detail-title',
+            '.title',
+            '.note-title',
+            '[class*="title"]',
+            'meta[property="og:title"]'
+          ]);
+          const body = firstText([
+            '#detail-desc',
+            '.desc',
+            '.note-text',
+            '.note-content',
+            '[class*="desc"]',
+            '[class*="content"]'
+          ]);
+          const pageText = normalizeText(document.body?.innerText || '');
+          const author = firstText([
+            '.author .name',
+            '.user .name',
+            '.nickname',
+            '[class*="author"] [class*="name"]',
+            '[class*="nickname"]'
+          ]);
+          const likes = firstText([
+            '.like-wrapper',
+            '.like',
+            '.like-count',
+            '[class*="like"]',
+            '[class*="interact"]'
+          ]);
+          const publishTime = firstText([
+            'time',
+            '.date',
+            '[class*="date"]',
+            '[class*="time"]'
+          ]);
+          const comments = parseComments();
+
+          return {{
+            title,
+            body: body || pageText,
+            author,
+            likes,
+            publish_time: publishTime,
+            hashtags: extractHashtags(`${{title}} ${{body || pageText}}`),
+            comments,
+            raw_page_text_length: pageText.length
+          }};
+        }}
+        """
+    )
 
 
 def run_retrieval_command(command: list[str], cwd: Path | None):
@@ -461,7 +978,7 @@ def render_retrieval_command(
 def resolve_xiaohongshu_session_path(account: Account | None = None):
     return SessionResolver().resolve(
         platform="xiaohongshu",
-        session_path=account.session_path if account else None,
+        purpose="web",
     )
 
 
@@ -553,7 +1070,7 @@ def normalize_xiaohongshu_note(note: dict):
         created_at=parse_datetime(
             first_present(note, ["created_at", "time", "publish_time"])
         ),
-        retrieval_method="mediacrawler_xiaohongshu",
+        retrieval_method=note.get("retrieval_method") or "mediacrawler_xiaohongshu",
         raw_metadata=raw_metadata,
     )
 

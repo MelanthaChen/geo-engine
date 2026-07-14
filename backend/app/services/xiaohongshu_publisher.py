@@ -22,6 +22,7 @@ class XiaohongshuSubmissionAdapter:
         return SessionResolver().candidate_paths(
             platform=self.platform,
             session_path=self.session_path,
+            purpose="creator",
         )
 
     def open_submission_page(self, page: Page, target: str) -> None:

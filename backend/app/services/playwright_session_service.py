@@ -12,8 +12,9 @@ from app.services.session_resolver import SessionResolver
 
 
 PLATFORM_LOGIN_URLS = {
-    "reddit": "https://www.reddit.com/login/",
-    "xiaohongshu": "https://creator.xiaohongshu.com/",
+    ("reddit", None): "https://www.reddit.com/login/",
+    ("xiaohongshu", "creator"): "https://creator.xiaohongshu.com/",
+    ("xiaohongshu", "web"): "https://www.xiaohongshu.com/",
 }
 
 
@@ -25,19 +26,41 @@ class PlaywrightSessionService:
         self.db = db
         self.session_resolver = SessionResolver()
 
-    def locate_storage_path(self, account: Account) -> Path:
+    def locate_storage_path(
+        self,
+        account: Account,
+        purpose: str | None = None,
+    ) -> Path:
         platform = (account.platform or "reddit").strip().lower()
-        return self.session_resolver.canonical_path(platform)
+        return self.session_resolver.canonical_path(
+            platform=platform,
+            purpose=self.default_purpose(platform, purpose),
+        )
 
-    def load_session(self, account: Account) -> str:
-        canonical_session_path = str(self.locate_storage_path(account))
+    def load_session(
+        self,
+        account: Account,
+        purpose: str | None = None,
+    ) -> str:
+        platform = (account.platform or "reddit").strip().lower()
+        resolved_purpose = self.default_purpose(platform, purpose)
+        canonical_session_path = str(
+            self.locate_storage_path(
+                account=account,
+                purpose=resolved_purpose,
+            )
+        )
 
-        if account.session_path != canonical_session_path:
+        if resolved_purpose == "creator" and account.session_path != canonical_session_path:
             account.session_path = canonical_session_path
             account.state_identifier = canonical_session_path
             self._commit(account)
 
-        session_path = account.session_path
+        session_path = (
+            account.session_path
+            if resolved_purpose == "creator"
+            else canonical_session_path
+        )
 
         if not session_path:
             raise RuntimeError(
@@ -47,6 +70,7 @@ class PlaywrightSessionService:
         path = self.session_resolver.resolve(
             platform=account.platform,
             session_path=session_path,
+            purpose=resolved_purpose,
         )
 
         return str(path)
@@ -55,24 +79,35 @@ class PlaywrightSessionService:
         self,
         session_path: str | Path,
         platform: str = "reddit",
+        purpose: str | None = None,
     ) -> str:
         path = self.session_resolver.resolve(
             platform=platform,
             session_path=session_path,
+            purpose=self.default_purpose(platform, purpose),
         )
 
         return str(path)
 
-    def create_session(self, account: Account) -> Path:
+    def create_session(
+        self,
+        account: Account,
+        purpose: str | None = None,
+    ) -> Path:
         platform = (account.platform or "reddit").strip().lower()
-        login_url = PLATFORM_LOGIN_URLS.get(platform)
+        resolved_purpose = self.default_purpose(platform, purpose)
+        login_url = PLATFORM_LOGIN_URLS.get((platform, resolved_purpose))
 
         if not login_url:
             raise RuntimeError(
-                f"No login URL configured for platform: {platform}"
+                f"No login URL configured for platform: {platform} "
+                f"purpose: {resolved_purpose}"
             )
 
-        session_path = self.locate_storage_path(account)
+        session_path = self.locate_storage_path(
+            account=account,
+            purpose=resolved_purpose,
+        )
         session_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sync_playwright() as playwright:
@@ -85,7 +120,8 @@ class PlaywrightSessionService:
             page.goto(login_url)
 
             print(
-                f"Login to {platform} for account {account.handle}, "
+                f"Login to {platform} ({resolved_purpose or 'default'}) "
+                f"for account {account.handle}, "
                 "then press Enter here."
             )
             input()
@@ -94,8 +130,9 @@ class PlaywrightSessionService:
             browser.close()
 
         now = self._now()
-        account.session_path = str(session_path)
-        account.state_identifier = str(session_path)
+        if resolved_purpose == "creator":
+            account.session_path = str(session_path)
+            account.state_identifier = str(session_path)
         account.session_status = "active"
         account.last_login = now
         account.last_session_refresh = now
@@ -147,6 +184,16 @@ class PlaywrightSessionService:
     @staticmethod
     def _now() -> datetime:
         return datetime.now(timezone.utc)
+
+    @staticmethod
+    def default_purpose(
+        platform: str,
+        purpose: str | None = None,
+    ) -> str | None:
+        if platform == "xiaohongshu":
+            return purpose or "creator"
+
+        return None
 
     @staticmethod
     def _slugify(value: str) -> str:
