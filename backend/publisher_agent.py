@@ -9,9 +9,9 @@ from app.services.platform_publishers import (
 
 print("[TRACE] entering publisher_agent")
 
-BACKEND_URL = (
-    "https://geo-engine.onrender.com"
-)
+BACKEND_URL = settings.BACKEND_URL.rstrip("/")
+
+print(f"[TRACE] publisher_agent backend_url={BACKEND_URL}")
 
 
 while True:

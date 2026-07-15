@@ -33,6 +33,9 @@ class ReviewSubmissionAdapter(Protocol):
     def open_submission_page(self, page: Page, target: str) -> None:
         ...
 
+    def wait_until_ready(self, page: Page) -> None:
+        ...
+
     def fill_title(self, page: Page, title: str) -> None:
         ...
 
@@ -57,17 +60,12 @@ def publish_with_review_adapter(
         f"platform={adapter.platform}"
     )
 
-    storage_state_path = resolve_storage_state_path(adapter)
     playwright = sync_playwright().start()
-
-    browser = playwright.chromium.launch(
-        channel="chrome",
-        headless=False
+    context, browser = launch_review_context(
+        playwright=playwright,
+        adapter=adapter,
     )
 
-    context = browser.new_context(
-        storage_state=str(storage_state_path)
-    )
     context.grant_permissions(
         ["clipboard-read", "clipboard-write"],
         origin=adapter.clipboard_origin,
@@ -78,12 +76,21 @@ def publish_with_review_adapter(
     print(f"[REVIEW MODE] Opening {adapter.display_name} submission page")
     adapter.open_submission_page(page, target)
 
-    page.wait_for_timeout(3000)
+    wait_until_ready = getattr(adapter, "wait_until_ready", None)
+
+    if wait_until_ready:
+        wait_until_ready(page)
+    else:
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_load_state("networkidle", timeout=30000)
 
     print(f"[REVIEW MODE] Filling {adapter.display_name} title")
-    adapter.fill_title(page, title)
-
-    page.wait_for_timeout(1000)
+    title_inserted_chars = adapter.fill_title(page, title)
+    print(
+        "[PUBLISH TRACE] platform_title_inserted_chars="
+        f"{title_inserted_chars} expected_title_chars={len(title or '')} "
+        f"platform={adapter.platform}"
+    )
 
     print(f"[REVIEW MODE] Filling {adapter.display_name} body")
     inserted_chars = adapter.fill_body(page, body)
@@ -94,6 +101,12 @@ def publish_with_review_adapter(
         f"platform={adapter.platform}"
     )
 
+    wait_until_review_ready = getattr(adapter, "wait_until_review_ready", None)
+    publish_enabled = None
+
+    if wait_until_review_ready:
+        publish_enabled = wait_until_review_ready(page)
+
     preview_dir = Path("publishing_previews")
     preview_dir.mkdir(
         exist_ok=True
@@ -103,13 +116,18 @@ def publish_with_review_adapter(
         timezone.utc
     )
 
-    screenshot_path = (
-        preview_dir /
-        (
-            f"{adapter.platform}_review_"
-            f"{preview_timestamp.strftime('%Y%m%d_%H%M%S')}.png"
+    screenshot_path_factory = getattr(adapter, "review_screenshot_path", None)
+
+    if screenshot_path_factory:
+        screenshot_path = screenshot_path_factory()
+    else:
+        screenshot_path = (
+            preview_dir /
+            (
+                f"{adapter.platform}_review_"
+                f"{preview_timestamp.strftime('%Y%m%d_%H%M%S')}.png"
+            )
         )
-    )
 
     page.screenshot(
         path=str(screenshot_path),
@@ -117,9 +135,21 @@ def publish_with_review_adapter(
     )
 
     preview_url = page.url
+    page_title = page.title()
+    creator_nickname = extract_creator_nickname(page)
 
     print("[REVIEW MODE] Screenshot captured")
     print("[REVIEW MODE] Submission prepared")
+    print(f"[REVIEW MODE] creator_profile_path={current_profile_path(adapter)}")
+    print(f"[REVIEW MODE] current_url={preview_url}")
+    print(f"[REVIEW MODE] page_title={page_title}")
+    print(f"[REVIEW MODE] creator_nickname={creator_nickname or 'unknown'}")
+    print(f"[REVIEW MODE] title_inserted_length={title_inserted_chars}")
+    print(f"[REVIEW MODE] body_inserted_length={inserted_chars}")
+    if publish_enabled is not None:
+        print(f"[REVIEW MODE] publish_enabled={publish_enabled}")
+    print("[REVIEW MODE] browser_remained_open=true")
+    print("READY_FOR_REVIEW")
     print("[REVIEW MODE] Waiting for human action")
     print("[REVIEW MODE] Browser intentionally left open")
 
@@ -163,6 +193,71 @@ def resolve_storage_state_path(adapter: ReviewSubmissionAdapter) -> Path:
     )
 
 
+def resolve_profile_dir(adapter: ReviewSubmissionAdapter) -> Path | None:
+    profile_dir_paths = getattr(adapter, "profile_dir_paths", None)
+
+    if not profile_dir_paths:
+        return None
+
+    for path in profile_dir_paths():
+        if path.exists():
+            return path
+
+    return None
+
+
+def launch_review_context(playwright, adapter: ReviewSubmissionAdapter):
+    profile_dir = resolve_profile_dir(adapter)
+
+    if profile_dir:
+        print("Launching creator profile...")
+        print(f"[REVIEW MODE] creator_profile_path={profile_dir}")
+        context = playwright.chromium.launch_persistent_context(
+            user_data_dir=str(profile_dir),
+            channel="chrome",
+            headless=False,
+        )
+        print("Creator profile loaded.")
+        return context, context.browser
+
+    try:
+        storage_state_path = resolve_storage_state_path(adapter)
+    except FileNotFoundError as error:
+        profile_dir_paths = getattr(adapter, "profile_dir_paths", None)
+
+        if profile_dir_paths:
+            profile_candidates = ", ".join(str(path) for path in profile_dir_paths())
+            raise FileNotFoundError(
+                f"No saved browser profile or storage state found for "
+                f"{adapter.display_name}. Expected profile: "
+                f"{profile_candidates}. Legacy storage fallback was also "
+                "missing."
+            ) from error
+
+        raise
+
+    browser = playwright.chromium.launch(
+        channel="chrome",
+        headless=False
+    )
+    context = browser.new_context(
+        storage_state=str(storage_state_path)
+    )
+    return context, browser
+
+
+def current_profile_path(adapter: ReviewSubmissionAdapter) -> str:
+    profile_dir = resolve_profile_dir(adapter)
+
+    if profile_dir:
+        return str(profile_dir)
+
+    try:
+        return str(resolve_storage_state_path(adapter))
+    except FileNotFoundError:
+        return "unresolved"
+
+
 def wait_for_manual_browser_close(
     browser,
     page,
@@ -175,16 +270,19 @@ def wait_for_manual_browser_close(
                 print("[TRACE] leaving wait_for_manual_browser_close")
                 return
 
-            if not browser.is_connected():
+            if browser and not browser.is_connected():
                 print("[TRACE] leaving wait_for_manual_browser_close")
                 return
 
-            open_pages = [
-                browser_page
-                for context in browser.contexts
-                for browser_page in context.pages
-                if not browser_page.is_closed()
-            ]
+            if browser:
+                open_pages = [
+                    browser_page
+                    for context in browser.contexts
+                    for browser_page in context.pages
+                    if not browser_page.is_closed()
+                ]
+            else:
+                open_pages = [page]
 
             if not open_pages:
                 print("[TRACE] leaving wait_for_manual_browser_close")
@@ -323,7 +421,24 @@ def fill_first_visible(
     )
     locator.click()
     locator.fill(value)
-    return locator
+    inserted_text = get_editor_text(locator)
+
+    if len(inserted_text) < len(value or ""):
+        locator.click()
+        clear_editor(page)
+        insert_text_in_chunks(
+            page=page,
+            text=value or "",
+        )
+        inserted_text = get_editor_text(locator)
+
+    if len(inserted_text) < len(value or ""):
+        raise RuntimeError(
+            "Platform title insertion failed: inserted "
+            f"{len(inserted_text)} of {len(value or '')} characters"
+        )
+
+    return len(inserted_text)
 
 
 def insert_into_first_visible_editor(
@@ -342,3 +457,69 @@ def insert_into_first_visible_editor(
         body_editor=editor,
         body=body,
     )
+
+
+def wait_for_any_visible(
+    page: Page,
+    selectors: list[str],
+    timeout: int = 30000,
+):
+    deadline = time.monotonic() + (timeout / 1000)
+    last_error = None
+
+    while time.monotonic() < deadline:
+        for selector in selectors:
+            try:
+                locator = page.locator(selector).first
+
+                if locator.count() and locator.is_visible(timeout=1000):
+                    return locator
+            except Exception as error:
+                last_error = error
+
+        time.sleep(0.5)
+
+    raise RuntimeError(
+        "No expected visible element found. Selectors: "
+        f"{', '.join(selectors)}. Last error: {last_error}"
+    )
+
+
+def wait_for_optional_visible(
+    page: Page,
+    selectors: list[str],
+    timeout: int = 5000,
+):
+    try:
+        return wait_for_any_visible(
+            page=page,
+            selectors=selectors,
+            timeout=timeout,
+        )
+    except RuntimeError:
+        return None
+
+
+def extract_creator_nickname(page: Page) -> str | None:
+    selectors = [
+        ".user-name",
+        ".nickname",
+        ".creator-name",
+        "[class*='user'] [class*='name']",
+        "[class*='avatar'] + *",
+        "[class*='profile'] [class*='name']",
+    ]
+
+    for selector in selectors:
+        try:
+            locator = page.locator(selector).first
+
+            if locator.count() and locator.is_visible(timeout=1000):
+                text = (locator.inner_text(timeout=1000) or "").strip()
+
+                if text:
+                    return text.splitlines()[0].strip()
+        except Exception:
+            continue
+
+    return None

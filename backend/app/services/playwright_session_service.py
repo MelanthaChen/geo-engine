@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 import re
+import shutil
 
 from playwright.sync_api import sync_playwright
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from app.services.session_resolver import SessionResolver
 PLATFORM_LOGIN_URLS = {
     ("reddit", None): "https://www.reddit.com/login/",
     ("xiaohongshu", "creator"): "https://creator.xiaohongshu.com/",
-    ("xiaohongshu", "web"): "https://www.xiaohongshu.com/",
+    ("xiaohongshu", "web"): "https://www.rednote.com/",
 }
 
 
@@ -32,9 +33,17 @@ class PlaywrightSessionService:
         purpose: str | None = None,
     ) -> Path:
         platform = (account.platform or "reddit").strip().lower()
-        return self.session_resolver.canonical_path(
+        resolved_purpose = self.default_purpose(platform, purpose)
+
+        if platform == "xiaohongshu":
+            return self.session_resolver.canonical_profile_dir(
+                platform=platform,
+                purpose=resolved_purpose,
+            )
+
+        return self.session_resolver.canonical_storage_state_path(
             platform=platform,
-            purpose=self.default_purpose(platform, purpose),
+            purpose=resolved_purpose,
         )
 
     def load_session(
@@ -67,11 +76,17 @@ class PlaywrightSessionService:
                 f"Account {account.handle} does not have a Playwright session path."
             )
 
-        path = self.session_resolver.resolve(
-            platform=account.platform,
-            session_path=session_path,
-            purpose=resolved_purpose,
-        )
+        if platform == "xiaohongshu":
+            path = self.session_resolver.resolve_profile(
+                platform=account.platform,
+                purpose=resolved_purpose,
+            )
+        else:
+            path = self.session_resolver.resolve_storage_state(
+                platform=account.platform,
+                session_path=session_path,
+                purpose=resolved_purpose,
+            )
 
         return str(path)
 
@@ -81,11 +96,25 @@ class PlaywrightSessionService:
         platform: str = "reddit",
         purpose: str | None = None,
     ) -> str:
-        path = self.session_resolver.resolve(
-            platform=platform,
-            session_path=session_path,
-            purpose=self.default_purpose(platform, purpose),
-        )
+        resolved_purpose = self.default_purpose(platform, purpose)
+
+        if platform == "xiaohongshu":
+            try:
+                path = self.session_resolver.resolve_profile(
+                    platform=platform,
+                    purpose=resolved_purpose,
+                )
+            except FileNotFoundError:
+                path = self.session_resolver.resolve_storage_state(
+                    platform=platform,
+                    purpose=resolved_purpose,
+                )
+        else:
+            path = self.session_resolver.resolve_storage_state(
+                platform=platform,
+                session_path=session_path,
+                purpose=resolved_purpose,
+            )
 
         return str(path)
 
@@ -111,23 +140,42 @@ class PlaywrightSessionService:
         session_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(
-                channel="chrome",
-                headless=False,
-            )
-            context = browser.new_context()
-            page = context.new_page()
-            page.goto(login_url)
+            if platform == "xiaohongshu":
+                session_path.mkdir(parents=True, exist_ok=True)
+                context = playwright.chromium.launch_persistent_context(
+                    user_data_dir=str(session_path),
+                    channel="chrome",
+                    headless=False,
+                )
+                page = context.pages[0] if context.pages else context.new_page()
+                page.goto(login_url)
 
-            print(
-                f"Login to {platform} ({resolved_purpose or 'default'}) "
-                f"for account {account.handle}, "
-                "then press Enter here."
-            )
-            input()
+                print(
+                    f"Login to {platform} ({resolved_purpose}) "
+                    f"for account {account.handle}, "
+                    "then press Enter here."
+                )
+                input()
 
-            context.storage_state(path=str(session_path))
-            browser.close()
+                context.close()
+            else:
+                browser = playwright.chromium.launch(
+                    channel="chrome",
+                    headless=False,
+                )
+                context = browser.new_context()
+                page = context.new_page()
+                page.goto(login_url)
+
+                print(
+                    f"Login to {platform} ({resolved_purpose or 'default'}) "
+                    f"for account {account.handle}, "
+                    "then press Enter here."
+                )
+                input()
+
+                context.storage_state(path=str(session_path))
+                browser.close()
 
         now = self._now()
         if resolved_purpose == "creator":
@@ -166,7 +214,10 @@ class PlaywrightSessionService:
     def delete_session(self, account: Account) -> None:
         path = self.locate_storage_path(account)
         if path.exists():
-            path.unlink()
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
 
         account.session_path = None
         account.session_status = "missing"

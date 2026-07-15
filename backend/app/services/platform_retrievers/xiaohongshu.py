@@ -177,14 +177,10 @@ def run_browser_search(
     )
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            channel="chrome",
-            headless=False,
-        )
-        context = browser.new_context(
-            storage_state=str(session_path),
-            locale="zh-CN",
-            viewport={"width": 1440, "height": 1100},
+        context, browser = launch_xiaohongshu_browser_context(
+            playwright=playwright,
+            purpose="web",
+            session_path=session_path,
         )
         page = context.new_page()
 
@@ -229,7 +225,8 @@ def run_browser_search(
             return notes
         finally:
             context.close()
-            browser.close()
+            if browser:
+                browser.close()
 
 
 def run_browser_note_fetch(
@@ -237,14 +234,10 @@ def run_browser_note_fetch(
     session_path: Path,
 ) -> dict:
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            channel="chrome",
-            headless=False,
-        )
-        context = browser.new_context(
-            storage_state=str(session_path),
-            locale="zh-CN",
-            viewport={"width": 1440, "height": 1100},
+        context, browser = launch_xiaohongshu_browser_context(
+            playwright=playwright,
+            purpose="web",
+            session_path=session_path,
         )
         try:
             return fetch_note_from_page(
@@ -253,7 +246,52 @@ def run_browser_note_fetch(
             )
         finally:
             context.close()
-            browser.close()
+            if browser:
+                browser.close()
+
+
+def launch_xiaohongshu_browser_context(
+    playwright,
+    purpose: str,
+    session_path: Path | None = None,
+):
+    resolver = SessionResolver()
+    profile_dir = resolver.canonical_profile_dir(
+        platform="xiaohongshu",
+        purpose=purpose,
+    )
+
+    if profile_dir.exists():
+        context = playwright.chromium.launch_persistent_context(
+            user_data_dir=str(profile_dir),
+            channel="chrome",
+            headless=False,
+            locale="zh-CN",
+            viewport={"width": 1440, "height": 1100},
+        )
+        return context, None
+
+    storage_state_path = session_path
+
+    if storage_state_path and storage_state_path.is_dir():
+        storage_state_path = None
+
+    if not storage_state_path:
+        storage_state_path = resolver.resolve_storage_state(
+            platform="xiaohongshu",
+            purpose=purpose,
+        )
+
+    browser = playwright.chromium.launch(
+        channel="chrome",
+        headless=False,
+    )
+    context = browser.new_context(
+        storage_state=str(storage_state_path),
+        locale="zh-CN",
+        viewport={"width": 1440, "height": 1100},
+    )
+    return context, browser
 
 
 def wait_for_search_results(page):
@@ -976,10 +1014,35 @@ def render_retrieval_command(
 
 
 def resolve_xiaohongshu_session_path(account: Account | None = None):
-    return SessionResolver().resolve(
-        platform="xiaohongshu",
-        purpose="web",
-    )
+    resolver = SessionResolver()
+
+    try:
+        return resolver.resolve_profile(
+            platform="xiaohongshu",
+            purpose="web",
+        )
+    except FileNotFoundError:
+        try:
+            return resolver.resolve_storage_state(
+                platform="xiaohongshu",
+                purpose="web",
+            )
+        except FileNotFoundError as error:
+            profile_dir = resolver.canonical_profile_dir(
+                platform="xiaohongshu",
+                purpose="web",
+            )
+            storage_path = resolver.canonical_storage_state_path(
+                platform="xiaohongshu",
+                purpose="web",
+            )
+            raise FileNotFoundError(
+                "No Xiaohongshu web browser session found. Create the "
+                "persistent profile with: "
+                "python save_platform_state.py xiaohongshu --purpose web. "
+                f"Expected profile: {profile_dir}. Legacy fallback: "
+                f"{storage_path}."
+            ) from error
 
 
 def parse_external_retrieval_payload(payload_text: str):

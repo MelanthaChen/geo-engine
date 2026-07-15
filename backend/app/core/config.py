@@ -32,6 +32,8 @@ class Settings(BaseSettings):
 
     AGENT_NAME: str | None = None
 
+    BACKEND_URL: str = "http://localhost:8000"
+
     XIAOHONGSHU_RETRIEVAL_COMMAND: str | None = None
 
     XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS: int = 180

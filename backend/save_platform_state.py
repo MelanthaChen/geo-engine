@@ -9,7 +9,7 @@ from app.services.session_resolver import SessionResolver
 PLATFORM_LOGIN_URLS = {
     ("reddit", None): "https://www.reddit.com/login/",
     ("xiaohongshu", "creator"): "https://creator.xiaohongshu.com/",
-    ("xiaohongshu", "web"): "https://www.xiaohongshu.com/",
+    ("xiaohongshu", "web"): "https://www.rednote.com/",
 }
 
 
@@ -47,16 +47,49 @@ def main():
             f"purpose={purpose}"
         )
 
-    state_path = SessionResolver().canonical_path(
-        platform=args.platform,
-        purpose=purpose,
-    )
-    state_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    resolver = SessionResolver()
 
     with sync_playwright() as playwright:
+        if args.platform == "xiaohongshu":
+            profile_dir = resolver.canonical_profile_dir(
+                platform=args.platform,
+                purpose=purpose,
+            )
+            profile_dir.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            context = playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                channel="chrome",
+                headless=False,
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(login_url)
+
+            print(
+                f"Log in to {args.platform} ({purpose}) "
+                "in the browser window."
+            )
+            input(
+                "Press Enter here after login succeeds..."
+            )
+
+            print(
+                f"Persistent profile kept at {profile_dir}"
+            )
+            context.close()
+            return
+
+        state_path = resolver.canonical_storage_state_path(
+            platform=args.platform,
+            purpose=purpose,
+        )
+        state_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         browser = playwright.chromium.launch(
             channel="chrome",
             headless=False
