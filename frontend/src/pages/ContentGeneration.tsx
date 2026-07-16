@@ -40,6 +40,21 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function formatFaqResponseText(result: {
+  faqs?: string;
+  faq_set?: { questions?: string[] } | null;
+}) {
+  if (result.faqs?.trim()) {
+    return result.faqs;
+  }
+
+  const questions = result.faq_set?.questions || [];
+
+  return questions
+    .map((question, index) => `${index + 1}. ${question}`)
+    .join("\n");
+}
+
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
     return "Review Ready";
@@ -174,10 +189,12 @@ function ContentGenerationWorkspace({
         activeProperty?.id,
       );
 
-      setAiFaqs(result.faqs);
+      const faqText = formatFaqResponseText(result);
+
+      setAiFaqs(faqText);
 
       return {
-        faqs: result.faqs,
+        faqs: faqText,
         faqSetId: result.faq_set_id || null,
       };
     } catch (error) {
@@ -243,10 +260,12 @@ function ContentGenerationWorkspace({
         throw new Error("Xiaohongshu retrieval timed out.");
       }
 
+      const faqText = formatFaqResponseText(result);
+
       setPlatformQuestions(result.platform_questions || []);
 
       return {
-        faqs: result.faqs,
+        faqs: faqText,
         faqSetId: result.faq_set_id || null,
         questions: result.platform_questions || [],
       };
