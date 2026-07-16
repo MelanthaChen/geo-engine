@@ -44,7 +44,12 @@ class XiaohongshuSubmissionAdapter:
             "https://creator.xiaohongshu.com/",
             wait_until="domcontentloaded",
         )
-        page.wait_for_load_state("networkidle", timeout=45000)
+        self.wait_until_navigation_settles(page)
+
+        if self.is_publish_page(page):
+            print("Publish page detected.")
+            return
+
         self.verify_creator_login(page)
         print("Creator Center detected.")
 
@@ -53,16 +58,37 @@ class XiaohongshuSubmissionAdapter:
             self.publish_url,
             wait_until="domcontentloaded",
         )
-        page.wait_for_load_state("networkidle", timeout=45000)
+        self.wait_until_navigation_settles(page)
+
+        if self.is_publish_page(page):
+            print("Publish page detected.")
 
     def wait_until_ready(self, page: Page) -> None:
         print("Waiting for editor...")
-        self.verify_creator_login(page)
+        if not self.is_publish_page(page):
+            self.verify_creator_login(page)
         self.switch_to_graphic_tab(page)
         self.upload_placeholder_image(page)
         self.wait_for_editor_after_upload(page)
         self.wait_for_title_input(page)
         self.wait_for_body_editor(page)
+
+    def wait_until_navigation_settles(self, page: Page) -> None:
+        try:
+            page.wait_for_load_state("networkidle", timeout=45000)
+        except Exception:
+            if self.is_publish_page(page):
+                print("Publish page detected before network idle.")
+                return
+            raise
+
+    def is_publish_page(self, page: Page) -> bool:
+        current_url = page.url.lower()
+
+        return (
+            "creator.rednote.com/publish/publish" in current_url
+            or "creator.xiaohongshu.com/publish/publish" in current_url
+        )
 
     def verify_creator_login(self, page: Page) -> None:
         creator_ui_selectors = [
