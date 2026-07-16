@@ -91,6 +91,7 @@ function ContentGenerationWorkspace({
   const [platformQuestions, setPlatformQuestions] = useState<
     PlatformQuestion[]
   >([]);
+  const isXiaohongshu = publishPlatform === "xiaohongshu";
   const [aiContentId, setAiContentId] = useState<number | null>(null);
   const [platformContentId, setPlatformContentId] = useState<number | null>(
     null,
@@ -201,15 +202,21 @@ function ContentGenerationWorkspace({
       return {
         faqs: result.faqs,
         faqSetId: result.faq_set_id || null,
+        questions: result.platform_questions || [],
       };
     } catch (error) {
       console.error(error);
-      setWorkflowMessage("Failed to generate platform FAQs.");
+      setWorkflowMessage(
+        isXiaohongshu
+          ? "Failed to retrieve Xiaohongshu posts."
+          : "Failed to generate platform FAQs.",
+      );
       setPlatformQuestions([]);
 
       return {
         faqs: "",
         faqSetId: null,
+        questions: [],
       };
     } finally {
       setLoading(false);
@@ -248,9 +255,13 @@ function ContentGenerationWorkspace({
         contentType,
         "platform",
         "",
-        platformFaqResult.faqs,
+        isXiaohongshu
+          ? JSON.stringify(
+              platformQuestionsForGeneration(platformFaqResult.questions),
+            )
+          : platformFaqResult.faqs,
         "platform_faq",
-        platformFaqResult.faqSetId,
+        isXiaohongshu ? null : platformFaqResult.faqSetId,
         publishPlatform,
         activeProperty?.id,
       );
@@ -417,6 +428,12 @@ function ContentGenerationWorkspace({
         <PlatformQuestionPanel
           questions={platformQuestions}
           title="Retrieved Platform Questions"
+          hidden={isXiaohongshu}
+        />
+        <PlatformPostPanel
+          hidden={!isXiaohongshu}
+          posts={platformQuestions}
+          title="Trending Xiaohongshu Posts"
         />
       </div>
 
@@ -437,7 +454,11 @@ function ContentGenerationWorkspace({
           contentId={platformContentId}
           onPublish={handlePublish}
           status={platformStatus}
-          title="Platform FAQ-Based Content"
+          title={
+            isXiaohongshu
+              ? "Xiaohongshu Post-Based Content"
+              : "Platform FAQ-Based Content"
+          }
           url={platformUrl}
           platform={publishPlatform}
         />
@@ -524,14 +545,20 @@ function FaqPanel({ title, value }: FaqPanelProps) {
 }
 
 type PlatformQuestionPanelProps = {
+  hidden?: boolean;
   questions: PlatformQuestion[];
   title: string;
 };
 
 function PlatformQuestionPanel({
+  hidden = false,
   questions,
   title,
 }: PlatformQuestionPanelProps) {
+  if (hidden) {
+    return null;
+  }
+
   return (
     <Card className="border-zinc-800 bg-zinc-950">
       <CardContent className="flex h-[430px] flex-col p-6">
@@ -587,6 +614,113 @@ function PlatformQuestionPanel({
       </CardContent>
     </Card>
   );
+}
+
+type PlatformPostPanelProps = {
+  hidden?: boolean;
+  posts: PlatformQuestion[];
+  title: string;
+};
+
+function PlatformPostPanel({
+  hidden = false,
+  posts,
+  title,
+}: PlatformPostPanelProps) {
+  if (hidden) {
+    return null;
+  }
+
+  return (
+    <Card className="border-zinc-800 bg-zinc-950 xl:col-span-1">
+      <CardContent className="flex h-[430px] flex-col p-6">
+        <h2 className="mb-4 text-xl font-semibold text-zinc-50">{title}</h2>
+        <div className="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-black p-4">
+          {posts.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              No Xiaohongshu posts retrieved yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {posts.map((post) => (
+                <article
+                  className="rounded-lg border border-zinc-800 bg-zinc-950 p-4"
+                  key={post.id}
+                >
+                  <h3 className="text-sm font-semibold leading-6 text-zinc-100">
+                    {post.title}
+                  </h3>
+
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+                    <span>Author: {post.author || "Unknown"}</span>
+                    <span>Likes: {post.score ?? "n/a"}</span>
+                    <span>
+                      Published:{" "}
+                      {formatQuestionTimestamp(
+                        post.created_at || post.discovered_at,
+                      )}
+                    </span>
+                  </div>
+
+                  {post.body && (
+                    <p className="mt-3 text-sm leading-6 text-zinc-400">
+                      {shortPreview(post.body, 200)}
+                    </p>
+                  )}
+
+                  {post.hashtags?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {post.hashtags.slice(0, 6).map((tag) => (
+                        <span
+                          className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-300"
+                          key={tag}
+                        >
+                          {tag.startsWith("#") ? tag : `#${tag}`}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {post.url && (
+                    <a
+                      className="mt-3 inline-flex text-xs font-medium text-blue-400 underline hover:text-blue-300"
+                      href={post.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open original post
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function shortPreview(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength).trim()}...`;
+}
+
+function platformQuestionsForGeneration(questions: PlatformQuestion[]) {
+  return questions.map((question) => ({
+    title: question.title,
+    author: question.author,
+    score: question.score,
+    created_at: question.created_at,
+    discovered_at: question.discovered_at,
+    hashtags: question.hashtags || [],
+    body: question.body,
+    url: question.url,
+    engagement_metrics: question.engagement_metrics || {},
+  }));
 }
 
 function formatPlatformName(platform: string) {

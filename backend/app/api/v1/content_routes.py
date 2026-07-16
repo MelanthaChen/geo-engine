@@ -514,8 +514,13 @@ def generate_faqs_route(
     log_platform_faq_debug(
         "generate_faqs_route.success",
         publish_platform=publish_platform,
-        faq_set_id=result["faq_set"]["id"],
+        faq_set_id=(
+            result["faq_set"]["id"]
+            if result.get("faq_set")
+            else None
+        ),
         platform_question_count=len(result.get("platform_questions", [])),
+        result_type=result.get("result_type", "faq"),
     )
 
     return {
@@ -523,8 +528,13 @@ def generate_faqs_route(
         "mode": mode,
         "faqs": result["text"],
         "faq_set": result["faq_set"],
-        "faq_set_id": result["faq_set"]["id"],
+        "faq_set_id": (
+            result["faq_set"]["id"]
+            if result.get("faq_set")
+            else None
+        ),
         "platform_questions": result.get("platform_questions", []),
+        "result_type": result.get("result_type", "faq"),
     }
 
 

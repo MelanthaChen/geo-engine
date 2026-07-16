@@ -99,6 +99,53 @@ def discover_platform_faqs(
     return faq_set
 
 
+def discover_platform_posts(
+    db: Session,
+    category: str,
+    property_id: int | None = None,
+    publish_platform: str = "xiaohongshu",
+    account_id: int | None = None,
+) -> list[PlatformQuestion]:
+    log_platform_faq_debug(
+        "discover_platform_posts.received",
+        category=category,
+        property_id=property_id,
+        publish_platform=publish_platform,
+        account_id=account_id,
+    )
+
+    selected_account = select_discovery_account(
+        db=db,
+        account_id=account_id,
+        publish_platform=publish_platform,
+        property_id=property_id,
+    )
+
+    retrieved_posts = collect_external_platform_questions(
+        db=db,
+        category=category,
+        property_id=property_id,
+        publish_platform=publish_platform,
+        account=selected_account,
+    )
+
+    saved_posts = save_platform_questions(
+        db=db,
+        property_id=property_id,
+        questions=retrieved_posts,
+    )
+
+    log_platform_faq_debug(
+        "discover_platform_posts.completed",
+        category=category,
+        property_id=property_id,
+        publish_platform=publish_platform,
+        saved_post_count=len(saved_posts),
+    )
+
+    return saved_posts
+
+
 def collect_external_platform_questions(
     db: Session,
     category: str,

@@ -22,14 +22,15 @@ export type GenerateFaqsResponse = {
   target: string;
   mode: string;
   faqs: string;
-  faq_set_id: number;
+  faq_set_id: number | null;
   faq_set: {
     id: number;
     category: string;
     faq_source: string;
     questions: string[];
-  };
+  } | null;
   platform_questions: PlatformQuestion[];
+  result_type?: "faq" | "platform_posts";
 };
 
 export async function generateFaqs(

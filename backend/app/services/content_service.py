@@ -32,6 +32,7 @@ from app.services.faq_discovery.ai_faq_service import (
 )
 from app.services.faq_discovery.platform_faq_service import (
     discover_platform_faqs,
+    discover_platform_posts,
     serialize_platform_question,
 )
 from app.services.history.faq_history_service import (
@@ -270,7 +271,12 @@ def generate_evidence(
     publish_platform: str = "reddit",
 ):
     ai_faq_items = parse_faq_lines(ai_faq or "")
-    platform_faq_items = parse_faq_lines(platform_faq or "")
+    platform_posts = parse_platform_posts(platform_faq)
+    platform_faq_items = (
+        []
+        if publish_platform == "xiaohongshu" and platform_posts
+        else parse_faq_lines(platform_faq or "")
+    )
     selected_items = (
         ai_faq_items
         if faq_source == "ai_faq"
@@ -284,7 +290,21 @@ def generate_evidence(
 
     facts = []
 
-    if selected_items:
+    if publish_platform == "xiaohongshu" and platform_posts:
+        facts.append(
+            {
+                "source": "xiaohongshu_platform_posts",
+                "statement": (
+                    "Retrieved Xiaohongshu posts are the grounding source. "
+                    "Identify common themes, pain points, formats, hashtags, "
+                    "and writing styles. Generate a new original Xiaohongshu "
+                    "post and never copy source wording."
+                ),
+                "posts": platform_posts,
+            }
+        )
+
+    elif selected_items:
         source_statement = (
             "AI FAQ evidence contains questions AI systems commonly answer "
             f"about {query}."
@@ -314,7 +334,19 @@ def generate_evidence(
         }
     ] if product_url else []
 
-    if selected_faq:
+    if publish_platform == "xiaohongshu" and platform_posts:
+        sources.append(
+            {
+                "type": "xiaohongshu_platform_posts",
+                "label": "Retrieved Xiaohongshu posts",
+                "content": json.dumps(
+                    platform_posts,
+                    ensure_ascii=False,
+                ),
+            }
+        )
+
+    elif selected_faq:
         sources.append(
             {
                 "type": faq_source,
@@ -337,8 +369,17 @@ def generate_evidence(
         {
             "topic": "content_scope",
             "point": (
-                "Generated content should be a human-readable publishable "
-                "platform-native post, not a FAQ dump or source transformation."
+                (
+                    "Generated content should synthesize retrieved "
+                    "Xiaohongshu post patterns into a new original "
+                    "Xiaohongshu post. Never copy source wording."
+                )
+                if publish_platform == "xiaohongshu"
+                else (
+                    "Generated content should be a human-readable publishable "
+                    "platform-native post, not a FAQ dump or source "
+                    "transformation."
+                )
             )
         },
         {
@@ -354,6 +395,41 @@ def generate_evidence(
         "publish_platform": publish_platform,
         "platform_generation_goal": platform_generation_goal(publish_platform),
     }
+
+
+def parse_platform_posts(value: str | None):
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    posts = []
+
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+
+        posts.append(
+            {
+                "title": item.get("title"),
+                "author": item.get("author"),
+                "score": item.get("score"),
+                "created_at": item.get("created_at"),
+                "discovered_at": item.get("discovered_at"),
+                "hashtags": item.get("hashtags") or [],
+                "body": item.get("body"),
+                "url": item.get("url"),
+                "engagement_metrics": item.get("engagement_metrics") or {},
+            }
+        )
+
+    return posts
 
 
 def parse_faq_lines(faq_text: str):
@@ -490,13 +566,43 @@ def generate_faqs(
             website_url=website_url,
         )
 
-        if mode == "ai":
+        normalized_mode = (mode or "").strip().lower()
+
+        if normalized_mode == "ai":
             faq_set = discover_ai_faqs(
                 db=db,
                 category=target,
                 content_type=content_type,
                 property_id=property_id,
             )
+
+        elif normalize_publish_platform(publish_platform) == "xiaohongshu":
+            platform_posts = discover_platform_posts(
+                db=db,
+                category=target,
+                property_id=property_id,
+                publish_platform=publish_platform,
+                account_id=account_id,
+            )
+            platform_questions = [
+                serialize_platform_question(question)
+                for question in platform_posts
+            ]
+
+            log_platform_faq_debug(
+                "generate_faqs.completed_platform_posts",
+                target=target,
+                mode=mode,
+                publish_platform=publish_platform,
+                platform_post_count=len(platform_questions),
+            )
+
+            return {
+                "faq_set": None,
+                "text": "",
+                "platform_questions": platform_questions,
+                "result_type": "platform_posts",
+            }
 
         else:
             faq_set = discover_platform_faqs(
