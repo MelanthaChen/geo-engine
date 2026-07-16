@@ -3,11 +3,9 @@ from pathlib import Path
 from playwright.sync_api import Page
 
 from app.services.platform_review_browser import (
-    ACTIVE_REVIEW_SESSIONS,
     fill_first_visible,
     insert_into_first_visible_editor,
     publish_with_review_adapter,
-    wait_for_manual_browser_close,
 )
 from app.services.session_resolver import SessionResolver
 
