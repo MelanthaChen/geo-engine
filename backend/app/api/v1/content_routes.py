@@ -6,10 +6,12 @@ from fastapi import (
 
 import json
 import logging
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from app.services.export_service import (
     generate_html_export
@@ -29,8 +31,19 @@ from app.schemas.content_schema import (
 from app.services.content_service import (
     generate_content,
     fetch_all_contents,
-    generate_faqs
+    generate_faqs,
+    normalize_publish_platform,
 )
+from app.services.retrieval_task_service import (
+    claim_next_retrieval_task,
+    complete_retrieval_task,
+    create_retrieval_task,
+    fail_retrieval_task,
+    get_retrieval_task,
+    list_task_platform_questions,
+    serialize_retrieval_task,
+)
+from app.services.platform_retrievers import RetrievedPlatformQuestion
 from app.repositories.history_repository import (
     get_recent_history_events
 )
@@ -44,6 +57,28 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+
+
+class RetrievedQuestionPayload(BaseModel):
+    platform: str
+    title: str
+    body: str | None = None
+    url: str | None = None
+    author: str | None = None
+    hashtags: list[str] | None = None
+    score: int | None = None
+    engagement_metrics: dict | None = None
+    created_at: str | None = None
+    retrieval_method: str | None = None
+    raw_metadata: dict | None = None
+
+
+class CompleteRetrievalTaskRequest(BaseModel):
+    questions: list[RetrievedQuestionPayload]
+
+
+class FailRetrievalTaskRequest(BaseModel):
+    error_message: str
 
 
 def log_platform_faq_debug(event: str, **fields):
@@ -82,6 +117,34 @@ def latest_publish_task(
         .filter(PublishingJob.content_id == content_id)
         .order_by(PublishingJob.created_at.desc())
         .first()
+    )
+
+
+def retrieved_question_from_payload(
+    payload: RetrievedQuestionPayload,
+) -> RetrievedPlatformQuestion:
+    created_at = None
+
+    if payload.created_at:
+        try:
+            created_at = datetime.fromisoformat(
+                payload.created_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            created_at = None
+
+    return RetrievedPlatformQuestion(
+        platform=payload.platform,
+        title=payload.title,
+        body=payload.body,
+        url=payload.url,
+        author=payload.author,
+        hashtags=payload.hashtags,
+        score=payload.score,
+        engagement_metrics=payload.engagement_metrics,
+        created_at=created_at,
+        retrieval_method=payload.retrieval_method,
+        raw_metadata=payload.raw_metadata,
     )
 
 
@@ -461,6 +524,128 @@ def get_content_history(
     }
 
 
+@router.get("/retrieval-tasks/pending")
+def get_pending_retrieval_task(
+    platform: str = "xiaohongshu",
+    db: Session = Depends(get_db),
+):
+    task = claim_next_retrieval_task(
+        db=db,
+        platform=normalize_publish_platform(platform),
+    )
+
+    if not task:
+        return {
+            "task": None
+        }
+
+    return {
+        "task": serialize_retrieval_task(task)
+    }
+
+
+@router.get("/retrieval-tasks/{task_id}")
+def get_retrieval_task_route(
+    task_id: int,
+    db: Session = Depends(get_db),
+):
+    task = get_retrieval_task(
+        db=db,
+        task_id=task_id,
+    )
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Retrieval task not found",
+        )
+
+    platform_questions = list_task_platform_questions(
+        db=db,
+        task=task,
+    )
+
+    return {
+        "task": serialize_retrieval_task(
+            task,
+            platform_questions=platform_questions,
+        )
+    }
+
+
+@router.post("/retrieval-tasks/{task_id}/complete")
+def complete_retrieval_task_route(
+    task_id: int,
+    request: CompleteRetrievalTaskRequest,
+    db: Session = Depends(get_db),
+):
+    task, saved_questions = complete_retrieval_task(
+        db=db,
+        task_id=task_id,
+        questions=[
+            retrieved_question_from_payload(question)
+            for question in request.questions
+        ],
+    )
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Retrieval task not found",
+        )
+
+    return {
+        "task": serialize_retrieval_task(
+            task,
+            platform_questions=[
+                {
+                    "id": question.id,
+                    "property_id": question.property_id,
+                    "platform": question.platform,
+                    "title": question.title,
+                    "body": question.body,
+                    "url": question.url,
+                    "author": question.author,
+                    "hashtags": json.loads(question.hashtags or "[]"),
+                    "score": question.score,
+                    "engagement_metrics": json.loads(
+                        question.engagement_metrics or "{}"
+                    ),
+                    "retrieval_method": question.retrieval_method,
+                    "raw_metadata": json.loads(question.raw_metadata or "{}"),
+                    "created_at": question.created_at,
+                    "discovered_at": question.discovered_at,
+                    "content_hash": question.content_hash,
+                }
+                for question in saved_questions
+            ],
+        )
+    }
+
+
+@router.post("/retrieval-tasks/{task_id}/failed")
+def fail_retrieval_task_route(
+    task_id: int,
+    request: FailRetrievalTaskRequest,
+    db: Session = Depends(get_db),
+):
+    task = fail_retrieval_task(
+        db=db,
+        task_id=task_id,
+        error_message=request.error_message,
+    )
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Retrieval task not found",
+        )
+
+    return {
+        "task": serialize_retrieval_task(task)
+    }
+
+
 @router.get("/faqs/{target}")
 def generate_faqs_route(
     target: str,
@@ -482,6 +667,37 @@ def generate_faqs_route(
         property_id=property_id,
         account_id=account_id,
     )
+
+    if (
+        (mode or "").strip().lower() == "platform"
+        and normalize_publish_platform(publish_platform) == "xiaohongshu"
+    ):
+        retrieval_task = create_retrieval_task(
+            db=db,
+            category=target,
+            platform="xiaohongshu",
+            content_type=content_type,
+            property_id=property_id,
+            account_id=account_id,
+        )
+        log_platform_faq_debug(
+            "generate_faqs_route.xiaohongshu_task_created",
+            target=target,
+            property_id=property_id,
+            retrieval_task_id=retrieval_task.id,
+        )
+
+        return {
+            "target": target,
+            "mode": mode,
+            "status": "retrieving",
+            "retrieval_task_id": retrieval_task.id,
+            "faqs": "",
+            "faq_set": None,
+            "faq_set_id": None,
+            "platform_questions": [],
+            "result_type": "platform_posts",
+        }
 
     try:
         result = generate_faqs(

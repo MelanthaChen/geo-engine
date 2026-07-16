@@ -21,6 +21,8 @@ export type PlatformQuestion = {
 export type GenerateFaqsResponse = {
   target: string;
   mode: string;
+  status?: "retrieving";
+  retrieval_task_id?: number;
   faqs: string;
   faq_set_id: number | null;
   faq_set: {
@@ -31,6 +33,24 @@ export type GenerateFaqsResponse = {
   } | null;
   platform_questions: PlatformQuestion[];
   result_type?: "faq" | "platform_posts";
+};
+
+export type RetrievalTaskResponse = {
+  task: {
+    id: number;
+    property_id: number | null;
+    account_id: number | null;
+    platform: string;
+    category: string;
+    content_type: string | null;
+    status: "queued" | "processing" | "completed" | "failed";
+    result_count: number | null;
+    error_message: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    completed_at: string | null;
+    platform_questions: PlatformQuestion[];
+  };
 };
 
 export async function generateFaqs(
@@ -60,4 +80,14 @@ export async function generateFaqs(
   )
 
   return response.data
+}
+
+export async function getRetrievalTask(
+  taskId: number,
+): Promise<RetrievalTaskResponse> {
+  const response = await apiClient.get(
+    `/api/v1/content/retrieval-tasks/${taskId}`,
+  );
+
+  return response.data;
 }

@@ -22,3 +22,4 @@ from app.models.citation_test_result import CitationTestResult
 from app.models.website_audit import WebsiteAudit
 from app.models.website_page import WebsitePage
 from app.models.website_audit_recommendation import WebsiteAuditRecommendation
+from app.models.retrieval_task import RetrievalTask

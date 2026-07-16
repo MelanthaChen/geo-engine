@@ -5,7 +5,11 @@ import { Card, CardContent } from "../../@/components/ui/card";
 
 import { generateContent } from "@/api/content";
 import { getContentStatus } from "@/api/contentStatus";
-import { generateFaqs, type PlatformQuestion } from "@/api/faq";
+import {
+  generateFaqs,
+  getRetrievalTask,
+  type PlatformQuestion,
+} from "@/api/faq";
 import { publishContent } from "@/api/publishing";
 import {
   fetchPublishingTasks,
@@ -31,6 +35,10 @@ const contentTypes = [
   { value: "community_summary", label: "community_summary" },
   { value: "experience_report", label: "experience_report" },
 ];
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
@@ -196,6 +204,44 @@ function ContentGenerationWorkspace({
         publishPlatform,
         activeProperty?.id,
       );
+
+      if (isXiaohongshu && result.status === "retrieving") {
+        if (!result.retrieval_task_id) {
+          throw new Error("Xiaohongshu retrieval task was not returned.");
+        }
+
+        setWorkflowMessage("Retrieving Xiaohongshu posts...");
+
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+          await wait(3000);
+
+          const taskResult = await getRetrievalTask(result.retrieval_task_id);
+          const task = taskResult.task;
+
+          if (task.status === "completed") {
+            setWorkflowMessage("");
+            setPlatformQuestions(task.platform_questions || []);
+
+            return {
+              faqs: "",
+              faqSetId: null,
+              questions: task.platform_questions || [],
+            };
+          }
+
+          if (task.status === "failed") {
+            throw new Error(
+              task.error_message || "Xiaohongshu retrieval failed.",
+            );
+          }
+
+          setWorkflowMessage(
+            `Retrieving Xiaohongshu posts... (${task.status})`,
+          );
+        }
+
+        throw new Error("Xiaohongshu retrieval timed out.");
+      }
 
       setPlatformQuestions(result.platform_questions || []);
 

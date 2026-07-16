@@ -53,3 +53,8 @@ class Property(Base):
         back_populates="property",
         cascade="all, delete-orphan",
     )
+    retrieval_tasks = relationship(
+        "RetrievalTask",
+        back_populates="property",
+        cascade="all, delete-orphan",
+    )
