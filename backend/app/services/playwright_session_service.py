@@ -35,7 +35,7 @@ class PlaywrightSessionService:
         platform = (account.platform or "reddit").strip().lower()
         resolved_purpose = self.default_purpose(platform, purpose)
 
-        if platform == "xiaohongshu":
+        if platform in {"reddit", "xiaohongshu"}:
             return self.session_resolver.canonical_profile_dir(
                 platform=platform,
                 purpose=resolved_purpose,
@@ -76,9 +76,10 @@ class PlaywrightSessionService:
                 f"Account {account.handle} does not have a Playwright session path."
             )
 
-        if platform == "xiaohongshu":
+        if platform in {"reddit", "xiaohongshu"}:
             path = self.session_resolver.resolve_profile(
                 platform=account.platform,
+                profile_path=session_path,
                 purpose=resolved_purpose,
             )
         else:
@@ -98,10 +99,11 @@ class PlaywrightSessionService:
     ) -> str:
         resolved_purpose = self.default_purpose(platform, purpose)
 
-        if platform == "xiaohongshu":
+        if platform in {"reddit", "xiaohongshu"}:
             try:
                 path = self.session_resolver.resolve_profile(
                     platform=platform,
+                    profile_path=session_path,
                     purpose=resolved_purpose,
                 )
             except FileNotFoundError:
@@ -140,7 +142,7 @@ class PlaywrightSessionService:
         session_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sync_playwright() as playwright:
-            if platform == "xiaohongshu":
+            if platform in {"reddit", "xiaohongshu"}:
                 session_path.mkdir(parents=True, exist_ok=True)
                 context = playwright.chromium.launch_persistent_context(
                     user_data_dir=str(session_path),
@@ -151,7 +153,7 @@ class PlaywrightSessionService:
                 page.goto(login_url)
 
                 print(
-                    f"Login to {platform} ({resolved_purpose}) "
+                    f"Login to {platform} ({resolved_purpose or 'default'}) "
                     f"for account {account.handle}, "
                     "then press Enter here."
                 )

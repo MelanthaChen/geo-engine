@@ -1,242 +1,227 @@
-# GEO Publisher Agent Deployment Guide
+# GEO Engine Deployment Guide
 
-This guide explains how to run the GEO Publisher Agent on a local Mac or Mac Mini. The backend runs on Render, the frontend runs on Vercel, and Reddit publishing happens locally because it requires an authenticated browser session through Playwright.
+This guide summarizes how to run GEO Engine across cloud services and local agents. For complete platform login/profile setup, read [docs/PlatformSetup.md](docs/PlatformSetup.md).
 
-## Architecture Overview
+## Deployment Model
 
-```text
-Researcher
-   |
-   v
-GEO Frontend on Vercel
-   |
-   v
-GEO Backend on Render
-   |
-   | 1. Content is marked pending for publishing
-   v
-Pending Publishing Queue
-   ^
-   | 2. Local Publisher Agent polls for pending tasks
-   |
-Mac / Mac Mini Publisher Agent
-   |
-   | 3. Playwright opens Reddit with local session state
-   v
-Reddit
-   |
-   | 4. Agent reports published URL back to Render backend
-   v
-GEO Backend on Render
+```mermaid
+flowchart TD
+    V[Vercel Frontend] --> R[Render Backend]
+    R --> DB[(PostgreSQL)]
+    PA[Local publisher_agent.py] --> R
+    RA[Local retriever_agent.py] --> R
+    PA --> Chrome1[Local Chrome Profiles]
+    RA --> Chrome2[Local Chrome Profiles]
+    Chrome1 --> Platforms[Reddit / Xiaohongshu Creator]
+    Chrome2 --> XHS[Xiaohongshu Web]
 ```
+
+Render and Vercel do not own platform login state. Browser profiles are created and used locally.
 
 ## Prerequisites
 
 - Python 3.12+
+- Node.js and npm
+- PostgreSQL
 - Git
-- Playwright
-- Internet connection
-- A Reddit account for publishing
-- Access to the GEO Engine GitHub repository
+- Google Chrome
+- Playwright Python package
+- OpenAI API key
+- Reddit account if Reddit publishing is required
+- Xiaohongshu retrieval account if Xiaohongshu retrieval is required
+- Xiaohongshu Creator/publishing account if Xiaohongshu publishing is required
 
-## 1. Clone Repository
+## Clone Repository
 
 ```bash
 git clone <REPOSITORY_URL>
 cd geo-engine
 ```
 
-Replace `<REPOSITORY_URL>` with the GitHub repository URL.
-
-## 2. Enter Backend Directory
+## Backend Setup
 
 ```bash
 cd backend
-```
-
-The publisher agent lives in the backend directory because it imports backend publishing utilities.
-
-## 3. Create Virtual Environment
-
-```bash
-python3 --version
 python3 -m venv venv
-```
-
-Confirm that the Python version is 3.12 or newer.
-
-## 4. Activate Virtual Environment
-
-```bash
 source venv/bin/activate
-```
-
-After activation, the terminal prompt usually shows `(venv)`.
-
-## 5. Install Dependencies
-
-```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-Using `python -m pip` ensures packages install into the active virtual environment.
-
-## 6. Install Playwright Browsers
-
-```bash
 python -m playwright install chromium
 ```
 
-Use this command instead of `playwright install`. During deployment we found that `which playwright` and `which python` can point to different environments. Running Playwright as a Python module keeps the browser installation tied to the virtual environment being used by the publisher agent.
+Use `python -m playwright install chromium`, not a global `playwright install`, so Playwright browsers are installed for the same Python environment used by the agents.
 
-## 7. Generate an Account-Specific Reddit Session
+Create `backend/.env`:
+
+```env
+OPENAI_API_KEY=sk-...
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
+BACKEND_URL=http://localhost:8000
+PUBLISH_DRY_RUN=true
+```
+
+For agents connected to Render, use:
+
+```env
+BACKEND_URL=https://geo-engine.onrender.com
+```
+
+## Database Setup
 
 ```bash
-python save_reddit_state.py --handle geo_student_notes
+cd backend
+source venv/bin/activate
+alembic upgrade head
 ```
 
-A Chromium browser window opens. Log in to Reddit manually in that browser for the selected account. After Reddit login succeeds, return to the terminal and press Enter.
-
-The script saves:
-
-```text
-storage/reddit/<account-handle>.json
-```
-
-This file contains the local browser authentication state used by Playwright for that one account. Generate one session file per Reddit account.
-
-## 8. Start `publisher_agent.py`
+Development reset only:
 
 ```bash
-python publisher_agent.py
+python reset_database.py
+alembic upgrade head
 ```
 
-The agent repeatedly polls the Render backend for pending publishing tasks.
-
-The current backend URL is configured in `publisher_agent.py`:
-
-```text
-https://geo-engine.onrender.com
-```
-
-## 9. Verify Agent Operation
-
-When the agent is running, expected terminal output includes one of these states:
-
-```text
-No pending tasks
-```
-
-or:
-
-```text
-Publishing content <id>
-Published successfully
-```
-
-To test the full workflow:
-
-1. Open the GEO frontend on Vercel.
-2. Generate content.
-3. Click Publish for a content item.
-4. Confirm the local publisher agent detects the pending task.
-5. Confirm Reddit receives the post.
-6. Confirm the backend records the published URL.
-
-## 10. Running on a Dedicated Mac Mini
-
-For a dedicated Mac Mini:
-
-1. Keep the Mac Mini connected to power and the internet.
-2. Disable sleep in macOS System Settings.
-3. Clone the repository on the Mac Mini.
-4. Create the virtual environment on the Mac Mini.
-5. Generate fresh account-specific Reddit sessions on the Mac Mini.
-6. Start the publisher agent from the Mac Mini terminal.
-
-Recommended manual start command:
+## Run Backend Locally
 
 ```bash
+cd backend
+source venv/bin/activate
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Verify:
+
+```bash
+curl http://localhost:8000/health
+```
+
+## Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:5173
+```
+
+## Platform Initialization
+
+Run these from `backend/` with `venv` active.
+
+```bash
+# Reddit publishing profile
+python save_platform_state.py reddit
+
+# Xiaohongshu retrieval profile
+python save_platform_state.py xiaohongshu --purpose web
+
+# Xiaohongshu Creator publishing profile
+python save_platform_state.py xiaohongshu --purpose creator
+```
+
+Profile locations:
+
+```text
+sessions/reddit/profile/
+sessions/xiaohongshu/web/profile/
+sessions/xiaohongshu/creator/profile/
+```
+
+These folders are local authentication state and must not be committed.
+
+## Run Local Agents
+
+Publisher agent:
+
+```bash
+cd backend
+source venv/bin/activate
+BACKEND_URL=https://geo-engine.onrender.com python -u publisher_agent.py
+```
+
+Retriever agent for Xiaohongshu:
+
+```bash
+cd backend
+source venv/bin/activate
+BACKEND_URL=https://geo-engine.onrender.com python -u retriever_agent.py
+```
+
+Use `http://localhost:8000` instead of the Render URL for local backend testing.
+
+## Dedicated Mac Mini Operation
+
+For a dedicated publishing/retrieval machine:
+
+1. Disable sleep in macOS settings.
+2. Clone the repository.
+3. Install backend dependencies.
+4. Initialize all required browser profiles on that Mac.
+5. Run agents in `tmux` or another process supervisor.
+
+Example:
+
+```bash
+tmux new -s geo-agents
 cd /path/to/geo-engine/backend
 source venv/bin/activate
-python publisher_agent.py
+BACKEND_URL=https://geo-engine.onrender.com python -u publisher_agent.py
 ```
 
-For long-running operation, use `tmux` or a macOS LaunchAgent after verifying the agent works manually.
+Use a second `tmux` session for `retriever_agent.py` if Xiaohongshu retrieval is required.
 
-Example `tmux` workflow:
+## Render Backend
 
-```bash
-tmux new -s geo-publisher
-cd /path/to/geo-engine/backend
-source venv/bin/activate
-python publisher_agent.py
-```
-
-Detach from `tmux` without stopping the agent:
+Set environment variables in Render:
 
 ```text
-Control-b, then d
+OPENAI_API_KEY
+DATABASE_URL
+BACKEND_URL
 ```
 
-Reattach later:
-
-```bash
-tmux attach -t geo-publisher
-```
-
-## Why Account Session Files Are Local Only
-
-Files under `storage/reddit/` must stay local to each publisher machine.
-
-- It is not stored in GitHub.
-- It is not stored in Render.
-- It is generated separately on every Mac or Mac Mini.
-- Each file contains browser authentication state for one Reddit account.
-- Committing a session file could expose a Reddit session to anyone with repository access.
-
-Each user or machine must run one command per account:
-
-```bash
-python save_reddit_state.py --handle <account-handle>
-```
-
-The generated files should remain only on that machine.
-
-If a session file is already tracked in Git, remove it from Git tracking without deleting the local file:
-
-```bash
-git rm --cached storage/reddit/<account-handle>.json
-git commit -m "Stop tracking local Reddit authentication state"
-```
-
-## How Publishing Works
-
-Publishing is split across cloud services and one local machine.
+Optional:
 
 ```text
-Vercel Frontend
-   |
-   | User clicks Publish
-   v
-Render Backend
-   |
-   | Creates pending publishing task
-   v
-Local Publisher Agent
-   |
-   | Polls /api/v1/publishing/pending
-   v
-Playwright Chromium
-   |
-   | Uses local storage/reddit/<account>.json
-   v
-Reddit
-   |
-   | Published URL returned
-   v
-Render Backend
+GOOGLE_SEARCH_API_KEY
+GOOGLE_SEARCH_ENGINE_ID
+GITHUB_TOKEN
+XIAOHONGSHU_RETRIEVAL_LIMIT
 ```
 
-The Render backend does not log in to Reddit and does not publish Reddit posts directly. It only stores content, exposes pending tasks, and records the final published URL. The local publisher agent performs the browser-based Reddit publishing step.
+Do not upload Reddit or Xiaohongshu browser profiles to Render.
+
+## Vercel Frontend
+
+Deploy `frontend/` to Vercel. Ensure the frontend points to the Render backend or local backend according to the current frontend API configuration.
+
+## Verification Checklist
+
+```text
+[ ] Backend /health returns healthy
+[ ] Frontend loads dashboard
+[ ] Database migrations are applied
+[ ] Default Property exists
+[ ] Reddit profile initialized if needed
+[ ] Xiaohongshu web profile initialized if needed
+[ ] Xiaohongshu creator profile initialized if needed
+[ ] retriever_agent.py polls backend
+[ ] publisher_agent.py polls backend
+[ ] Website Audit can run
+[ ] AI FAQ can generate
+[ ] Platform retrieval works for selected platform
+[ ] Publishing job reaches Review Mode
+```
+
+## More Documentation
+
+- [README.md](README.md)
+- [docs/PlatformSetup.md](docs/PlatformSetup.md)
+- [docs/Workflow.md](docs/Workflow.md)
+- [docs/Architecture.md](docs/Architecture.md)
+- [docs/Troubleshooting.md](docs/Troubleshooting.md)

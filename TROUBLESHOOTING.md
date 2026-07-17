@@ -1,222 +1,47 @@
-# Common Deployment Issues
+# GEO Engine Troubleshooting
 
-This guide lists common deployment problems for the GEO Publisher Agent and how to fix them. Run all commands from the repository unless a step says otherwise.
+The canonical troubleshooting guide now lives at:
 
-## Issue: `source venv/bin/activate` Fails
+- [docs/Troubleshooting.md](docs/Troubleshooting.md)
 
-### Cause
+Start there for current guidance on:
 
-The virtual environment does not exist, the command is being run from the wrong directory, or there is a typo in the path.
+- missing Reddit profile;
+- Reddit security challenges;
+- Xiaohongshu retrieval login;
+- Xiaohongshu Creator login;
+- wrong browser profile;
+- queues stuck in queued or processing;
+- publisher agent polling;
+- retriever agent polling;
+- database migrations;
+- Render deployment;
+- Playwright launch issues.
 
-### Fix
+For platform initialization, read:
 
-Go to the backend directory and create the virtual environment again:
+- [docs/PlatformSetup.md](docs/PlatformSetup.md)
 
-```bash
-cd /path/to/geo-engine/backend
-python3 -m venv venv
-source venv/bin/activate
-```
-
-After activation, verify Python is coming from `venv`:
-
-```bash
-which python
-python --version
-```
-
-Expected path shape:
-
-```text
-/path/to/geo-engine/backend/venv/bin/python
-```
-
-## Issue: `BrowserType.launch: Executable doesn't exist`
-
-### Cause
-
-Playwright is installed as a Python package, but the Chromium browser binary has not been installed for that Python environment.
-
-### Fix
-
-Activate the virtual environment and install Chromium through Python:
+Quick checks:
 
 ```bash
-cd /path/to/geo-engine/backend
+cd backend
 source venv/bin/activate
 python -m playwright install chromium
+alembic upgrade head
+curl http://localhost:8000/health
 ```
 
-Do not use only `playwright install`; it may run a different Playwright executable from a different environment.
-
-## Issue: `which playwright` and `which python` Point to Different Locations
-
-### Cause
-
-This indicates a virtual environment mismatch. Python may be running from the project `venv`, while the `playwright` command may be coming from a global installation or another Python environment.
-
-Example mismatch:
-
-```text
-which python
-/path/to/geo-engine/backend/venv/bin/python
-
-which playwright
-/opt/homebrew/bin/playwright
-```
-
-### Fix
-
-Use Playwright through the active Python environment:
+Local agents:
 
 ```bash
-cd /path/to/geo-engine/backend
-source venv/bin/activate
-python -m playwright install chromium
+BACKEND_URL=http://localhost:8000 python -u publisher_agent.py
+BACKEND_URL=http://localhost:8000 python -u retriever_agent.py
 ```
 
-Then start the agent with the same Python:
+Render agents:
 
 ```bash
-python publisher_agent.py
+BACKEND_URL=https://geo-engine.onrender.com python -u publisher_agent.py
+BACKEND_URL=https://geo-engine.onrender.com python -u retriever_agent.py
 ```
-
-## Issue: Reddit Account Session Missing
-
-### Cause
-
-The Reddit browser session has not been generated on this machine for the selected account. Session files are intentionally local and are not committed to GitHub.
-
-### Fix
-
-Generate the state file for the account:
-
-```bash
-cd /path/to/geo-engine/backend
-source venv/bin/activate
-python save_reddit_state.py --handle <account-handle>
-```
-
-Log in to Reddit in the browser window. Return to the terminal and press Enter when login is complete.
-
-Confirm the file exists:
-
-```bash
-ls -l ../storage/reddit/<account-handle>.json
-```
-
-## Issue: Reddit Asks for Login Again
-
-### Cause
-
-The saved Reddit session expired, was invalidated, or no longer matches the browser context used by Playwright.
-
-### Fix
-
-Regenerate the account session file:
-
-```bash
-cd /path/to/geo-engine/backend
-source venv/bin/activate
-python save_reddit_state.py --handle <account-handle>
-```
-
-Log in again, then restart the publisher agent:
-
-```bash
-python publisher_agent.py
-```
-
-## Issue: `publisher_agent.py` Reports `No pending tasks`
-
-### Cause
-
-The agent is running correctly, but the Render backend does not currently have content marked as pending for publishing.
-
-Publishing tasks are created by the backend workflow:
-
-1. A user generates content in the GEO frontend.
-2. The user clicks Publish.
-3. The backend changes the content publish status to pending.
-4. The local publisher agent polls the backend.
-5. The agent publishes the pending item and reports the published URL.
-
-### Fix
-
-Create a pending task from the frontend:
-
-1. Open the GEO frontend on Vercel.
-2. Generate a GEO content package.
-3. Click Publish on the content item.
-4. Watch the publisher agent terminal.
-
-Expected terminal output after a task is available:
-
-```text
-Publishing content <id>
-Published successfully
-```
-
-If the agent still reports no pending tasks, confirm that `publisher_agent.py` points to the correct Render backend URL.
-
-## Issue: Render Backend Works but Reddit Publishing Does Not
-
-### Cause
-
-This is expected if the local publisher agent is not running. Render hosts the backend API, but Reddit publishing occurs on the local Mac or Mac Mini through Playwright.
-
-Render does not store local Reddit session files, does not log in to Reddit, and does not run the browser-based publisher.
-
-### Fix
-
-Start the publisher agent locally:
-
-```bash
-cd /path/to/geo-engine/backend
-source venv/bin/activate
-python publisher_agent.py
-```
-
-Confirm these local files exist:
-
-```bash
-ls -l publisher_agent.py
-ls -l save_reddit_state.py
-ls -l ../storage/reddit/<account-handle>.json
-```
-
-If the account session is missing or expired, regenerate it:
-
-```bash
-python save_reddit_state.py --handle <account-handle>
-```
-
-Then start the agent again:
-
-```bash
-python publisher_agent.py
-```
-
-## Issue: A Reddit Session File Was Accidentally Added to Git
-
-### Cause
-
-The authentication state file was generated before the ignore rule was added, or it was force-added manually.
-
-### Fix
-
-Remove it from Git tracking while keeping the local file on disk:
-
-```bash
-cd /path/to/geo-engine
-git rm --cached storage/reddit/<account-handle>.json
-git commit -m "Stop tracking local Reddit authentication state"
-```
-
-Confirm it is ignored:
-
-```bash
-git status --short
-```
-
-The file should not appear as staged or modified.

@@ -18,8 +18,14 @@ class RedditSubmissionAdapter:
     def __init__(self, session_path: str):
         self.session_path = Path(session_path)
 
+    def profile_dir_paths(self) -> list[Path]:
+        return SessionResolver().profile_candidate_paths(
+            platform=self.platform,
+            profile_path=self.session_path,
+        )
+
     def storage_state_paths(self) -> list[Path]:
-        return SessionResolver().candidate_paths(
+        return SessionResolver().storage_state_candidate_paths(
             platform=self.platform,
             session_path=self.session_path,
         )

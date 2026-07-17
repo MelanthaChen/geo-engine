@@ -3,13 +3,14 @@ from pathlib import Path
 
 class SessionResolver:
     PLATFORM_DEFAULTS = {
-        "reddit": "sessions/reddit/storage_state.json",
+        "reddit": "sessions/reddit/profile",
         "xiaohongshu": {
             "creator": "sessions/xiaohongshu/creator/profile",
             "web": "sessions/xiaohongshu/web/profile",
         },
     }
     STORAGE_STATE_FALLBACKS = {
+        "reddit": "sessions/reddit/storage_state.json",
         "xiaohongshu": {
             "creator": "sessions/xiaohongshu/creator/storage_state.json",
             "web": "sessions/xiaohongshu/web/storage_state.json",
@@ -68,7 +69,7 @@ class SessionResolver:
     ) -> Path:
         normalized_platform = (platform or "").strip().lower()
 
-        if normalized_platform != "xiaohongshu":
+        if normalized_platform not in {"reddit", "xiaohongshu"}:
             raise ValueError(
                 f"No canonical persistent profile directory for platform: {platform}"
             )
@@ -84,12 +85,6 @@ class SessionResolver:
         purpose: str | None = None,
     ) -> Path:
         normalized_platform = (platform or "").strip().lower()
-
-        if normalized_platform == "reddit":
-            return self.canonical_path(
-                platform=normalized_platform,
-                purpose=purpose,
-            )
 
         fallback_path = self._path_from_mapping(
             mapping=self.STORAGE_STATE_FALLBACKS,
@@ -116,7 +111,21 @@ class SessionResolver:
             purpose=purpose,
         )
 
-        if profile_path and self._normalize_path(profile_path) != canonical_path:
+        normalized_profile_path = (
+            self._normalize_path(profile_path)
+            if profile_path
+            else None
+        )
+
+        if (
+            normalized_platform := (platform or "").strip().lower()
+        ) == "reddit" and normalized_profile_path == self.canonical_storage_state_path(
+            platform=normalized_platform,
+            purpose=purpose,
+        ):
+            normalized_profile_path = canonical_path
+
+        if normalized_profile_path and normalized_profile_path != canonical_path:
             raise ValueError(
                 f"Invalid profile path for {platform}: {profile_path}. "
                 f"Canonical profile path is {canonical_path}."
@@ -191,6 +200,9 @@ class SessionResolver:
         raw_path = Path(path)
 
         if raw_path.is_absolute():
+            if len(raw_path.parts) > 1 and raw_path.parts[1] == "sessions":
+                return self.repo_root / raw_path.relative_to("/")
+
             return raw_path
 
         return self.repo_root / raw_path

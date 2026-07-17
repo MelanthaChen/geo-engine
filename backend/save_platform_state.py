@@ -152,7 +152,7 @@ def main():
     resolver = SessionResolver()
 
     with sync_playwright() as playwright:
-        if args.platform == "xiaohongshu":
+        if args.platform in {"reddit", "xiaohongshu"}:
             profile_dir = resolver.canonical_profile_dir(
                 platform=args.platform,
                 purpose=purpose,
@@ -174,7 +174,7 @@ def main():
                 "in the browser window."
             )
 
-            if purpose == "creator":
+            if args.platform == "xiaohongshu" and purpose == "creator":
                 verification_state = wait_for_creator_publish_authorization(page)
                 print(
                     "Current URL: "
@@ -209,44 +209,6 @@ def main():
             )
             context.close()
             return
-
-        state_path = resolver.canonical_storage_state_path(
-            platform=args.platform,
-            purpose=purpose,
-        )
-        state_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        browser = playwright.chromium.launch(
-            channel="chrome",
-            headless=False
-        )
-        context = browser.new_context()
-        page = context.new_page()
-
-        page.goto(
-            login_url
-        )
-
-        print(
-            f"Log in to {args.platform} ({purpose or 'default'}) "
-            "in the browser window."
-        )
-        input(
-            "Press Enter here after login succeeds..."
-        )
-
-        context.storage_state(
-            path=str(state_path)
-        )
-
-        print(
-            f"{state_path} saved"
-        )
-
-        browser.close()
 
 
 if __name__ == "__main__":
