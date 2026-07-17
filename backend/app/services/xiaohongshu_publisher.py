@@ -74,13 +74,24 @@ class XiaohongshuSubmissionAdapter:
         self.wait_for_body_editor(page)
 
     def wait_until_navigation_settles(self, page: Page) -> None:
-        try:
-            page.wait_for_load_state("networkidle", timeout=45000)
-        except Exception:
+        last_url = None
+
+        for _ in range(45):
             if self.is_publish_page(page):
-                print("Publish page detected before network idle.")
+                print("Publish page detected.")
                 return
-            raise
+
+            if page.url != last_url:
+                last_url = page.url
+                print(f"Startup navigation URL: {last_url}")
+
+            page.wait_for_timeout(1000)
+
+        if self.is_publish_page(page):
+            print("Publish page detected.")
+            return
+
+        print(f"Startup navigation settled without publish page: {page.url}")
 
     def is_publish_page(self, page: Page) -> bool:
         current_url = page.url.lower()
@@ -159,6 +170,33 @@ class XiaohongshuSubmissionAdapter:
             timeout=45000,
         )
 
+    def click_robustly(self, page: Page, locator, label: str) -> None:
+        locator.scroll_into_view_if_needed(timeout=10000)
+        try:
+            locator.hover(timeout=10000)
+        except Exception as hover_error:
+            print(f"{label} hover failed; continuing: {hover_error}")
+
+        try:
+            locator.click(timeout=10000)
+            print(f"{label} click strategy succeeded: normal")
+            return
+        except Exception as normal_error:
+            print(f"{label} normal click failed: {normal_error}")
+
+        try:
+            locator.click(force=True, timeout=10000)
+            print(f"{label} click strategy succeeded: force")
+            return
+        except Exception as force_error:
+            print(f"{label} force click failed: {force_error}")
+
+        element = locator.element_handle(timeout=10000)
+        if not element:
+            raise RuntimeError(f"{label} click failed: no element handle")
+        page.evaluate("(el) => el.click()", element)
+        print(f"{label} click strategy succeeded: dom")
+
     def switch_to_graphic_tab(self, page: Page) -> None:
         print("Switching to 上传图文...")
         page.wait_for_load_state("domcontentloaded")
@@ -194,16 +232,20 @@ class XiaohongshuSubmissionAdapter:
         )
 
         if not click_target:
-            wait_for_any_visible(
+            tab_locator = wait_for_any_visible(
                 page=page,
                 selectors=[
                     '#creator-publish-dom .header-tabs .creator-tab:has-text("上传图文")',
                     'text=上传图文',
                 ],
                 timeout=30000,
-            ).click()
+            )
+            self.click_robustly(page, tab_locator, "上传图文 tab")
         else:
-            page.mouse.click(click_target["x"], click_target["y"])
+            tab_locator = page.locator(
+                '#creator-publish-dom .header-tabs .creator-tab'
+            ).filter(has_text="上传图文").last
+            self.click_robustly(page, tab_locator, "上传图文 tab")
 
         page.wait_for_function(
             """() => {
