@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -25,7 +26,7 @@ class ExperimentRepository:
         description: str | None,
         llm_model: str,
         dataset_name: str,
-        benchmark_queries: list[str],
+        benchmark_queries: list[Any],
         strategies: list[str],
         metrics: list[str],
         number_of_queries: int,

@@ -34,16 +34,26 @@ class GenerativeEngineService:
         model: str,
         temperature: float,
         random_seed: int,
+        retrieved_documents: list[RetrievedDocument] | None = None,
         on_strategy=None,
         on_sample=None,
     ) -> dict:
-        documents = self.search_provider.search(query=query, top_k=self.PAPER_TOP_K)
+        documents = (
+            retrieved_documents
+            if retrieved_documents is not None
+            else self.search_provider.search(query=query, top_k=self.PAPER_TOP_K)
+        )
 
         if len(documents) < self.PAPER_TOP_K:
+            source_name = "Uploaded dataset" if retrieved_documents is not None else "Google Search"
             raise RuntimeError(
-                f"Google Search returned {len(documents)} documents; "
+                f"{source_name} returned {len(documents)} documents; "
                 "the Princeton reproduction requires Top-5 results."
             )
+
+        documents = sorted(documents, key=lambda document: document.rank)[
+            : self.PAPER_TOP_K
+        ]
 
         selected_document = random.Random(random_seed).choice(documents)
         strategy_outputs = []

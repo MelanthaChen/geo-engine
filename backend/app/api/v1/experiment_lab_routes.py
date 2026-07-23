@@ -14,6 +14,14 @@ router = APIRouter(
 )
 
 
+class UploadedDatasetDocument(BaseModel):
+    query: str = Field(min_length=1)
+    rank: int = Field(ge=1)
+    title: str | None = None
+    url: str = Field(default="")
+    content: str = Field(min_length=1)
+
+
 class ExperimentRunRequest(BaseModel):
     property_id: int | None = None
     experiment_name: str = Field(default="Princeton GEO Reproduction")
@@ -21,6 +29,7 @@ class ExperimentRunRequest(BaseModel):
     llm: str = Field(default="gpt-3.5-turbo")
     dataset: str = Field(default="custom")
     queries: list[str] | None = None
+    dataset_documents: list[UploadedDatasetDocument] | None = None
     strategies: list[str]
     number_of_queries: int = Field(default=1, ge=1)
     random_seed: int = Field(default=42)
@@ -43,6 +52,14 @@ def run_experiment(
         llm_model=request.llm,
         dataset_name=request.dataset,
         queries=request.queries,
+        dataset_documents=(
+            [
+                document.model_dump()
+                for document in request.dataset_documents
+            ]
+            if request.dataset_documents
+            else None
+        ),
         strategies=request.strategies,
         metrics=request.evaluation_metrics,
         number_of_queries=request.number_of_queries,

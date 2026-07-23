@@ -75,6 +75,7 @@ export const defaultExperimentConfiguration: ExperimentConfigurationValues = {
   benchmarkSource: "manual",
   manualQuery: "Best AI Resume Builder",
   uploadedQueries: [],
+  uploadedDocuments: [],
   strategies: strategyOptions.map((strategy) => strategy.id),
   numberOfQueries: 1,
   randomSeed: 42,

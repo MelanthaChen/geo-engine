@@ -23,11 +23,20 @@ export type ExperimentConfigurationValues = {
   benchmarkSource: BenchmarkSource;
   manualQuery: string;
   uploadedQueries: string[];
+  uploadedDocuments: UploadedDatasetDocument[];
   strategies: StrategyId[];
   numberOfQueries: number;
   randomSeed: number;
   temperature: number;
   evaluationMetrics: EvaluationMetricId[];
+};
+
+export type UploadedDatasetDocument = {
+  query: string;
+  rank: number;
+  title: string;
+  url: string;
+  content: string;
 };
 
 export type StrategyResult = {

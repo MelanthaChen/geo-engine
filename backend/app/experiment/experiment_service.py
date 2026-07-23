@@ -1,7 +1,9 @@
 import json
+from typing import Any
 
 from app.ge.ge_service import GenerativeEngineService
 from app.ge.geo_rewriter import STRATEGY_LABELS
+from app.ge.search_provider import RetrievedDocument
 from app.models.experiment import Experiment
 from app.storage.experiment_repository import ExperimentRepository
 
@@ -43,6 +45,7 @@ class ExperimentService:
         random_seed: int,
         temperature: float,
         queries: list[str] | None = None,
+        dataset_documents: list[dict[str, Any]] | None = None,
     ) -> dict:
         self._validate_strategies(strategies)
         experiment = self.create_experiment(
@@ -57,6 +60,7 @@ class ExperimentService:
             number_of_queries=number_of_queries,
             random_seed=random_seed,
             temperature=temperature,
+            dataset_documents=dataset_documents,
         )
         self.execute_experiment(experiment.id)
         return self.repository.serialize(experiment)
@@ -75,9 +79,15 @@ class ExperimentService:
         random_seed: int,
         temperature: float,
         queries: list[str] | None = None,
+        dataset_documents: list[dict[str, Any]] | None = None,
     ) -> Experiment:
         self._validate_strategies(strategies)
-        benchmark_queries = self._load_queries(number_of_queries, queries)
+        benchmark_input = self._build_benchmark_input(
+            number_of_queries,
+            queries,
+            dataset_documents,
+        )
+        query_plan, _ = self._load_query_plan(number_of_queries, benchmark_input)
 
         return self.repository.create_run(
             property_id=property_id,
@@ -85,10 +95,10 @@ class ExperimentService:
             description=description,
             llm_model=llm_model,
             dataset_name=dataset_name,
-            benchmark_queries=benchmark_queries,
+            benchmark_queries=benchmark_input,
             strategies=strategies,
             metrics=metrics,
-            number_of_queries=len(benchmark_queries),
+            number_of_queries=len(query_plan),
             random_seed=random_seed,
             temperature=temperature,
         )
@@ -100,7 +110,7 @@ class ExperimentService:
             raise ValueError(f"Experiment {experiment_id} not found")
 
         strategies = json.loads(experiment.strategies_json or "[]")
-        queries = self._load_queries(
+        queries, uploaded_documents_by_query = self._load_query_plan(
             experiment.number_of_queries or 1,
             json.loads(experiment.benchmark_queries_json or "[]"),
         )
@@ -121,6 +131,7 @@ class ExperimentService:
                     model=experiment.llm_model or "gpt-3.5-turbo",
                     temperature=experiment.temperature or 0.7,
                     random_seed=(experiment.random_seed or 0) + index,
+                    retrieved_documents=uploaded_documents_by_query.get(query),
                     on_strategy=lambda strategy, current_query=query: (
                         self.repository.update_current_strategy(
                             experiment,
@@ -153,11 +164,18 @@ class ExperimentService:
 
         return experiment
 
-    def _load_queries(
+    def _build_benchmark_input(
         self,
         number_of_queries: int,
         queries: list[str] | None = None,
-    ) -> list[str]:
+        dataset_documents: list[dict[str, Any]] | None = None,
+    ) -> list[Any]:
+        if dataset_documents:
+            return self._build_uploaded_dataset_entries(
+                number_of_queries,
+                dataset_documents,
+            )
+
         if queries:
             cleaned_queries = [
                 query.strip()
@@ -169,6 +187,128 @@ class ExperimentService:
 
         limit = max(1, min(number_of_queries, len(CUSTOM_BENCHMARK_QUERIES)))
         return CUSTOM_BENCHMARK_QUERIES[:limit]
+
+    def _load_query_plan(
+        self,
+        number_of_queries: int,
+        benchmark_input: list[Any] | None = None,
+    ) -> tuple[list[str], dict[str, list[RetrievedDocument]]]:
+        if benchmark_input and all(
+            isinstance(item, dict) and "documents" in item
+            for item in benchmark_input
+        ):
+            queries = []
+            documents_by_query = {}
+
+            for item in benchmark_input[: max(1, number_of_queries)]:
+                query = str(item.get("query") or "").strip()
+
+                if not query:
+                    continue
+
+                queries.append(query)
+                documents_by_query[query] = self._documents_from_uploaded_entry(item)
+
+            return queries, documents_by_query
+
+        return (
+            self._load_queries_from_strings(number_of_queries, benchmark_input),
+            {},
+        )
+
+    def _load_queries_from_strings(
+        self,
+        number_of_queries: int,
+        queries: list[Any] | None = None,
+    ) -> list[str]:
+        if queries:
+            cleaned_queries = [
+                str(query).strip()
+                for query in queries
+                if isinstance(query, str) and query.strip()
+            ]
+
+            return cleaned_queries[: max(1, number_of_queries)]
+
+        limit = max(1, min(number_of_queries, len(CUSTOM_BENCHMARK_QUERIES)))
+        return CUSTOM_BENCHMARK_QUERIES[:limit]
+
+    def _build_uploaded_dataset_entries(
+        self,
+        number_of_queries: int,
+        dataset_documents: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        query_order = []
+
+        for row in dataset_documents:
+            query = str(row.get("query") or "").strip()
+            content = str(row.get("content") or "").strip()
+
+            if not query or not content:
+                continue
+
+            if query not in grouped:
+                grouped[query] = []
+                query_order.append(query)
+
+            grouped[query].append(
+                {
+                    "rank": int(row.get("rank") or len(grouped[query]) + 1),
+                    "title": str(row.get("title") or "").strip(),
+                    "url": str(row.get("url") or "").strip(),
+                    "content": content,
+                }
+            )
+
+        entries = []
+
+        for query in query_order[: max(1, number_of_queries)]:
+            documents = sorted(
+                grouped[query],
+                key=lambda document: document["rank"],
+            )
+
+            if len(documents) < GenerativeEngineService.PAPER_TOP_K:
+                raise ValueError(
+                    f"Uploaded dataset query {query!r} has {len(documents)} "
+                    "documents; the Princeton reproduction requires exactly "
+                    "five ranked documents per query."
+                )
+
+            entries.append(
+                {
+                    "query": query,
+                    "documents": documents[: GenerativeEngineService.PAPER_TOP_K],
+                }
+            )
+
+        if not entries:
+            raise ValueError(
+                "Uploaded dataset did not contain any valid query/document rows."
+            )
+
+        return entries
+
+    def _documents_from_uploaded_entry(
+        self,
+        entry: dict[str, Any],
+    ) -> list[RetrievedDocument]:
+        documents = []
+
+        for document in entry.get("documents") or []:
+            documents.append(
+                RetrievedDocument(
+                    rank=int(document.get("rank") or len(documents) + 1),
+                    title=str(document.get("title") or ""),
+                    url=str(document.get("url") or ""),
+                    plain_text=str(document.get("content") or ""),
+                )
+            )
+
+        return sorted(documents, key=lambda document: document.rank)[
+            : GenerativeEngineService.PAPER_TOP_K
+        ]
 
     def _validate_strategies(self, strategies: list[str]):
         unknown = [strategy for strategy in strategies if strategy not in STRATEGY_LABELS]

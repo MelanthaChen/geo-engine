@@ -20,6 +20,11 @@ export async function startExperimentLab(
       llm: configuration.llm,
       dataset: configuration.dataset,
       queries,
+      dataset_documents:
+        configuration.benchmarkSource === "csv" &&
+        configuration.uploadedDocuments.length > 0
+          ? configuration.uploadedDocuments
+          : null,
       strategies: configuration.strategies,
       number_of_queries: queries.length || configuration.numberOfQueries,
       random_seed: configuration.randomSeed,

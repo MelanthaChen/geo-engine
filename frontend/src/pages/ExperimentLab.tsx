@@ -29,6 +29,7 @@ import type {
   StrategyEvidence,
   StrategyId,
   StrategyResult,
+  UploadedDatasetDocument,
 } from "@/types/experimentLab";
 
 export function ExperimentLab() {
@@ -117,10 +118,15 @@ export function ExperimentLab() {
     }
 
     const text = await file.text();
-    const queries = parseCsvQueries(text);
-    updateField("uploadedQueries", queries);
-    updateField("numberOfQueries", Math.max(queries.length, 1));
-    setUploadLabel(`${file.name} · ${queries.length} queries`);
+    const parsed = parseCsvBenchmark(text);
+    updateField("uploadedQueries", parsed.queries);
+    updateField("uploadedDocuments", parsed.documents);
+    updateField("numberOfQueries", Math.max(parsed.queries.length, 1));
+    setUploadLabel(
+      parsed.documents.length > 0
+        ? `${file.name} · ${parsed.queries.length} queries · ${parsed.documents.length} documents`
+        : `${file.name} · ${parsed.queries.length} queries`,
+    );
   }
 
   function toggleStrategy(strategy: StrategyId) {
@@ -215,7 +221,7 @@ export function ExperimentLab() {
               {configuration.benchmarkSource === "geo_bench" && (
                 <div className="rounded-lg border border-zinc-800 bg-black p-4 text-sm text-zinc-500">
                   GEO-bench support is coming soon. This reproduction currently
-                  supports manual queries and CSV query lists.
+                  supports manual queries and uploaded CSV benchmarks.
                 </div>
               )}
 
@@ -769,7 +775,7 @@ function BenchmarkSelector({
     {
       id: "csv",
       label: "Upload CSV",
-      description: "Upload a query-only benchmark file.",
+      description: "Upload query-only rows or query/rank/title/url/content documents.",
     },
     {
       id: "geo_bench",
@@ -977,11 +983,140 @@ function canRun(configuration: ExperimentConfigurationValues) {
   );
 }
 
-function parseCsvQueries(text: string) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.split(",")[0]?.trim())
-    .filter((line, index) => line && !(index === 0 && line.toLowerCase() === "query"));
+function parseCsvBenchmark(text: string): {
+  queries: string[];
+  documents: UploadedDatasetDocument[];
+} {
+  const rows = parseCsvRows(text).filter((row) =>
+    row.some((cell) => cell.trim()),
+  );
+
+  if (rows.length === 0) {
+    return {
+      queries: [],
+      documents: [],
+    };
+  }
+
+  const headers = rows[0].map(normalizeHeader);
+  const queryIndex = headers.indexOf("query");
+  const rankIndex = headers.indexOf("rank");
+  const titleIndex = headers.indexOf("title");
+  const urlIndex = headers.indexOf("url");
+  const contentIndex = firstHeaderIndex(headers, [
+    "content",
+    "cleaned_content",
+    "plain_text",
+    "document",
+    "body",
+  ]);
+
+  if (queryIndex >= 0 && contentIndex >= 0) {
+    const rankByQuery = new Map<string, number>();
+    const documents = rows
+      .slice(1)
+      .map((row) => {
+        const query = (row[queryIndex] || "").trim();
+        const content = (row[contentIndex] || "").trim();
+
+        if (!query || !content) {
+          return null;
+        }
+
+        const nextRank = (rankByQuery.get(query) || 0) + 1;
+        rankByQuery.set(query, nextRank);
+
+        return {
+          query,
+          rank: Number(row[rankIndex]) || nextRank,
+          title: titleIndex >= 0 ? (row[titleIndex] || "").trim() : "",
+          url: urlIndex >= 0 ? (row[urlIndex] || "").trim() : "",
+          content,
+        };
+      })
+      .filter((document): document is UploadedDatasetDocument => Boolean(document));
+
+    return {
+      queries: uniqueInOrder(documents.map((document) => document.query)),
+      documents,
+    };
+  }
+
+  const queryRows =
+    queryIndex >= 0
+      ? rows.slice(1).map((row) => row[queryIndex])
+      : rows.map((row) => row[0]);
+
+  return {
+    queries: queryRows
+      .map((query) => query?.trim())
+      .filter((query): query is string => Boolean(query)),
+    documents: [],
+  };
+}
+
+function parseCsvRows(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      field += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(field);
+      field = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      continue;
+    }
+
+    field += char;
+  }
+
+  row.push(field);
+  rows.push(row);
+  return rows;
+}
+
+function normalizeHeader(value: string) {
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function firstHeaderIndex(headers: string[], candidates: string[]) {
+  return candidates.reduce((foundIndex, candidate) => {
+    if (foundIndex >= 0) {
+      return foundIndex;
+    }
+
+    return headers.indexOf(candidate);
+  }, -1);
+}
+
+function uniqueInOrder(values: string[]) {
+  return values.filter((value, index) => values.indexOf(value) === index);
 }
 
 function currentStage(run: ExperimentRun | null) {
