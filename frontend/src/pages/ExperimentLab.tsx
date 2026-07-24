@@ -220,8 +220,8 @@ export function ExperimentLab() {
 
               {configuration.benchmarkSource === "geo_bench" && (
                 <div className="rounded-lg border border-zinc-800 bg-black p-4 text-sm text-zinc-500">
-                  GEO-bench support is coming soon. This reproduction currently
-                  supports manual queries and uploaded CSV benchmarks.
+                  Official GEO-bench test split. The backend loads benchmark
+                  queries and the five cleaned Google sources for each query.
                 </div>
               )}
 
@@ -779,8 +779,8 @@ function BenchmarkSelector({
     },
     {
       id: "geo_bench",
-      label: "GEO-bench",
-      description: "Coming Soon",
+      label: "GEO-bench (Official)",
+      description: "Use the official paper test split.",
     },
   ];
 
@@ -972,12 +972,18 @@ function activeQueries(configuration: ExperimentConfigurationValues) {
     return configuration.uploadedQueries;
   }
 
+  if (configuration.benchmarkSource === "geo_bench") {
+    return Array.from(
+      { length: Math.max(configuration.numberOfQueries, 1) },
+      (_, index) => `GEO-bench query ${index + 1}`,
+    );
+  }
+
   return [];
 }
 
 function canRun(configuration: ExperimentConfigurationValues) {
   return (
-    configuration.benchmarkSource !== "geo_bench" &&
     activeQueries(configuration).length > 0 &&
     configuration.strategies.length > 0
   );

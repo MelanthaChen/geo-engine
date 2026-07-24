@@ -19,7 +19,7 @@ export type ExperimentConfigurationValues = {
   experimentName: string;
   description: string;
   llm: "gpt-3.5-turbo";
-  dataset: "custom";
+  dataset: "custom" | "geo_bench";
   benchmarkSource: BenchmarkSource;
   manualQuery: string;
   uploadedQueries: string[];

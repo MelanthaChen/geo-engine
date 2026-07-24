@@ -10,7 +10,10 @@ export async function startExperimentLab(
   const queries =
     configuration.benchmarkSource === "manual"
       ? [configuration.manualQuery]
-      : configuration.uploadedQueries;
+      : configuration.benchmarkSource === "csv"
+        ? configuration.uploadedQueries
+        : null;
+  const queryCount = Array.isArray(queries) ? queries.length : 0;
 
   const response = await apiClient.post<ExperimentRun>(
     "/api/v1/experiment-lab/run",
@@ -18,7 +21,10 @@ export async function startExperimentLab(
       experiment_name: configuration.experimentName,
       description: configuration.description || null,
       llm: configuration.llm,
-      dataset: configuration.dataset,
+      dataset:
+        configuration.benchmarkSource === "geo_bench"
+          ? "geo_bench"
+          : configuration.dataset,
       queries,
       dataset_documents:
         configuration.benchmarkSource === "csv" &&
@@ -26,7 +32,7 @@ export async function startExperimentLab(
           ? configuration.uploadedDocuments
           : null,
       strategies: configuration.strategies,
-      number_of_queries: queries.length || configuration.numberOfQueries,
+      number_of_queries: queryCount || configuration.numberOfQueries,
       random_seed: configuration.randomSeed,
       temperature: configuration.temperature,
       evaluation_metrics: configuration.evaluationMetrics,

@@ -31,5 +31,8 @@ external/MediaCrawler/
 # Database
 *.sqlite3
 
+# Official benchmark cache
+backend/experiment_dataset/
+
 # Docker
 *.pid

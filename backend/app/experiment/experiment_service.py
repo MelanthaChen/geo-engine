@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from app.experiment.geo_bench_loader import GeoBenchLoader
 from app.ge.ge_service import GenerativeEngineService
 from app.ge.geo_rewriter import STRATEGY_LABELS
 from app.ge.search_provider import RetrievedDocument
@@ -27,9 +28,11 @@ class ExperimentService:
         self,
         repository: ExperimentRepository,
         ge_service: GenerativeEngineService | None = None,
+        geo_bench_loader: GeoBenchLoader | None = None,
     ):
         self.repository = repository
         self.ge_service = ge_service or GenerativeEngineService()
+        self.geo_bench_loader = geo_bench_loader or GeoBenchLoader()
 
     def run_experiment(
         self,
@@ -84,6 +87,7 @@ class ExperimentService:
         self._validate_strategies(strategies)
         benchmark_input = self._build_benchmark_input(
             number_of_queries,
+            dataset_name,
             queries,
             dataset_documents,
         )
@@ -167,6 +171,7 @@ class ExperimentService:
     def _build_benchmark_input(
         self,
         number_of_queries: int,
+        dataset_name: str,
         queries: list[str] | None = None,
         dataset_documents: list[dict[str, Any]] | None = None,
     ) -> list[Any]:
@@ -174,6 +179,11 @@ class ExperimentService:
             return self._build_uploaded_dataset_entries(
                 number_of_queries,
                 dataset_documents,
+            )
+
+        if dataset_name == "geo_bench":
+            return self.geo_bench_loader.load_test_entries(
+                max(1, number_of_queries),
             )
 
         if queries:
