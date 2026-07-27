@@ -1,9 +1,14 @@
+import csv
+import io
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
 from app.core.database import SessionLocal
+from app.experiment.campaign_service import ExperimentCampaignService
 from app.experiment.experiment_service import ExperimentService
 from app.storage.experiment_repository import ExperimentRepository
 
@@ -85,8 +90,124 @@ def get_experiment_run(
     return repository.serialize(experiment)
 
 
+@router.post("/campaigns")
+def create_campaign(
+    request: ExperimentRunRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    service = ExperimentCampaignService(repository=repository)
+    campaign = service.create_campaign(
+        property_id=request.property_id,
+        name=request.experiment_name,
+        description=request.description,
+        llm_model=request.llm,
+        dataset_name=request.dataset,
+        queries=request.queries,
+        dataset_documents=(
+            [
+                document.model_dump()
+                for document in request.dataset_documents
+            ]
+            if request.dataset_documents
+            else None
+        ),
+        strategies=request.strategies,
+        metrics=request.evaluation_metrics,
+        number_of_queries=request.number_of_queries,
+        random_seed=request.random_seed,
+        temperature=request.temperature,
+    )
+    background_tasks.add_task(execute_campaign_background, campaign.id)
+
+    return repository.serialize_campaign(campaign)
+
+
+@router.post("/campaigns/{campaign_id}/resume")
+def resume_campaign(
+    campaign_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    campaign = repository.get_campaign(campaign_id)
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign.status == "completed":
+        return repository.serialize_campaign(campaign)
+
+    background_tasks.add_task(execute_campaign_background, campaign.id)
+    return repository.serialize_campaign(campaign)
+
+
+@router.get("/campaigns/{campaign_id}")
+def get_campaign(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    campaign = repository.get_campaign(campaign_id)
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return repository.serialize_campaign(campaign)
+
+
+@router.get("/campaigns/{campaign_id}/export.json")
+def export_campaign_json(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    campaign = repository.get_campaign(campaign_id)
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return repository.campaign_json_export(campaign)
+
+
+@router.get("/campaigns/{campaign_id}/export.csv")
+def export_campaign_csv(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    campaign = repository.get_campaign(campaign_id)
+
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    rows = repository.campaign_csv_rows(campaign)
+    output = io.StringIO()
+    fieldnames = list(rows[0].keys()) if rows else ["campaign_id"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    filename = f"experiment_campaign_{campaign_id}.csv"
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
 def execute_experiment_background(experiment_id: int):
     with SessionLocal() as db:
         repository = ExperimentRepository(db)
         service = ExperimentService(repository=repository)
         service.execute_experiment(experiment_id)
+
+
+def execute_campaign_background(campaign_id: int):
+    with SessionLocal() as db:
+        repository = ExperimentRepository(db)
+        service = ExperimentCampaignService(repository=repository)
+        service.execute_campaign(campaign_id)

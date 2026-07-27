@@ -34,5 +34,8 @@ external/MediaCrawler/
 # Official benchmark cache
 backend/experiment_dataset/
 
+# Official GEO rewrite cache
+geo_optimizations_cache*.json
+
 # Docker
 *.pid

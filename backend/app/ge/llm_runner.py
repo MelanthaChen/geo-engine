@@ -13,6 +13,7 @@ class LLMRunner(Protocol):
         model: str,
         temperature: float,
         top_p: float = 1,
+        max_tokens: int | None = None,
     ) -> str:
         ...
 
@@ -28,6 +29,7 @@ class OpenAILLMRunner:
         model: str,
         temperature: float,
         top_p: float = 1,
+        max_tokens: int | None = None,
     ) -> str:
         messages = []
 
@@ -36,11 +38,16 @@ class OpenAILLMRunner:
 
         messages.append({"role": "user", "content": user_prompt})
 
-        response = self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            top_p=top_p,
-        )
+        request = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+
+        if max_tokens is not None:
+            request["max_tokens"] = max_tokens
+
+        response = self.client.chat.completions.create(**request)
 
         return response.choices[0].message.content or ""

@@ -50,6 +50,7 @@ export type StrategyResult = {
 export type QueryExperimentResult = {
   id: string;
   query: string;
+  seedValue?: number | null;
   responses: Record<StrategyId, string>;
   evaluationResult: string;
   winnerStrategy: StrategyId;
@@ -83,6 +84,27 @@ export type StrategyEvidence = {
   };
 };
 
+export type PaperAggregateResult = {
+  strategy: StrategyId;
+  label: string;
+  runs: number;
+  visibilityMean: number;
+  visibilityStd: number;
+  pawcMean: number;
+  pawcStd: number;
+  citationCountMean: number;
+  citationCountStd: number;
+  baselineVisibilityMean: number;
+  baselinePawcMean: number;
+  baselineCitationCountMean: number;
+  visibilityImprovementMean: number;
+  visibilityImprovementStd: number;
+  pawcImprovementMean: number;
+  pawcImprovementStd: number;
+  citationCountImprovementMean: number;
+  citationCountImprovementStd: number;
+};
+
 export type ExperimentRun = {
   id?: number;
   status: ExperimentStatus;
@@ -99,6 +121,44 @@ export type ExperimentRun = {
     pawc: number;
   };
   strategyResults: StrategyResult[];
+  paperAggregates?: PaperAggregateResult[];
   queryResults: QueryExperimentResult[];
   errorMessage?: string | null;
+};
+
+export type CampaignExperimentSummary = {
+  id: number;
+  status: ExperimentStatus;
+  query: string;
+  errorMessage?: string | null;
+  paperAggregates: PaperAggregateResult[];
+};
+
+export type ExperimentCampaignRun = {
+  id?: number;
+  status: ExperimentStatus;
+  name: string;
+  description?: string | null;
+  datasetName?: string | null;
+  model?: string | null;
+  queryCount: number;
+  seedCount: number;
+  strategies: StrategyId[];
+  metrics: EvaluationMetricId[];
+  currentQuery: string;
+  currentStrategy: StrategyId;
+  currentSeed?: number | null;
+  queriesCompleted: number;
+  queriesRemaining: number;
+  successCount: number;
+  failureCount: number;
+  estimatedRemainingTime: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string | null;
+  errorMessage?: string | null;
+  paperAggregates: PaperAggregateResult[];
+  strategyResults: StrategyResult[];
+  experiments: CampaignExperimentSummary[];
+  queryResults: QueryExperimentResult[];
 };

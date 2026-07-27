@@ -4,6 +4,7 @@ from app.models.content import Content
 from app.models.citation_result import CitationResult
 from app.models.experiment import (
     Experiment,
+    ExperimentCampaign,
     ExperimentDocument,
     ExperimentQuery,
     ExperimentStrategyResult,

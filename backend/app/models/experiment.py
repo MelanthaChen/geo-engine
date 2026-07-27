@@ -27,6 +27,13 @@ class Experiment(Base):
         index=True,
     )
 
+    campaign_id = Column(
+        Integer,
+        ForeignKey("experiment_campaigns.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     name = Column(String, nullable=False)
 
     description = Column(Text, nullable=True)
@@ -87,10 +94,89 @@ class Experiment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     property = relationship("Property")
+    campaign = relationship("ExperimentCampaign", back_populates="experiments")
     queries = relationship(
         "ExperimentQuery",
         back_populates="experiment",
         cascade="all, delete-orphan",
+    )
+
+
+class ExperimentCampaign(Base):
+
+    __tablename__ = "experiment_campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id"),
+        nullable=True,
+        index=True,
+    )
+
+    name = Column(String, nullable=False)
+
+    description = Column(Text, nullable=True)
+
+    status = Column(String, default="queued", index=True)
+
+    llm_model = Column(String, nullable=True)
+
+    dataset_name = Column(String, nullable=True)
+
+    benchmark_queries_json = Column(Text, nullable=True)
+
+    strategies_json = Column(Text, nullable=True)
+
+    metrics_json = Column(Text, nullable=True)
+
+    query_count = Column(Integer, nullable=True)
+
+    seed_count = Column(Integer, nullable=True)
+
+    random_seed = Column(Integer, nullable=True)
+
+    temperature = Column(Float, nullable=True)
+
+    current_query = Column(Text, nullable=True)
+
+    current_strategy = Column(String, nullable=True)
+
+    current_seed = Column(Integer, nullable=True)
+
+    queries_completed = Column(Integer, default=0)
+
+    queries_remaining = Column(Integer, default=0)
+
+    success_count = Column(Integer, default=0)
+
+    failure_count = Column(Integer, default=0)
+
+    estimated_remaining_time = Column(String, nullable=True)
+
+    error_message = Column(Text, nullable=True)
+
+    started_at = Column(DateTime(timezone=True), nullable=True)
+
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    property = relationship("Property")
+    experiments = relationship(
+        "Experiment",
+        back_populates="campaign",
+        cascade="save-update, merge",
     )
 
 
@@ -108,6 +194,8 @@ class ExperimentQuery(Base):
     )
 
     query = Column(Text, nullable=False)
+
+    seed_value = Column(Integer, nullable=True, index=True)
 
     selected_document_rank = Column(Integer, nullable=True)
 

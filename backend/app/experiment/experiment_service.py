@@ -22,6 +22,8 @@ CUSTOM_BENCHMARK_QUERIES = [
     "What is position-adjusted word count in GEO evaluation?",
 ]
 
+PAPER_MODE_SEED_COUNT = 5
+
 
 class ExperimentService:
     def __init__(
@@ -38,6 +40,7 @@ class ExperimentService:
         self,
         *,
         property_id: int | None,
+        campaign_id: int | None = None,
         name: str,
         description: str | None,
         llm_model: str,
@@ -51,6 +54,7 @@ class ExperimentService:
         dataset_documents: list[dict[str, Any]] | None = None,
     ) -> dict:
         self._validate_strategies(strategies)
+        strategies = self._paper_mode_strategies(dataset_name, strategies)
         experiment = self.create_experiment(
             property_id=property_id,
             name=name,
@@ -85,6 +89,7 @@ class ExperimentService:
         dataset_documents: list[dict[str, Any]] | None = None,
     ) -> Experiment:
         self._validate_strategies(strategies)
+        strategies = self._paper_mode_strategies(dataset_name, strategies)
         benchmark_input = self._build_benchmark_input(
             number_of_queries,
             dataset_name,
@@ -92,9 +97,11 @@ class ExperimentService:
             dataset_documents,
         )
         query_plan, _ = self._load_query_plan(number_of_queries, benchmark_input)
+        execution_count = self._execution_count(dataset_name, len(query_plan))
 
         return self.repository.create_run(
             property_id=property_id,
+            campaign_id=campaign_id,
             name=name,
             description=description,
             llm_model=llm_model,
@@ -102,7 +109,7 @@ class ExperimentService:
             benchmark_queries=benchmark_input,
             strategies=strategies,
             metrics=metrics,
-            number_of_queries=len(query_plan),
+            number_of_queries=execution_count,
             random_seed=random_seed,
             temperature=temperature,
         )
@@ -122,51 +129,115 @@ class ExperimentService:
         try:
             self.repository.mark_running(experiment)
 
+            completed_runs = 0
+
             for index, query in enumerate(queries):
-                self.repository.update_progress(
-                    experiment,
-                    current_query=query,
-                    current_strategy=strategies[0],
-                    completed_queries=index,
+                seed_values = self._seed_values(
+                    experiment.dataset_name or "",
+                    experiment.random_seed or 0,
+                    index,
                 )
-                result = self.ge_service.run_query(
-                    query=query,
-                    strategies=strategies,
-                    model=experiment.llm_model or "gpt-3.5-turbo",
-                    temperature=experiment.temperature or 0.7,
-                    random_seed=(experiment.random_seed or 0) + index,
-                    retrieved_documents=uploaded_documents_by_query.get(query),
-                    on_strategy=lambda strategy, current_query=query: (
-                        self.repository.update_current_strategy(
-                            experiment,
-                            current_query=current_query,
-                            current_strategy=strategy,
-                        )
-                    ),
-                    on_sample=(
-                        lambda strategy, sample, total, current_query=query: (
-                            self.repository.update_current_strategy(
-                                experiment,
-                                current_query=current_query,
-                                current_strategy=strategy,
-                                current_sample=sample,
-                            )
-                        )
-                    ),
-                )
-                self.repository.store_query_run(
-                    experiment,
-                    query=query,
-                    documents=result["documents"],
-                    selected_document_rank=result["selected_document_rank"],
-                    strategy_outputs=result["strategy_outputs"],
-                )
+
+                for seed_value in seed_values:
+                    completed_runs = self._execute_query_seed(
+                        experiment=experiment,
+                        query=query,
+                        seed_value=seed_value,
+                        completed_runs=completed_runs,
+                        strategies=strategies,
+                        uploaded_documents=uploaded_documents_by_query.get(query),
+                    )
 
             self.repository.mark_completed(experiment)
         except Exception as exc:
             self.repository.mark_failed(experiment, str(exc))
 
         return experiment
+
+    def _execute_query_seed(
+        self,
+        *,
+        experiment: Experiment,
+        query: str,
+        seed_value: int,
+        completed_runs: int,
+        strategies: list[str],
+        uploaded_documents: list[RetrievedDocument] | None,
+    ) -> int:
+        self.repository.update_progress(
+            experiment,
+            current_query=query,
+            current_strategy=strategies[0],
+            completed_queries=completed_runs,
+        )
+        result = self.ge_service.run_query(
+            query=query,
+            strategies=strategies,
+            model=experiment.llm_model or "gpt-3.5-turbo",
+            temperature=experiment.temperature or 0.7,
+            random_seed=seed_value,
+            retrieved_documents=uploaded_documents,
+            on_strategy=lambda strategy, current_query=query: (
+                self.repository.update_current_strategy(
+                    experiment,
+                    current_query=current_query,
+                    current_strategy=strategy,
+                )
+            ),
+            on_sample=(
+                lambda strategy, sample, total, current_query=query: (
+                    self.repository.update_current_strategy(
+                        experiment,
+                        current_query=current_query,
+                        current_strategy=strategy,
+                        current_sample=sample,
+                    )
+                )
+            ),
+        )
+        self.repository.store_query_run(
+            experiment,
+            query=query,
+            seed_value=seed_value,
+            documents=result["documents"],
+            selected_document_rank=result["selected_document_rank"],
+            strategy_outputs=result["strategy_outputs"],
+        )
+
+        return completed_runs + 1
+
+    def _seed_values(
+        self,
+        dataset_name: str,
+        random_seed: int,
+        query_index: int,
+    ) -> list[int]:
+        if dataset_name == "geo_bench":
+            # The paper reports five random seeds but does not publish their
+            # exact numeric values, so Paper Mode derives a deterministic
+            # five-seed set from the configured base seed.
+            return [
+                random_seed + seed_offset
+                for seed_offset in range(PAPER_MODE_SEED_COUNT)
+            ]
+
+        return [random_seed + query_index]
+
+    def _execution_count(self, dataset_name: str, query_count: int) -> int:
+        if dataset_name == "geo_bench":
+            return query_count * PAPER_MODE_SEED_COUNT
+
+        return query_count
+
+    def _paper_mode_strategies(
+        self,
+        dataset_name: str,
+        strategies: list[str],
+    ) -> list[str]:
+        if dataset_name != "geo_bench" or "original" in strategies:
+            return strategies
+
+        return ["original", *strategies]
 
     def _build_benchmark_input(
         self,

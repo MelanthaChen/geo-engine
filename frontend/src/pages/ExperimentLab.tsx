@@ -15,7 +15,9 @@ import { Card, CardContent } from "../../@/components/ui/card";
 import { Input } from "../../@/components/ui/input";
 import { Label } from "../../@/components/ui/label";
 import {
+  getExperimentCampaign,
   getExperimentLabRun,
+  startExperimentCampaign,
   startExperimentLab,
 } from "@/api/experimentLab";
 import {
@@ -24,6 +26,7 @@ import {
 } from "@/data/experimentLabConfig";
 import type {
   BenchmarkSource,
+  ExperimentCampaignRun,
   ExperimentConfigurationValues,
   ExperimentRun,
   StrategyEvidence,
@@ -36,6 +39,9 @@ export function ExperimentLab() {
   const [configuration, setConfiguration] =
     useState<ExperimentConfigurationValues>(defaultExperimentConfiguration);
   const [run, setRun] = useState<ExperimentRun | null>(null);
+  const [campaignRun, setCampaignRun] = useState<ExperimentCampaignRun | null>(
+    null,
+  );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [strategyAdvancedOpen, setStrategyAdvancedOpen] = useState(false);
   const [uploadLabel, setUploadLabel] = useState("No CSV selected");
@@ -43,8 +49,13 @@ export function ExperimentLab() {
   const isRunning = run?.status === "running" || run?.status === "queued";
   const isCompleted = run?.status === "completed";
   const isFailed = run?.status === "failed";
+  const isCampaignRunning =
+    campaignRun?.status === "running" || campaignRun?.status === "queued";
+  const isCampaignCompleted = campaignRun?.status === "completed";
+  const isCampaignFailed = campaignRun?.status === "failed";
 
   async function handleRunExperiment() {
+    setCampaignRun(null);
     setRun({
       status: "running",
       currentQuery: "Queued",
@@ -102,6 +113,77 @@ export function ExperimentLab() {
     }
   }
 
+  async function handleRunCampaign() {
+    setRun(null);
+    setCampaignRun({
+      status: "running",
+      name: configuration.experimentName,
+      description: configuration.description || null,
+      datasetName:
+        configuration.benchmarkSource === "geo_bench"
+          ? "geo_bench"
+          : configuration.dataset,
+      model: configuration.llm,
+      queryCount: activeQueries(configuration).length || 1,
+      seedCount: configuration.benchmarkSource === "geo_bench" ? 5 : 1,
+      strategies: configuration.strategies,
+      metrics: configuration.evaluationMetrics,
+      currentQuery: "Queued",
+      currentStrategy: configuration.strategies[0] || "original",
+      currentSeed: configuration.randomSeed,
+      queriesCompleted: 0,
+      queriesRemaining: activeQueries(configuration).length || 1,
+      successCount: 0,
+      failureCount: 0,
+      estimatedRemainingTime: "Calculating",
+      paperAggregates: [],
+      strategyResults: [],
+      experiments: [],
+      queryResults: [],
+    });
+
+    try {
+      let result = await startExperimentCampaign(configuration);
+      setCampaignRun(result);
+
+      while (
+        result.id &&
+        (result.status === "queued" || result.status === "running")
+      ) {
+        await wait(3000);
+        result = await getExperimentCampaign(result.id);
+        setCampaignRun(result);
+      }
+    } catch (error) {
+      setCampaignRun((currentRun) => ({
+        ...(currentRun || {
+          name: configuration.experimentName,
+          currentQuery: "",
+          currentStrategy: "original",
+          currentSeed: configuration.randomSeed,
+          queryCount: activeQueries(configuration).length || 1,
+          seedCount: configuration.benchmarkSource === "geo_bench" ? 5 : 1,
+          strategies: configuration.strategies,
+          metrics: configuration.evaluationMetrics,
+          queriesCompleted: 0,
+          queriesRemaining: activeQueries(configuration).length || 1,
+          successCount: 0,
+          failureCount: 0,
+          estimatedRemainingTime: "Not available",
+          paperAggregates: [],
+          strategyResults: [],
+          experiments: [],
+          queryResults: [],
+        }),
+        status: "failed",
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "Campaign failed before completion.",
+      }));
+    }
+  }
+
   function updateField<Key extends keyof ExperimentConfigurationValues>(
     key: Key,
     value: ExperimentConfigurationValues[Key],
@@ -135,6 +217,24 @@ export function ExperimentLab() {
       configuration.strategies.includes(strategy)
         ? configuration.strategies.filter((item) => item !== strategy)
         : [...configuration.strategies, strategy],
+    );
+  }
+
+  if (isCampaignRunning || isCampaignFailed) {
+    return (
+      <RunningCampaign
+        campaign={campaignRun}
+        onReset={() => setCampaignRun(null)}
+      />
+    );
+  }
+
+  if (isCampaignCompleted && campaignRun) {
+    return (
+      <CampaignResults
+        campaign={campaignRun}
+        onReset={() => setCampaignRun(null)}
+      />
     );
   }
 
@@ -314,6 +414,7 @@ export function ExperimentLab() {
           disabled={!canRun(configuration)}
           queryCount={activeQueries(configuration).length}
           strategyCount={configuration.strategies.length}
+          onRunCampaign={handleRunCampaign}
           onRun={handleRunExperiment}
         />
       </div>
@@ -426,6 +527,91 @@ function RunningExperiment({
   );
 }
 
+function RunningCampaign({
+  campaign,
+  onReset,
+}: {
+  campaign: ExperimentCampaignRun | null;
+  onReset: () => void;
+}) {
+  const total = Math.max(campaign?.queryCount || 1, 1);
+  const progress = campaign
+    ? Math.round((campaign.queriesCompleted / total) * 100)
+    : 0;
+  const failed = campaign?.status === "failed";
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Campaign · Running"
+        title="Running Benchmark Campaign"
+        description="The campaign is executing stored experiment runs with the unchanged Princeton GEO pipeline."
+      />
+
+      {failed && (
+        <div className="rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-100">
+          {campaign?.errorMessage || "Campaign failed before completion."}
+          <Button className="ml-4" size="sm" onClick={onReset}>
+            Back to Configure
+          </Button>
+        </div>
+      )}
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <div className="grid gap-4 lg:grid-cols-4">
+            <StatusTile
+              label="Current Query"
+              value={campaign?.currentQuery || "Queued"}
+            />
+            <StatusTile
+              label="Current Strategy"
+              value={formatStrategy(campaign?.currentStrategy)}
+            />
+            <StatusTile
+              label="Current Seed"
+              value={
+                campaign?.currentSeed !== null &&
+                campaign?.currentSeed !== undefined
+                  ? String(campaign.currentSeed)
+                  : "Not available"
+              }
+            />
+            <StatusTile
+              label="Success / Failure"
+              value={`${campaign?.successCount || 0} / ${
+                campaign?.failureCount || 0
+              }`}
+            />
+          </div>
+
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+              <span>Campaign Progress</span>
+              <span>
+                {campaign
+                  ? `${campaign.queriesCompleted}/${campaign.queryCount}`
+                  : "0/0"}{" "}
+                queries
+              </span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-zinc-900">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Estimated Remaining Time:{" "}
+              {campaign?.estimatedRemainingTime || "Calculating"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ExperimentResults({
   onReset,
   run,
@@ -524,19 +710,311 @@ function ExperimentResults({
         </CardContent>
       </Card>
 
+      <PaperAggregateResults run={run} />
       <PerStrategyDetails run={run} ranking={ranking} />
       <EvidencePanel run={run} />
     </div>
   );
 }
 
+function CampaignResults({
+  campaign,
+  onReset,
+}: {
+  campaign: ExperimentCampaignRun;
+  onReset: () => void;
+}) {
+  const ranking = [...campaign.paperAggregates].sort(
+    (a, b) => b.visibilityImprovementMean - a.visibilityImprovementMean,
+  );
+  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  const exportBase = `${apiBase}/api/v1/experiment-lab/campaigns/${campaign.id}`;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          eyebrow="Campaign · Completed"
+          title="Campaign Results"
+          description="Benchmark-scale aggregate results with every child experiment preserved for reproducibility."
+        />
+        <div className="flex gap-2">
+          {campaign.id && (
+            <>
+              <Button asChild variant="outline">
+                <a href={`${exportBase}/export.csv`}>Export CSV</a>
+              </Button>
+              <Button asChild variant="outline">
+                <a href={`${exportBase}/export.json`}>Export JSON</a>
+              </Button>
+            </>
+          )}
+          <Button variant="outline" onClick={onReset}>
+            New Campaign
+          </Button>
+        </div>
+      </div>
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <StepHeader
+            step="Campaign Summary"
+            title={campaign.name}
+            description="Completed query batches, seed count, and aggregate objective metrics."
+          />
+          <div className="mt-5 grid gap-4 md:grid-cols-4">
+            <SummaryMetric
+              label="Queries Completed"
+              value={String(campaign.queriesCompleted)}
+            />
+            <SummaryMetric label="Seeds" value={String(campaign.seedCount)} />
+            <SummaryMetric
+              label="Successful Runs"
+              value={String(campaign.successCount)}
+            />
+            <SummaryMetric
+              label="Failed Runs"
+              value={String(campaign.failureCount)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <PaperAggregateResults run={campaign} />
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <StepHeader
+            step="Strategy Ranking"
+            title="Improvement Over Original"
+            description="Ranked by mean visibility improvement across campaign query/seed runs."
+          />
+          <div className="mt-5 overflow-hidden rounded-lg border border-zinc-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-black text-xs uppercase tracking-[0.14em] text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Rank</th>
+                  <th className="px-4 py-3 font-medium">Strategy</th>
+                  <th className="px-4 py-3 font-medium">Runs</th>
+                  <th className="px-4 py-3 font-medium">Δ Visibility</th>
+                  <th className="px-4 py-3 font-medium">Δ PAWC</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {ranking.map((result, index) => (
+                  <tr key={result.strategy} className="bg-zinc-950">
+                    <td className="px-4 py-3 text-zinc-400">{index + 1}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-100">
+                      {result.label}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-300">{result.runs}</td>
+                    <td className="px-4 py-3 text-zinc-300">
+                      {formatMeanStd(
+                        result.visibilityImprovementMean,
+                        result.visibilityImprovementStd,
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-300">
+                      {formatMeanStd(
+                        result.pawcImprovementMean,
+                        result.pawcImprovementStd,
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <CampaignExplorer campaign={campaign} />
+    </div>
+  );
+}
+
+function CampaignExplorer({
+  campaign,
+}: {
+  campaign: ExperimentCampaignRun;
+}) {
+  return (
+    <Card className="border-zinc-800 bg-zinc-950">
+      <CardContent className="p-6">
+        <StepHeader
+          step="Result Explorer"
+          title="Campaign → Strategy → Query → Seed"
+          description="Stored prompts, answers, evaluation metrics, and Top-5 documents for reproducibility."
+        />
+        <div className="mt-5 space-y-4">
+          {campaign.experiments.map((experiment) => {
+            const queryResults = campaign.queryResults.filter(
+              (queryResult) => queryResult.query === experiment.query,
+            );
+
+            return (
+              <details
+                key={experiment.id}
+                className="rounded-lg border border-zinc-800 bg-black"
+              >
+                <summary className="cursor-pointer list-none px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-100">
+                        {experiment.query || `Experiment ${experiment.id}`}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Experiment {experiment.id} · {experiment.status}
+                      </p>
+                    </div>
+                    <Badge className="border-zinc-700 bg-zinc-900 text-zinc-300">
+                      {queryResults.length} seed runs
+                    </Badge>
+                  </div>
+                </summary>
+                <div className="space-y-4 border-t border-zinc-800 p-4">
+                  {queryResults.map((queryResult) => (
+                    <details
+                      key={queryResult.id}
+                      className="rounded-lg border border-zinc-800 bg-zinc-950"
+                    >
+                      <summary className="cursor-pointer list-none px-4 py-3">
+                        <span className="text-sm font-medium text-zinc-100">
+                          Seed {queryResult.seedValue ?? "n/a"} · Winner{" "}
+                          {formatStrategy(queryResult.winnerStrategy)}
+                        </span>
+                      </summary>
+                      <div className="space-y-4 border-t border-zinc-800 p-4">
+                        <div className="rounded-lg border border-zinc-800 bg-black p-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
+                            Stored Documents
+                          </p>
+                          <div className="mt-3 space-y-2">
+                            {(queryResult.evidence?.topDocuments || []).map(
+                              (document) => (
+                                <div
+                                  key={document.rank}
+                                  className="text-sm text-zinc-300"
+                                >
+                                  [{document.rank}]{" "}
+                                  {document.title || document.url}
+                                  {document.isSelected ? " · selected" : ""}
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                        {(queryResult.evidence?.strategyDetails || []).map(
+                          (detail) => (
+                            <details
+                              key={`${queryResult.id}-${detail.strategy}`}
+                              className="rounded-lg border border-zinc-800 bg-black"
+                            >
+                              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-zinc-100">
+                                {formatStrategy(detail.strategy)}
+                              </summary>
+                              <div className="space-y-4 border-t border-zinc-800 p-4">
+                                <CodeBlock
+                                  label="Prompt"
+                                  value={detail.finalPrompt}
+                                />
+                                <CodeBlock
+                                  label="Generated Answer"
+                                  value={detail.generatedAnswer}
+                                />
+                                <MetricStrip detail={detail} />
+                              </div>
+                            </details>
+                          ),
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaperAggregateResults({
+  run,
+}: {
+  run: Pick<ExperimentRun, "paperAggregates">;
+}) {
+  const aggregates = run.paperAggregates || [];
+
+  if (aggregates.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="border-zinc-800 bg-zinc-950">
+      <CardContent className="p-6">
+        <StepHeader
+          step="Paper Aggregation"
+          title="Aggregated Paper Results"
+          description="Mean and sample standard deviation across individual seed runs. Improvements are relative to the Original baseline."
+        />
+        <div className="mt-5 overflow-hidden rounded-lg border border-zinc-800">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-black text-xs uppercase tracking-[0.14em] text-zinc-500">
+              <tr>
+                <th className="px-4 py-3 font-medium">Strategy</th>
+                <th className="px-4 py-3 font-medium">Runs</th>
+                <th className="px-4 py-3 font-medium">Visibility</th>
+                <th className="px-4 py-3 font-medium">Δ Visibility</th>
+                <th className="px-4 py-3 font-medium">PAWC</th>
+                <th className="px-4 py-3 font-medium">Δ PAWC</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800">
+              {aggregates.map((result) => (
+                <tr key={result.strategy} className="bg-zinc-950">
+                  <td className="px-4 py-3 font-medium text-zinc-100">
+                    {result.label}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-300">{result.runs}</td>
+                  <td className="px-4 py-3 text-zinc-300">
+                    {formatMeanStd(result.visibilityMean, result.visibilityStd)}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-300">
+                    {formatMeanStd(
+                      result.visibilityImprovementMean,
+                      result.visibilityImprovementStd,
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-300">
+                    {formatMeanStd(result.pawcMean, result.pawcStd)}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-300">
+                    {formatMeanStd(
+                      result.pawcImprovementMean,
+                      result.pawcImprovementStd,
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function RunPanel({
   disabled,
+  onRunCampaign,
   onRun,
   queryCount,
   strategyCount,
 }: {
   disabled: boolean;
+  onRunCampaign: () => void;
   onRun: () => void;
   queryCount: number;
   strategyCount: number;
@@ -557,6 +1035,16 @@ function RunPanel({
         >
           <Play className="mr-2 h-4 w-4" />
           Run Paper Reproduction
+        </Button>
+
+        <Button
+          className="mt-3 h-12 w-full text-sm font-semibold uppercase tracking-[0.14em]"
+          disabled={disabled}
+          variant="outline"
+          onClick={onRunCampaign}
+        >
+          <Play className="mr-2 h-4 w-4" />
+          Run Campaign
         </Button>
 
         <div className="mt-6 rounded-lg border border-zinc-800 bg-black p-4">
@@ -660,6 +1148,10 @@ function EvidencePanel({ run }: { run: ExperimentRun }) {
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
                       Winner: {formatStrategy(queryResult.winnerStrategy)}
+                      {queryResult.seedValue !== null &&
+                      queryResult.seedValue !== undefined
+                        ? ` · Seed: ${queryResult.seedValue}`
+                        : ""}
                     </p>
                   </div>
                   <FileText className="h-4 w-4 text-zinc-500" />
@@ -1178,6 +1670,10 @@ function formatStrategy(strategyId?: StrategyId) {
     strategyOptions.find((strategy) => strategy.id === strategyId)?.label ||
     strategyId
   );
+}
+
+function formatMeanStd(mean: number, std: number) {
+  return `${mean.toFixed(4)} ± ${std.toFixed(4)}`;
 }
 
 function wait(milliseconds: number) {
