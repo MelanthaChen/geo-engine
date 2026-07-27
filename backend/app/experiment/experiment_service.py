@@ -57,6 +57,7 @@ class ExperimentService:
         strategies = self._paper_mode_strategies(dataset_name, strategies)
         experiment = self.create_experiment(
             property_id=property_id,
+            campaign_id=campaign_id,
             name=name,
             description=description,
             llm_model=llm_model,
@@ -76,6 +77,7 @@ class ExperimentService:
         self,
         *,
         property_id: int | None,
+        campaign_id: int | None = None,
         name: str,
         description: str | None,
         llm_model: str,
