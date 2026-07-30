@@ -25,6 +25,37 @@ export type PropertyMetrics = {
     completed_at: string | null;
     status: string;
   } | null;
+  benchmarks?: {
+    dataset_count: number;
+    execution_count: number;
+    completed_execution_count: number;
+    latest_execution?: {
+      id: number;
+      benchmark_id: number;
+      provider: string;
+      status: string;
+      query_count: number;
+      completed_count: number;
+      failed_count: number;
+      created_at?: string;
+      finished_at?: string | null;
+      benchmark?: {
+        id: number;
+        name: string;
+        description?: string | null;
+      } | null;
+    } | null;
+    latest_metrics?: {
+      citation_rate?: number;
+      recommendation_rate?: number;
+      average_rank?: number | null;
+      coverage?: number;
+      visibility_score?: number;
+      latency?: number;
+      response_length?: number;
+      citation_count?: number;
+    };
+  };
 };
 
 export type PropertyPayload = {

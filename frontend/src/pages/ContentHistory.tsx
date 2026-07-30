@@ -45,7 +45,10 @@ function groupHistoryByDate(history: HistoryItem[]) {
 
 function groupHistoryByProvider(history: HistoryItem[]) {
   return history.reduce<Record<string, HistoryItem[]>>((groups, item) => {
-    const label = providerLabel(item.provider);
+    const label =
+      item.history_item_type === "benchmark"
+        ? `Benchmark: ${item.benchmark_name || item.title || "Execution"}`
+        : providerLabel(item.provider);
 
     return {
       ...groups,
@@ -199,7 +202,7 @@ export function ContentHistory() {
                     ([provider, providerItems]) => (
                       <div key={`${date}-${provider}`} className="space-y-3">
                         <p className="text-xs font-medium text-zinc-500">
-                          Provider:{" "}
+                          Group:{" "}
                           <span className="text-zinc-300">{provider}</span>
                         </p>
 

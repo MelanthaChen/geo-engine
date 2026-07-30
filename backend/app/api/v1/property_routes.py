@@ -9,6 +9,7 @@ from app.models.citation_test_run import CitationTestRun
 from app.models.content import Content
 from app.models.publishing_job import PublishingJob
 from app.models.website_audit import WebsiteAudit
+from app.services.benchmark_service import benchmark_summary
 from app.services.property_service import (
     create_property,
     get_property,
@@ -205,4 +206,5 @@ def get_property_metrics(
             if latest_audit
             else None
         ),
+        "benchmarks": benchmark_summary(db, property_id=property_id),
     }

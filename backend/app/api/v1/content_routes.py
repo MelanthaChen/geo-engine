@@ -187,6 +187,9 @@ def history_item_type(event):
     if event.citation_test_run_id:
         return "citation_test"
 
+    if event.benchmark_execution_id:
+        return "benchmark"
+
     if event.website_audit_id or event.event_type == "audit_run":
         return "audit"
 
@@ -200,6 +203,9 @@ def history_item_id(event):
     if event.citation_test_run_id:
         return event.citation_test_run_id
 
+    if event.benchmark_execution_id:
+        return event.benchmark_execution_id
+
     if event.website_audit_id:
         return event.website_audit_id
 
@@ -212,6 +218,14 @@ def history_title(event):
 
     if event.citation_test_run:
         return f"Citation Test: {event.citation_test_run.prompt[:80]}"
+
+    if event.benchmark_execution:
+        benchmark = event.benchmark_execution.benchmark
+
+        if benchmark:
+            return f"Benchmark: {benchmark.name}"
+
+        return event.summary or "Benchmark Execution"
 
     if event.website_audit:
         return event.summary or "Website Audit"
@@ -238,6 +252,20 @@ def history_body(event):
                 f"{result.raw_response or result.error_message or ''}"
             )
             for result in event.citation_test_run.results
+        )
+
+    if event.benchmark_execution:
+        benchmark = event.benchmark_execution.benchmark
+        metrics = event.benchmark_execution.metrics_json or "{}"
+
+        return (
+            f"Benchmark: {benchmark.name if benchmark else 'Benchmark'}\n"
+            f"Provider: {event.benchmark_execution.provider}\n"
+            f"Status: {event.benchmark_execution.status}\n"
+            f"Queries: {event.benchmark_execution.completed_count}/"
+            f"{event.benchmark_execution.query_count}\n"
+            f"Failed: {event.benchmark_execution.failed_count}\n"
+            f"Metrics: {metrics}"
         )
 
     if event.website_audit:
@@ -377,7 +405,11 @@ def get_content_history(
                 event.content.content_type if event.content else None
             ),
             "provider": (
-                event.content.provider if event.content else None
+                event.content.provider
+                if event.content
+                else event.benchmark_execution.provider
+                if event.benchmark_execution
+                else None
             ),
             "strategy_type": (
                 event.content.strategy_type if event.content else None
@@ -453,6 +485,18 @@ def get_content_history(
             "event_summary": event.summary,
             "publishing_job_id": event.publishing_job_id,
             "citation_test_run_id": event.citation_test_run_id,
+            "benchmark_execution_id": event.benchmark_execution_id,
+            "benchmark_id": (
+                event.benchmark_execution.benchmark_id
+                if event.benchmark_execution
+                else None
+            ),
+            "benchmark_name": (
+                event.benchmark_execution.benchmark.name
+                if event.benchmark_execution
+                and event.benchmark_execution.benchmark
+                else None
+            ),
             "event_status": event.event_type,
             "created_at": event.created_at,
         }

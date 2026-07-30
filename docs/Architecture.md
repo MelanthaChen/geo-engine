@@ -171,6 +171,61 @@ Future provider comparison targets:
 Future integrations should populate the same provider comparison result shape
 without changing retrieval, publishing, or experiment execution semantics.
 
+## Benchmark Layer
+
+The Benchmark Framework sits above provider execution. It evaluates a reusable
+dataset across one or more providers and stores every query-level result plus
+aggregate metrics.
+
+```mermaid
+flowchart TD
+    DS["BenchmarkDataset"]
+    Q["BenchmarkDatasetQuery[]"]
+    B["Benchmark"]
+    EX["BenchmarkExecution"]
+    PM["ProviderManager"]
+    PR["Provider Result"]
+    BR["BenchmarkResult"]
+    AG["Aggregate Metrics"]
+    H["History Events"]
+
+    DS --> Q
+    DS --> B
+    B --> EX
+    EX --> Q
+    EX --> PM
+    PM --> PR
+    PR --> BR
+    BR --> AG
+    EX --> H
+```
+
+Benchmark concepts:
+
+- `BenchmarkDataset`: reusable query collection, such as Resume, Travel, or
+  Shopping benchmarks.
+- `BenchmarkDatasetQuery`: a ranked prompt within a dataset.
+- `Benchmark`: experiment definition containing dataset, providers, and metric
+  names.
+- `BenchmarkExecution`: one concrete run of a benchmark for a provider.
+- `BenchmarkResult`: one provider response and metric row for one query.
+
+Metrics are stored as JSON alongside common indexed columns. This keeps the
+schema stable while allowing future metrics to be added. The initial reusable
+metric set includes citation rate, recommendation rate, average rank, coverage,
+visibility score, latency, response length, and citation count.
+
+Current implementation:
+
+- ChatGPT is the only executable provider.
+- Benchmark runs execute one provider result per dataset query.
+- Dashboard reads benchmark summaries from the database.
+- History links benchmark start/completion events to their execution records.
+
+Future provider integrations should add provider implementations only. The
+benchmark layer can then run the same dataset across Claude, Gemini,
+Perplexity, or other providers without changing dataset or metrics storage.
+
 ## Database
 
 Database: PostgreSQL.
@@ -188,6 +243,11 @@ Important tables include:
 - `history_events`
 - `citation_test_runs`
 - `citation_test_results`
+- `benchmark_datasets`
+- `benchmark_dataset_queries`
+- `benchmarks`
+- `benchmark_executions`
+- `benchmark_results`
 - `website_audits`
 - `website_pages`
 - `website_audit_recommendations`

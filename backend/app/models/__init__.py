@@ -24,3 +24,10 @@ from app.models.website_audit import WebsiteAudit
 from app.models.website_page import WebsitePage
 from app.models.website_audit_recommendation import WebsiteAuditRecommendation
 from app.models.retrieval_task import RetrievalTask
+from app.models.benchmark import (
+    Benchmark,
+    BenchmarkDataset,
+    BenchmarkDatasetQuery,
+    BenchmarkExecution,
+    BenchmarkResult,
+)

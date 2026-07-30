@@ -60,6 +60,13 @@ class HistoryEvent(Base):
         index=True,
     )
 
+    benchmark_execution_id = Column(
+        Integer,
+        ForeignKey("benchmark_executions.id"),
+        nullable=True,
+        index=True,
+    )
+
     event_type = Column(String, nullable=False, index=True)
 
     summary = Column(Text, nullable=True)
@@ -83,3 +90,7 @@ class HistoryEvent(Base):
         back_populates="history_events",
     )
     website_audit = relationship("WebsiteAudit")
+    benchmark_execution = relationship(
+        "BenchmarkExecution",
+        back_populates="history_events",
+    )

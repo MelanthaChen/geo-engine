@@ -19,6 +19,9 @@ export type HistoryItem = {
   event_summary?: string | null;
   publishing_job_id?: number | null;
   citation_test_run_id?: number | null;
+  benchmark_execution_id?: number | null;
+  benchmark_id?: number | null;
+  benchmark_name?: string | null;
   published_account?: string | null;
   published_platform?: string | null;
   published_url?: string | null;

@@ -169,6 +169,69 @@ export function Dashboard() {
           </Card>
         </div>
       </div>
+
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-50">
+                Benchmark Summary
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Dataset-scale GEO evaluation for the active property.
+              </p>
+            </div>
+            <p className="text-sm text-zinc-500">
+              Current Provider{" "}
+              <span className="font-medium text-zinc-200">ChatGPT</span>
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricLine
+              label="Datasets"
+              value={formatMetric(metrics?.benchmarks?.dataset_count)}
+            />
+            <MetricLine
+              label="Benchmark Runs"
+              value={formatMetric(metrics?.benchmarks?.execution_count)}
+            />
+            <MetricLine
+              label="Coverage"
+              value={formatPercent(metrics?.benchmarks?.latest_metrics?.coverage)}
+            />
+            <MetricLine
+              label="Citation Rate"
+              value={formatPercent(
+                metrics?.benchmarks?.latest_metrics?.citation_rate,
+              )}
+            />
+            <MetricLine
+              label="Visibility Score"
+              value={formatMetric(
+                metrics?.benchmarks?.latest_metrics?.visibility_score,
+              )}
+            />
+            <MetricLine
+              label="Average Rank"
+              value={formatAverageRank(
+                metrics?.benchmarks?.latest_metrics?.average_rank,
+              )}
+            />
+            <MetricLine
+              label="Latency"
+              value={formatLatency(metrics?.benchmarks?.latest_metrics?.latency)}
+            />
+            <MetricLine
+              label="Latest Benchmark"
+              value={
+                metrics?.benchmarks?.latest_execution?.benchmark?.name ||
+                "No data yet."
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -199,6 +262,30 @@ function formatMetric(value?: number | null) {
   }
 
   return String(value);
+}
+
+function formatPercent(value?: number | null) {
+  if (value === null || value === undefined) {
+    return "No data yet.";
+  }
+
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatAverageRank(value?: number | null) {
+  if (value === null || value === undefined) {
+    return "No data yet.";
+  }
+
+  return value.toFixed(1);
+}
+
+function formatLatency(value?: number | null) {
+  if (value === null || value === undefined) {
+    return "No data yet.";
+  }
+
+  return `${Math.round(value)} ms`;
 }
 
 function latestPublishLabel(history: HistoryItem[]) {
