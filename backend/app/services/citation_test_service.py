@@ -1,11 +1,10 @@
-from openai import OpenAI
 from datetime import datetime, timezone
 import re
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.llm_provider import normalize_llm_provider
+from app.providers import ProviderManager
 
 from app.models.content import Content
 from app.models.citation_test import CitationTest
@@ -19,10 +18,6 @@ from app.utils.title_extractor import (
     extract_article_title
 )
 
-
-client = OpenAI(
-    api_key=settings.OPENAI_API_KEY
-)
 
 SUPPORTED_PROMPT_MODELS = {
     "chatgpt",
@@ -78,6 +73,7 @@ def run_prompt_citation_test(
             model_name=model_name,
             target_brand=target_brand,
             domain=property_record.domain,
+            provider=normalized_provider,
         )
         db.add(
             CitationTestResult(
@@ -135,6 +131,7 @@ def execute_prompt_model(
     model_name: str,
     target_brand: str,
     domain: str,
+    provider: str | None = None,
 ):
     normalized_model = model_name.strip().lower()
 
@@ -153,25 +150,17 @@ def execute_prompt_model(
             "error_message": error,
         }
 
-    response = client.chat.completions.create(
+    provider_engine = ProviderManager.get_provider(provider)
+    raw_response = provider_engine.run_citation_test(
+        system_prompt=(
+            "Answer the user's prompt naturally. Do not force a "
+            "brand mention. If a website or brand is relevant, mention "
+            "it in the same way a normal AI answer would."
+        ),
+        user_prompt=prompt,
         model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Answer the user's prompt naturally. Do not force a "
-                    "brand mention. If a website or brand is relevant, mention "
-                    "it in the same way a normal AI answer would."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
         temperature=0.4,
     )
-    raw_response = response.choices[0].message.content or ""
     mentioned = detect_mention(
         response_text=raw_response,
         target_brand=target_brand,
@@ -348,8 +337,8 @@ Excerpt:
 {content.body[:1200]}
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+    provider_engine = ProviderManager.get_provider(normalized_provider)
+    ai_response = provider_engine.generate_messages(
         messages=[
             {
                 "role": "system",
@@ -370,10 +359,9 @@ published content, or a personal comment.
                 "content": test_query
             }
         ],
+        model="gpt-4.1-mini",
         temperature=0.7
     )
-
-    ai_response = response.choices[0].message.content
 
     matched_keywords = []
 

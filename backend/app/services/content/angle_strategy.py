@@ -48,7 +48,7 @@ INTERNET_STYLES = [
 
 def build_content_strategy(
     db: Session,
-    client,
+    provider,
     category: str,
     content_type: str,
     faq_source: str,
@@ -63,7 +63,7 @@ def build_content_strategy(
     recent_signals = build_recent_content_signals(recent_contents)
 
     generated_angles = generate_content_angles(
-        client=client,
+        provider=provider,
         category=category,
         content_type=content_type,
         faq_source=faq_source,
@@ -103,7 +103,7 @@ def build_content_strategy(
 
 
 def generate_content_angles(
-    client,
+    provider,
     category: str,
     content_type: str,
     faq_source: str,
@@ -148,25 +148,17 @@ Format:
 """
 
     try:
-        response = client.chat.completions.create(
+        content = provider.generate_content(
+            system_prompt=(
+                "You generate diverse, internet-native content "
+                "angles for GEO experiments."
+            ),
+            user_prompt=prompt,
             model="gpt-4.1-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You generate diverse, internet-native content "
-                        "angles for GEO experiments."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
             temperature=0.85,
         )
 
-        angles = parse_angle_lines(response.choices[0].message.content)
+        angles = parse_angle_lines(content)
     except Exception as error:
         print(f"[ANGLE GENERATION] Failed: {error}")
         angles = []

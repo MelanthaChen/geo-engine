@@ -1,14 +1,10 @@
 import re
 
-from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.llm_provider import normalize_llm_provider
-from app.core.config import settings
+from app.providers import ProviderManager
 from app.services.history.faq_history_service import create_faq_set
-
-
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def discover_ai_faqs(
@@ -19,6 +15,7 @@ def discover_ai_faqs(
     provider: str | None = None,
 ):
     normalized_provider = normalize_llm_provider(provider)
+    provider_engine = ProviderManager.get_provider(normalized_provider)
     prompt = f"""
 You are an expert researcher.
 
@@ -49,23 +46,15 @@ Format:
 2. Question
 """
 
-    response = client.chat.completions.create(
+    content = provider_engine.generate_content(
+        system_prompt="You generate category-level research FAQs.",
+        user_prompt=prompt,
         model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You generate category-level research FAQs."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
         temperature=0.55
     )
 
     questions = parse_questions(
-        response.choices[0].message.content
+        content
     )[:20]
 
     return create_faq_set(

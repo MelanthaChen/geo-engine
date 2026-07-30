@@ -1,16 +1,10 @@
-from openai import OpenAI
-
-from app.core.config import settings
 from app.core.llm_provider import normalize_llm_provider
+from app.providers import ProviderManager
 from sqlalchemy.orm import Session
 
 from app.models.content import Content
 
 from app.utils.citation_detector import detect_citation
-
-client = OpenAI(
-    api_key=settings.OPENAI_API_KEY
-)
 
 
 def check_citation(
@@ -29,24 +23,13 @@ Answer this search query naturally:
 Include recommendations and sources if relevant.
 """
 
-    response = client.chat.completions.create(
+    provider_engine = ProviderManager.get_provider(normalized_provider)
+    answer = provider_engine.run_citation_test(
+        system_prompt="You are a helpful AI search engine.",
+        user_prompt=prompt,
         model="gpt-4.1-mini",
-
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful AI search engine."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-
         temperature=0.7
     )
-
-    answer = response.choices[0].message.content
 
     content_query = db.query(Content)
 

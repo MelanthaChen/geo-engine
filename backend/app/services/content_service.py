@@ -1,13 +1,11 @@
-from openai import OpenAI
-
 import json
 import logging
 import re
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.llm_provider import normalize_llm_provider
+from app.providers import ProviderManager
 
 from app.repositories.content_repository import (
     create_content,
@@ -43,10 +41,6 @@ from app.services.history.faq_history_service import (
 from app.services.property_service import get_property
 from app.utils.title_extractor import (
     extract_article_title
-)
-
-client = OpenAI(
-    api_key=settings.OPENAI_API_KEY
 )
 
 logger = logging.getLogger(__name__)
@@ -89,6 +83,7 @@ def generate_content(
     provider: str | None = None,
 ):
     normalized_provider = normalize_llm_provider(provider)
+    provider_engine = ProviderManager.get_provider(normalized_provider)
     property_record = get_property(db, property_id) if property_id else None
 
     if property_record:
@@ -142,7 +137,7 @@ def generate_content(
 
     content_strategy = build_content_strategy(
         db=db,
-        client=client,
+        provider=provider_engine,
         category=query,
         content_type=strategy_type,
         faq_source=normalized_faq_source,
@@ -169,26 +164,11 @@ def generate_content(
         diversity_constraints=content_strategy["diversity_constraints"],
     )
 
-    response = client.chat.completions.create(
+    generated_content = provider_engine.generate_content(
+        system_prompt=prompt.system_prompt,
+        user_prompt=prompt.user_prompt,
         model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": prompt.system_prompt
-            },
-            {
-                "role": "user",
-                "content": prompt.user_prompt
-            }
-        ],
         temperature=0.7
-    )
-
-    generated_content = (
-        response
-        .choices[0]
-        .message
-        .content
     )
 
     generated_content = insert_natural_link(

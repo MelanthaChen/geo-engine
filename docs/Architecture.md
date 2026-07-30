@@ -102,14 +102,50 @@ citation results, experiment runs, and experiment campaigns, store a
 Current implementation:
 
 - `chatgpt` is the default and only active provider.
-- Existing OpenAI-backed services continue to execute exactly as before.
+- LLM execution is routed through the Provider Execution Layer.
 - API requests may omit `provider`; the backend normalizes missing values to
   `chatgpt`.
 
 Future providers such as Claude, Gemini, and Perplexity should be added behind
-the provider-aware service boundary without changing stored experiment,
-content, or citation records. The first phase does not call any new provider
-APIs and does not expose provider selection in the frontend.
+the provider interface without changing stored experiment, content, or citation
+records. The current implementation does not call any non-OpenAI provider APIs.
+
+## Provider Execution Layer
+
+All LLM-backed execution flows now resolve a provider before calling a model.
+ChatGPT remains the only concrete implementation, but service code no longer
+constructs OpenAI clients directly.
+
+```mermaid
+flowchart TD
+    UI["Presentation Layer"]
+    API["FastAPI Routes and Services"]
+    PM["ProviderManager"]
+    PI["Provider Interface"]
+    GPT["ChatGPTProvider"]
+    FUT["Claude/Gemini/Perplexity Stubs"]
+    OAI["OpenAI API"]
+
+    UI --> API
+    API --> PM
+    PM --> PI
+    PI --> GPT
+    PI --> FUT
+    GPT --> OAI
+```
+
+Provider-aware execution currently covers:
+
+- query generation;
+- FAQ generation;
+- content generation;
+- GEO experiment LLM runs;
+- citation tests;
+- content optimization.
+
+Future provider integrations should implement the same provider methods and
+register with `ProviderManager`. Unsupported providers intentionally raise
+`NotImplementedError` until their API integrations are added.
 
 ## Cross-Provider Evaluation
 
@@ -122,7 +158,7 @@ all display one row per provider.
 Current implementation:
 
 - ChatGPT is the only active provider.
-- Existing backend execution still uses the current OpenAI-backed code paths.
+- Existing backend execution still produces ChatGPT results only.
 - Cross-provider tables include ChatGPT results plus placeholders for future
   providers.
 

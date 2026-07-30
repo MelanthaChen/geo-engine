@@ -183,6 +183,7 @@ class ExperimentService:
             model=experiment.llm_model or "gpt-3.5-turbo",
             temperature=experiment.temperature or 0.7,
             random_seed=seed_value,
+            provider=experiment.provider,
             retrieved_documents=uploaded_documents,
             on_strategy=lambda strategy, current_query=query: (
                 self.repository.update_current_strategy(

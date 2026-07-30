@@ -1,5 +1,10 @@
 DEFAULT_LLM_PROVIDER = "chatgpt"
-SUPPORTED_LLM_PROVIDERS = {DEFAULT_LLM_PROVIDER}
+SUPPORTED_LLM_PROVIDERS = {
+    DEFAULT_LLM_PROVIDER,
+    "claude",
+    "gemini",
+    "perplexity",
+}
 
 
 def normalize_llm_provider(provider: str | None = None) -> str:

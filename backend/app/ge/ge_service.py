@@ -34,10 +34,13 @@ class GenerativeEngineService:
         model: str,
         temperature: float,
         random_seed: int,
+        provider: str | None = None,
         retrieved_documents: list[RetrievedDocument] | None = None,
         on_strategy=None,
         on_sample=None,
     ) -> dict:
+        runner = OpenAILLMRunner(provider) if provider else self.llm_runner
+        rewriter = GeoRewriter(runner) if provider else self.rewriter
         documents = (
             retrieved_documents
             if retrieved_documents is not None
@@ -62,7 +65,7 @@ class GenerativeEngineService:
             if on_strategy:
                 on_strategy(strategy)
 
-            modified_document_text = self.rewriter.rewrite(
+            modified_document_text = rewriter.rewrite(
                 document_text=selected_document.plain_text,
                 query=query,
                 strategy=strategy,
@@ -87,7 +90,7 @@ class GenerativeEngineService:
                 # Appendix B.1 specifies five answer samples per method with
                 # top_p=1. Temperature is passed through from the experiment
                 # configuration, whose default is set to the paper value 0.7.
-                answer = self.llm_runner.generate(
+                answer = runner.generate(
                     system_prompt="",
                     user_prompt=prompt,
                     model=model,

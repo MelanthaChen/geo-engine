@@ -1,8 +1,6 @@
 from typing import Protocol
 
-from openai import OpenAI
-
-from app.core.config import settings
+from app.providers import ProviderManager
 
 
 class LLMRunner(Protocol):
@@ -19,8 +17,8 @@ class LLMRunner(Protocol):
 
 
 class OpenAILLMRunner:
-    def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    def __init__(self, provider_name: str | None = "chatgpt"):
+        self.provider = ProviderManager.get_provider(provider_name)
 
     def generate(
         self,
@@ -31,23 +29,11 @@ class OpenAILLMRunner:
         top_p: float = 1,
         max_tokens: int | None = None,
     ) -> str:
-        messages = []
-
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        messages.append({"role": "user", "content": user_prompt})
-
-        request = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "top_p": top_p,
-        }
-
-        if max_tokens is not None:
-            request["max_tokens"] = max_tokens
-
-        response = self.client.chat.completions.create(**request)
-
-        return response.choices[0].message.content or ""
+        return self.provider.run_experiment(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+        )

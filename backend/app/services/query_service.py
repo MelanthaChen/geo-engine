@@ -2,17 +2,10 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from openai import OpenAI
-
-from app.core.config import OPENAI_API_KEY
 from app.core.llm_provider import normalize_llm_provider
+from app.providers import ProviderManager
 
 from app.repositories.query_repository import create_query
-
-
-client = OpenAI(
-    api_key=OPENAI_API_KEY
-)
 
 
 def generate_queries(
@@ -21,7 +14,7 @@ def generate_queries(
     niche: str,
     provider: str | None = None,
 ) -> List[str]:
-    normalize_llm_provider(provider)
+    normalized_provider = normalize_llm_provider(provider)
 
     prompt = f"""
 You are a GEO query strategist.
@@ -43,20 +36,13 @@ Return ONLY a plain list.
 One query per line.
 """
 
-    response = client.chat.completions.create(
+    provider_engine = ProviderManager.get_provider(normalized_provider)
+    content = provider_engine.run_query(
+        system_prompt=None,
+        user_prompt=prompt,
         model="gpt-4.1-mini",
-
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-
         temperature=0.8
     )
-
-    content = response.choices[0].message.content
 
     queries = [
         line.strip("- ").strip()
