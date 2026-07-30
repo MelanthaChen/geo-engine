@@ -7,6 +7,7 @@ export type HistoryItem = {
   event_id?: number | string;
   title?: string;
   target_persona?: string | null;
+  provider?: "chatgpt" | null;
   strategy_type?: string | null;
   content_type?: string | null;
   faq_source?: string | null;

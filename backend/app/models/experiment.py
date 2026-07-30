@@ -40,6 +40,13 @@ class Experiment(Base):
 
     status = Column(String, default="queued", index=True)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     llm_model = Column(String, nullable=True)
 
     dataset_name = Column(String, nullable=True)
@@ -120,6 +127,13 @@ class ExperimentCampaign(Base):
     description = Column(Text, nullable=True)
 
     status = Column(String, default="queued", index=True)
+
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
 
     llm_model = Column(String, nullable=True)
 

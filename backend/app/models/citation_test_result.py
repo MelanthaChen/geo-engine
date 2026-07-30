@@ -20,6 +20,13 @@ class CitationTestResult(Base):
 
     model = Column(String, nullable=False)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     status = Column(String, default="queued", index=True)
 
     mentioned = Column(Boolean, default=False)

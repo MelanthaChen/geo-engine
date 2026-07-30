@@ -18,9 +18,28 @@ const integrationSections = [
     title: "Reddit Session",
     note: "TODO: connect local session status once publisher-agent health endpoints are available.",
   },
+];
+
+const llmProviders = [
   {
-    title: "OpenAI Configuration",
-    note: "TODO: expose safe backend configuration metadata if needed.",
+    name: "OpenAI",
+    status: "Connected",
+    detail: "ChatGPT is the active provider.",
+  },
+  {
+    name: "Anthropic",
+    status: "Coming Soon",
+    detail: "Claude support is planned in a future release.",
+  },
+  {
+    name: "Google AI",
+    status: "Coming Soon",
+    detail: "Gemini support is planned in a future release.",
+  },
+  {
+    name: "Perplexity",
+    status: "Coming Soon",
+    detail: "Perplexity support is planned in a future release.",
   },
 ];
 
@@ -187,6 +206,47 @@ export function Settings() {
             </CardContent>
           </Card>
         ))}
+
+        <Card className="border-zinc-800 bg-zinc-950">
+          <CardContent className="space-y-4 p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-50">
+                LLM Providers
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Provider registry status for GEO generation and citation
+                testing.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {llmProviders.map((provider) => (
+                <div
+                  key={provider.name}
+                  className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-black p-4"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-zinc-100">
+                      {provider.name}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {provider.detail}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      provider.status === "Connected"
+                        ? "rounded-full border border-emerald-700 bg-emerald-950 px-3 py-1 text-xs font-medium text-emerald-300"
+                        : "rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs font-medium text-zinc-400"
+                    }
+                  >
+                    {provider.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

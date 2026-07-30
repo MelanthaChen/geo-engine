@@ -17,6 +17,7 @@ function experimentPayload(configuration: ExperimentConfigurationValues) {
   return {
     experiment_name: configuration.experimentName,
     description: configuration.description || null,
+    provider: configuration.provider,
     llm: configuration.llm,
     dataset:
       configuration.benchmarkSource === "geo_bench"

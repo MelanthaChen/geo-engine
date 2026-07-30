@@ -11,6 +11,7 @@ export async function runCitationTest(
     {
       params: {
         source_type: sourceType,
+        provider: "chatgpt",
       },
     }
   );

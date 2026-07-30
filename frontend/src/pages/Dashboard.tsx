@@ -14,6 +14,7 @@ import {
 } from "@/api/citationTests";
 import { Card, CardContent } from "../../@/components/ui/card";
 import { DashboardCards } from "@/components/DashboardCards";
+import { LlmCoverageCard } from "@/components/LlmCoverageCard";
 import { useProperty } from "@/contexts/PropertyContext";
 
 export function Dashboard() {
@@ -106,6 +107,7 @@ export function Dashboard() {
                 label="Domain"
                 value={activeProperty?.domain || "No active domain"}
               />
+              <MetricLine label="Current Provider" value="ChatGPT" />
               <MetricLine
                 label="Generated Contents"
                 value={String(metrics?.generated_content ?? 0)}
@@ -131,37 +133,41 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-950">
-          <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-zinc-50">
-              Recent History
-            </h2>
-            <div className="mt-4 space-y-3">
-              {history.slice(0, 6).map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-zinc-800 bg-black p-3"
-                >
-                  <p className="text-sm font-medium text-zinc-100">
-                    {item.event_summary || item.title || "History event"}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {formatEventLabel(item.event_type)}
-                    {item.created_at
-                      ? ` • ${new Date(item.created_at).toLocaleString()}`
-                      : ""}
-                  </p>
-                </div>
-              ))}
+        <div className="space-y-4">
+          <LlmCoverageCard />
 
-              {history.length === 0 && (
-                <p className="text-sm text-zinc-500">
-                  No history events for the current property.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="border-zinc-800 bg-zinc-950">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold text-zinc-50">
+                Recent History
+              </h2>
+              <div className="mt-4 space-y-3">
+                {history.slice(0, 6).map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-zinc-800 bg-black p-3"
+                  >
+                    <p className="text-sm font-medium text-zinc-100">
+                      {item.event_summary || item.title || "History event"}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {formatEventLabel(item.event_type)}
+                      {item.created_at
+                        ? ` • ${new Date(item.created_at).toLocaleString()}`
+                        : ""}
+                    </p>
+                  </div>
+                ))}
+
+                {history.length === 0 && (
+                  <p className="text-sm text-zinc-500">
+                    No history events for the current property.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

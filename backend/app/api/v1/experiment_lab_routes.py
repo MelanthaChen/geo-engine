@@ -31,6 +31,7 @@ class ExperimentRunRequest(BaseModel):
     property_id: int | None = None
     experiment_name: str = Field(default="Princeton GEO Reproduction")
     description: str | None = None
+    provider: str | None = Field(default="chatgpt")
     llm: str = Field(default="gpt-3.5-turbo")
     dataset: str = Field(default="custom")
     queries: list[str] | None = None
@@ -54,6 +55,7 @@ def run_experiment(
         property_id=request.property_id,
         name=request.experiment_name,
         description=request.description,
+        provider=request.provider,
         llm_model=request.llm,
         dataset_name=request.dataset,
         queries=request.queries,
@@ -102,6 +104,7 @@ def create_campaign(
         property_id=request.property_id,
         name=request.experiment_name,
         description=request.description,
+        provider=request.provider,
         llm_model=request.llm,
         dataset_name=request.dataset,
         queries=request.queries,

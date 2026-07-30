@@ -24,6 +24,7 @@ class PromptCitationTestRequest(BaseModel):
     property_id: int
     prompt: str
     models: list[str]
+    provider: str | None = "chatgpt"
 
 
 @router.get("")
@@ -53,6 +54,7 @@ def list_tests(
                     "property_id": run.property_id,
                     "content_id": None,
                     "platform": result.model,
+                    "provider": result.provider,
                     "model": result.model,
                     "query": run.prompt,
                     "prompt": run.prompt,
@@ -98,6 +100,7 @@ def list_tests(
             "property_id": test.property_id,
             "content_id": test.content_id,
             "platform": test.platform,
+            "provider": test.provider,
             "model": test.platform,
             "query": test.prompt or test.query,
             "prompt": test.prompt or test.query,
@@ -145,6 +148,7 @@ def run_prompt_test(
         property_id=request.property_id,
         prompt=request.prompt,
         models=request.models,
+        provider=request.provider,
     )
 
     if not result:
@@ -161,6 +165,7 @@ def run_prompt_test(
             {
                 "id": item.id,
                 "model": item.model,
+                "provider": item.provider,
                 "status": item.status,
                 "mentioned": item.mentioned,
                 "rank": item.rank,
@@ -179,6 +184,7 @@ def run_test(
     content_id: int,
     source_type: str = "published_content",
     property_id: int | None = None,
+    provider: str | None = "chatgpt",
     db: Session = Depends(get_db),
 ):
 
@@ -187,6 +193,7 @@ def run_test(
         content_id=content_id,
         source_type=source_type,
         property_id=property_id,
+        provider=provider,
     )
 
     if not result:
@@ -200,6 +207,7 @@ def run_test(
         "content_id": result.content_id,
         "property_id": result.property_id,
         "platform": result.platform,
+        "provider": result.provider,
         "mentioned": result.mentioned,
         "evidence_found": result.evidence_found,
         "citation_type": result.citation_type,

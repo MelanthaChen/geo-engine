@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.content import Content
+from app.core.llm_provider import normalize_llm_provider
 
 
 def create_content(
@@ -27,6 +28,7 @@ def create_content(
     archetype: str | None = None,
     internet_style: str | None = None,
     generated_angles: str | None = None,
+    provider: str | None = None,
 ):
     content = Content(
         property_id=property_id,
@@ -35,6 +37,7 @@ def create_content(
         faq_id=faq_id,
         title=title,
         content_type=content_type,
+        provider=normalize_llm_provider(provider),
         strategy_type=strategy_type,
         generation_mode=generation_mode,
         target_url=target_url,

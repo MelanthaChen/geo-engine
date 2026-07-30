@@ -282,6 +282,7 @@ def generate_content_route(
         faq_source=request.faq_source,
         source_faq_set_id=request.source_faq_set_id,
         publish_platform=request.publish_platform,
+        provider=request.provider,
         angle=request.angle,
         perspective=request.perspective,
         archetype=request.archetype,
@@ -306,6 +307,9 @@ def generate_content_route(
 
         "content_type":
             result.content_type,
+
+        "provider":
+            result.provider,
 
         "target_url":
             result.target_url,
@@ -371,6 +375,9 @@ def get_content_history(
             ),
             "content_type": (
                 event.content.content_type if event.content else None
+            ),
+            "provider": (
+                event.content.provider if event.content else None
             ),
             "strategy_type": (
                 event.content.strategy_type if event.content else None
@@ -475,6 +482,7 @@ def get_content_history(
             "reddit_title": None,
             "reddit_body": None,
             "content_type": faq_set.content_type,
+            "provider": faq_set.provider,
             "strategy_type": faq_set.content_type,
             "target_persona": faq_set.category,
             "target_url": faq_set.website_url,
@@ -655,6 +663,7 @@ def generate_faqs_route(
     website_url: str | None = None,
     property_id: int | None = None,
     account_id: int | None = None,
+    provider: str | None = "chatgpt",
     db: Session = Depends(get_db),
 ):
     log_platform_faq_debug(
@@ -666,6 +675,7 @@ def generate_faqs_route(
         website_url=website_url,
         property_id=property_id,
         account_id=account_id,
+        provider=provider,
     )
 
     if (
@@ -679,6 +689,7 @@ def generate_faqs_route(
             content_type=content_type,
             property_id=property_id,
             account_id=account_id,
+            provider=provider,
         )
         log_platform_faq_debug(
             "generate_faqs_route.xiaohongshu_task_created",
@@ -808,6 +819,7 @@ def get_content_by_id(
         "reddit_title": content.reddit_title,
         "reddit_body": content.reddit_body,
         "content_type": content.content_type,
+        "provider": content.provider,
         "strategy_type": content.strategy_type,
         "target_url": content.target_url,
         "evidence": content_evidence(content),

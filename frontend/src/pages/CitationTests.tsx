@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
@@ -8,14 +8,24 @@ import {
   runPromptCitationTest,
   type CitationTestRow,
 } from "@/api/citationTests";
+import { LlmProviderSelector } from "@/components/LlmProviderSelector";
+import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import { useProperty } from "@/contexts/PropertyContext";
+import type { LlmProvider } from "@/types/experimentLab";
+import type { ProviderComparisonRow } from "@/types/providerComparison";
 
-const models = ["ChatGPT", "Claude", "Gemini", "Perplexity"];
+const modelOptions = [
+  { label: "ChatGPT", enabled: true },
+  { label: "Claude", enabled: false },
+  { label: "Gemini", enabled: false },
+  { label: "Perplexity", enabled: false },
+];
 
 export function CitationTests() {
   const { activeProperty } = useProperty();
   const [tests, setTests] = useState<CitationTestRow[]>([]);
   const [prompt, setPrompt] = useState("");
+  const [provider, setProvider] = useState<LlmProvider>("chatgpt");
   const [selectedModels, setSelectedModels] = useState<string[]>(["ChatGPT"]);
   const [expandedTestId, setExpandedTestId] = useState<number | string | null>(
     null,
@@ -62,6 +72,7 @@ export function CitationTests() {
         property_id: activeProperty.id,
         prompt: prompt.trim(),
         models: selectedModels,
+        provider,
       });
 
       if (result.error) {
@@ -84,6 +95,10 @@ export function CitationTests() {
   }
 
   function toggleModel(modelName: string) {
+    if (modelName !== "ChatGPT") {
+      return;
+    }
+
     setSelectedModels((currentModels) => {
       if (currentModels.includes(modelName)) {
         const nextModels = currentModels.filter((item) => item !== modelName);
@@ -94,6 +109,8 @@ export function CitationTests() {
       return [...currentModels, modelName];
     });
   }
+
+  const testGroups = groupCitationTests(tests);
 
   return (
     <div className="space-y-6">
@@ -120,7 +137,7 @@ export function CitationTests() {
       </div>
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 lg:grid-cols-[1fr_320px_auto]">
+        <CardContent className="grid gap-4 p-6 lg:grid-cols-[1fr_280px_320px_auto]">
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Prompt</span>
             <input
@@ -131,21 +148,39 @@ export function CitationTests() {
             />
           </label>
 
+          <LlmProviderSelector value={provider} onChange={setProvider} />
+
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Models</span>
             <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800 bg-black p-3">
-              {models.map((modelName) => (
+              {modelOptions.map((model) => (
                 <label
-                  className="flex items-center gap-2 text-sm text-zinc-300"
-                  key={modelName}
+                  className={[
+                    "flex items-center gap-2 text-sm",
+                    model.enabled
+                      ? "cursor-pointer text-zinc-300"
+                      : "cursor-not-allowed text-zinc-500",
+                  ].join(" ")}
+                  key={model.label}
+                  title={
+                    model.enabled
+                      ? ""
+                      : "Support planned in a future release."
+                  }
                 >
                   <input
-                    checked={selectedModels.includes(modelName)}
+                    checked={selectedModels.includes(model.label)}
                     className="h-4 w-4 accent-blue-500"
-                    onChange={() => toggleModel(modelName)}
+                    disabled={!model.enabled}
+                    onChange={() => toggleModel(model.label)}
                     type="checkbox"
                   />
-                  {modelName}
+                  {model.label}
+                  {!model.enabled && (
+                    <span className="text-xs text-zinc-600">
+                      Coming Soon
+                    </span>
+                  )}
                 </label>
               ))}
             </div>
@@ -166,7 +201,7 @@ export function CitationTests() {
           </div>
 
           {runMessage && (
-            <div className="rounded-lg border border-amber-800 bg-amber-950/50 p-3 text-sm text-amber-200 lg:col-span-3">
+            <div className="rounded-lg border border-amber-800 bg-amber-950/50 p-3 text-sm text-amber-200 lg:col-span-4">
               {runMessage}
             </div>
           )}
@@ -174,92 +209,72 @@ export function CitationTests() {
       </Card>
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="p-0">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-800 bg-zinc-900/70 text-xs uppercase tracking-[0.16em] text-zinc-500">
-              <tr>
-                <th className="px-5 py-4 font-medium">Prompt</th>
-                <th className="px-5 py-4 font-medium">Time</th>
-                <th className="px-5 py-4 font-medium">Model</th>
-                <th className="px-5 py-4 font-medium">Mentioned</th>
-                <th className="px-5 py-4 font-medium">Rank</th>
-                <th className="px-5 py-4 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {tests.map((test) => (
-                <Fragment key={test.id}>
-                  <tr
-                    className="cursor-pointer transition hover:bg-zinc-900/50"
-                    onClick={() =>
-                      setExpandedTestId((currentId) =>
-                        currentId === test.id ? null : test.id,
-                      )
-                    }
-                  >
-                    <td className="px-5 py-4 font-medium text-zinc-100">
-                      {test.prompt || test.query || "Untitled prompt"}
-                    </td>
-                    <td className="px-5 py-4 text-zinc-500">
-                      {test.last_run || test.tested_at
-                        ? new Date(
-                            test.last_run || test.tested_at || "",
-                          ).toLocaleString()
-                        : "-"}
-                    </td>
-                    <td className="px-5 py-4 text-zinc-400">
-                      {test.model || test.platform || "Unknown"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={
-                          test.mentioned
-                            ? "text-emerald-300"
-                            : "text-zinc-500"
-                        }
-                      >
-                        {test.mentioned ? "Yes" : "No"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-zinc-300">
-                      {test.rank || "-"}
-                    </td>
-                    <td className="px-5 py-4 text-zinc-400">
-                      {test.status || "unknown"}
-                    </td>
-                  </tr>
-                  {expandedTestId === test.id && (
-                    <tr>
-                      <td className="bg-black px-5 py-4" colSpan={6}>
-                        <p className="mb-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
-                          Full LLM Response
-                        </p>
-                        <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
-                          {test.raw_response ||
-                            test.ai_response ||
-                            test.response_snippet ||
-                            "No response stored."}
-                        </div>
-                        {test.response_snippet && (
-                          <>
-                            <p className="mb-2 mt-4 text-xs uppercase tracking-[0.16em] text-zinc-500">
-                              Response Snippet
-                            </p>
-                            <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
-                              {test.response_snippet}
-                            </div>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+        <CardContent className="space-y-4 p-6">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-50">
+              Provider Comparison
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Each prompt is displayed as a cross-provider citation visibility
+              comparison. ChatGPT is the only active provider today.
+            </p>
+          </div>
 
-          {tests.length === 0 && (
-            <div className="border-t border-zinc-800 px-5 py-8 text-sm text-zinc-500">
+          {testGroups.map((group) => (
+            <div
+              key={group.id}
+              className="rounded-xl border border-zinc-800 bg-black p-4"
+            >
+              <button
+                className="w-full text-left"
+                onClick={() =>
+                  setExpandedTestId((currentId) =>
+                    currentId === group.id ? null : group.id,
+                  )
+                }
+                type="button"
+              >
+                <p className="text-sm font-semibold text-zinc-100">
+                  {group.prompt}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {group.timestamp
+                    ? new Date(group.timestamp).toLocaleString()
+                    : "No timestamp"}
+                </p>
+              </button>
+
+              <div className="mt-4">
+                <ProviderComparisonTable rows={group.rows} />
+              </div>
+
+              {expandedTestId === group.id && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="mb-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                      ChatGPT Full Response
+                    </p>
+                    <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
+                      {group.rawResponse || "No response stored."}
+                    </div>
+                  </div>
+                  {group.responseSnippet && (
+                    <div>
+                      <p className="mb-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                        Response Snippet
+                      </p>
+                      <div className="whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300">
+                        {group.responseSnippet}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {testGroups.length === 0 && (
+            <div className="rounded-lg border border-zinc-800 bg-black px-5 py-8 text-sm text-zinc-500">
               {loading
                 ? "Loading citation tests..."
                 : "No citation tests for the current property."}
@@ -269,4 +284,52 @@ export function CitationTests() {
       </Card>
     </div>
   );
+}
+
+function groupCitationTests(tests: CitationTestRow[]) {
+  const groups = new Map<
+    string,
+    {
+      id: string;
+      prompt: string;
+      timestamp: string | null;
+      rawResponse: string | null;
+      responseSnippet: string | null;
+      rows: ProviderComparisonRow[];
+    }
+  >();
+
+  for (const test of tests) {
+    const key = String(test.run_id || test.id);
+    const prompt = test.prompt || test.query || "Untitled prompt";
+    const timestamp = test.last_run || test.tested_at || test.created_at;
+    const existing = groups.get(key);
+    const row: ProviderComparisonRow = {
+      provider: "chatgpt",
+      label: "ChatGPT",
+      status: "completed",
+      mentioned: test.mentioned,
+      rank: test.rank,
+      citation: test.response_snippet || test.citation_type || null,
+      latency: null,
+    };
+
+    if (!existing) {
+      groups.set(key, {
+        id: key,
+        prompt,
+        timestamp,
+        rawResponse: test.raw_response || test.ai_response || null,
+        responseSnippet: test.response_snippet,
+        rows: [row],
+      });
+      continue;
+    }
+
+    existing.rows = [row];
+    existing.rawResponse ||= test.raw_response || test.ai_response || null;
+    existing.responseSnippet ||= test.response_snippet;
+  }
+
+  return Array.from(groups.values());
 }

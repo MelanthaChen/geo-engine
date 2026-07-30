@@ -1,6 +1,7 @@
 from openai import OpenAI
 
 from app.core.config import settings
+from app.core.llm_provider import normalize_llm_provider
 from sqlalchemy.orm import Session
 
 from app.models.content import Content
@@ -16,7 +17,9 @@ def check_citation(
     db: Session,
     query: str,
     property_id: int | None = None,
+    provider: str | None = None,
 ):
+    normalized_provider = normalize_llm_provider(provider)
 
     prompt = f"""
 Answer this search query naturally:
@@ -57,6 +60,7 @@ Include recommendations and sources if relevant.
 
     if not latest_content:
         return {
+            "provider": normalized_provider,
             "ai_response": answer,
             "detection_result": {
                 "citation_found": False,
@@ -71,6 +75,7 @@ Include recommendations and sources if relevant.
     )
 
     return {
+        "provider": normalized_provider,
         "ai_response": answer,
         "detection_result": detection_result
     }

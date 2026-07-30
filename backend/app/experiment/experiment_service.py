@@ -5,6 +5,7 @@ from app.experiment.geo_bench_loader import GeoBenchLoader
 from app.ge.ge_service import GenerativeEngineService
 from app.ge.geo_rewriter import STRATEGY_LABELS
 from app.ge.search_provider import RetrievedDocument
+from app.core.llm_provider import normalize_llm_provider
 from app.models.experiment import Experiment
 from app.storage.experiment_repository import ExperimentRepository
 
@@ -44,6 +45,7 @@ class ExperimentService:
         name: str,
         description: str | None,
         llm_model: str,
+        provider: str | None = None,
         dataset_name: str,
         strategies: list[str],
         metrics: list[str],
@@ -61,6 +63,7 @@ class ExperimentService:
             name=name,
             description=description,
             llm_model=llm_model,
+            provider=provider,
             dataset_name=dataset_name,
             queries=queries,
             strategies=strategies,
@@ -81,6 +84,7 @@ class ExperimentService:
         name: str,
         description: str | None,
         llm_model: str,
+        provider: str | None = None,
         dataset_name: str,
         strategies: list[str],
         metrics: list[str],
@@ -107,6 +111,7 @@ class ExperimentService:
             name=name,
             description=description,
             llm_model=llm_model,
+            provider=normalize_llm_provider(provider),
             dataset_name=dataset_name,
             benchmark_queries=benchmark_input,
             strategies=strategies,

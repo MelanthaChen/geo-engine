@@ -15,7 +15,9 @@ import {
   fetchPublishingTasks,
   type PublishingTask,
 } from "@/api/publishingQueue";
+import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import type { Property } from "@/api/properties";
+import type { LlmProvider } from "@/types/experimentLab";
 import { useProperty } from "@/contexts/PropertyContext";
 
 const contentTypes = [
@@ -107,6 +109,7 @@ function ContentGenerationWorkspace({
   const [persona, setPersona] = useState("student");
   const [contentType, setContentType] = useState("comparison");
   const [publishPlatform, setPublishPlatform] = useState("reddit");
+  const [provider, setProvider] = useState<LlmProvider>("chatgpt");
   const [loading, setLoading] = useState(false);
   const [aiGeneratedContent, setAiGeneratedContent] = useState("");
   const [platformGeneratedContent, setPlatformGeneratedContent] = useState("");
@@ -187,6 +190,7 @@ function ContentGenerationWorkspace({
         contentType,
         publishPlatform,
         activeProperty?.id,
+        provider,
       );
 
       const faqText = formatFaqResponseText(result);
@@ -220,6 +224,7 @@ function ContentGenerationWorkspace({
         contentType,
         publishPlatform,
         activeProperty?.id,
+        provider,
       );
 
       if (isXiaohongshu && result.status === "retrieving") {
@@ -457,6 +462,10 @@ function ContentGenerationWorkspace({
               ))}
             </select>
           </label>
+
+          <div className="lg:col-span-2">
+            <LlmProviderSelector value={provider} onChange={setProvider} />
+          </div>
 
           <label className="space-y-2 lg:col-span-2">
             <span className="text-sm text-zinc-400">Publish Platform</span>

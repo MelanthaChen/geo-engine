@@ -11,6 +11,7 @@ export async function generateContent(
   sourceFaqSetId?: number | null,
   publishPlatform: string = "reddit",
   propertyId?: number | null,
+  provider: "chatgpt" = "chatgpt",
 ) {
 
   const response = await apiClient.post(
@@ -24,6 +25,7 @@ export async function generateContent(
       faq_source: faqSource,
       source_faq_set_id: sourceFaqSetId,
       publish_platform: publishPlatform,
+      provider,
       property_id: propertyId,
       mode,
     }

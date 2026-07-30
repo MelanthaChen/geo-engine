@@ -29,6 +29,7 @@ export type GenerateFaqsResponse = {
     id: number;
     category: string;
     faq_source: string;
+    provider?: "chatgpt" | null;
     questions: string[];
   } | null;
   platform_questions: PlatformQuestion[];
@@ -59,12 +60,14 @@ export async function generateFaqs(
   contentType: string = "comparison",
   publishPlatform: string = "reddit",
   propertyId?: number | null,
+  provider: "chatgpt" = "chatgpt",
   accountId?: number | null,
 ): Promise<GenerateFaqsResponse> {
   const params = new URLSearchParams({
     mode,
     content_type: contentType,
     publish_platform: publishPlatform,
+    provider,
   });
 
   if (propertyId) {

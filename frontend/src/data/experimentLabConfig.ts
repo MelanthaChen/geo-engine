@@ -70,6 +70,7 @@ export const evaluationMetricOptions: Array<{
 export const defaultExperimentConfiguration: ExperimentConfigurationValues = {
   experimentName: "Princeton GEO Reproduction",
   description: "",
+  provider: "chatgpt",
   llm: "gpt-3.5-turbo",
   dataset: "custom",
   benchmarkSource: "manual",

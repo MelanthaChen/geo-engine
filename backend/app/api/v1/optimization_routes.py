@@ -21,12 +21,14 @@ router = APIRouter(
 @router.post("/optimize/{content_id}")
 def optimize_content_route(
     content_id: int,
+    provider: str | None = "chatgpt",
     db: Session = Depends(get_db),
 ):
 
     result = optimize_content(
         content_id=content_id,
         db=db,
+        provider=provider,
     )
 
     return result

@@ -92,6 +92,49 @@ Business logic lives in:
 backend/app/services/
 ```
 
+## Future Multi-LLM Architecture
+
+The platform is now provider-aware for LLM-generated artifacts. Records that
+represent LLM work, such as generated content, FAQ sets, citation test runs,
+citation results, experiment runs, and experiment campaigns, store a
+`provider` value.
+
+Current implementation:
+
+- `chatgpt` is the default and only active provider.
+- Existing OpenAI-backed services continue to execute exactly as before.
+- API requests may omit `provider`; the backend normalizes missing values to
+  `chatgpt`.
+
+Future providers such as Claude, Gemini, and Perplexity should be added behind
+the provider-aware service boundary without changing stored experiment,
+content, or citation records. The first phase does not call any new provider
+APIs and does not expose provider selection in the frontend.
+
+## Cross-Provider Evaluation
+
+GEO Engine is being redesigned around comparing citation visibility across
+multiple LLM providers rather than treating one provider response as the whole
+result. The frontend now models results as provider comparison rows so citation
+tests, Experiment Lab results, dashboard coverage, and history timelines can
+all display one row per provider.
+
+Current implementation:
+
+- ChatGPT is the only active provider.
+- Existing backend execution still uses the current OpenAI-backed code paths.
+- Cross-provider tables include ChatGPT results plus placeholders for future
+  providers.
+
+Future provider comparison targets:
+
+- Claude
+- Gemini
+- Perplexity
+
+Future integrations should populate the same provider comparison result shape
+without changing retrieval, publishing, or experiment execution semantics.
+
 ## Database
 
 Database: PostgreSQL.

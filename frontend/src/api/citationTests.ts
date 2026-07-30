@@ -6,6 +6,7 @@ export type CitationTestRow = {
   property_id: number | null;
   content_id: number | null;
   platform: string | null;
+  provider: "chatgpt" | null;
   model: string | null;
   query: string | null;
   prompt: string | null;
@@ -32,6 +33,7 @@ export type RunCitationTestRequest = {
   property_id: number;
   prompt: string;
   models: string[];
+  provider?: "chatgpt";
 };
 
 export async function fetchCitationTests() {

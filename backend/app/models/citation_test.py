@@ -30,6 +30,13 @@ class CitationTest(Base):
 
     content_id = Column(Integer, ForeignKey("contents.id"), nullable=True)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     platform = Column(String)
 
     query = Column(String)

@@ -28,6 +28,13 @@ class CitationResult(Base):
 
     model = Column(String, nullable=False)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     mentioned = Column(Boolean, default=False)
 
     rank = Column(Integer, nullable=True)

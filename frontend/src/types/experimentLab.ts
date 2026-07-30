@@ -14,10 +14,12 @@ export type StrategyId =
 
 export type EvaluationMetricId = "pawc" | "citation_count" | "visibility_score";
 export type BenchmarkSource = "manual" | "csv" | "geo_bench";
+export type LlmProvider = "chatgpt";
 
 export type ExperimentConfigurationValues = {
   experimentName: string;
   description: string;
+  provider: LlmProvider;
   llm: "gpt-3.5-turbo";
   dataset: "custom" | "geo_bench";
   benchmarkSource: BenchmarkSource;
@@ -107,6 +109,7 @@ export type PaperAggregateResult = {
 
 export type ExperimentRun = {
   id?: number;
+  provider?: LlmProvider | null;
   status: ExperimentStatus;
   currentQuery: string;
   currentStrategy: StrategyId;
@@ -140,6 +143,7 @@ export type ExperimentCampaignRun = {
   name: string;
   description?: string | null;
   datasetName?: string | null;
+  provider?: LlmProvider | null;
   model?: string | null;
   queryCount: number;
   seedCount: number;

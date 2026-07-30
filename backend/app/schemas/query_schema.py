@@ -9,6 +9,8 @@ class QueryGenerationRequest(BaseModel):
 
     niche: str
 
+    provider: str | None = "chatgpt"
+
 
 class QueryGenerationResponse(BaseModel):
 

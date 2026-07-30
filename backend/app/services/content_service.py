@@ -7,6 +7,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.llm_provider import normalize_llm_provider
 
 from app.repositories.content_repository import (
     create_content,
@@ -85,7 +86,9 @@ def generate_content(
     perspective: str | None = None,
     archetype: str | None = None,
     internet_style: str | None = None,
+    provider: str | None = None,
 ):
+    normalized_provider = normalize_llm_provider(provider)
     property_record = get_property(db, property_id) if property_id else None
 
     if property_record:
@@ -229,6 +232,7 @@ def generate_content(
         body=generated_content,
         target_persona=persona,
         generation_mode=mode,
+        provider=normalized_provider,
     )
     new_content.publish_platform = normalized_publish_platform
     db.commit()
@@ -253,6 +257,7 @@ def generate_content(
                 "archetype": content_strategy["archetype"],
                 "internet_style": content_strategy["internet_style"],
                 "generated_angles": content_strategy["generated_angles"],
+                "provider": normalized_provider,
                 "preview": generated_content[:500],
             }
         )
@@ -535,7 +540,9 @@ def generate_faqs(
     website_url: str | None = None,
     property_id: int | None = None,
     account_id: int | None = None,
+    provider: str | None = None,
 ):
+    normalized_provider = normalize_llm_provider(provider)
     log_platform_faq_debug(
         "generate_faqs.received",
         target=target,
@@ -545,6 +552,7 @@ def generate_faqs(
         website_url=website_url,
         property_id=property_id,
         account_id=account_id,
+        provider=normalized_provider,
     )
 
     if db is None:
@@ -574,6 +582,7 @@ def generate_faqs(
                 category=target,
                 content_type=content_type,
                 property_id=property_id,
+                provider=normalized_provider,
             )
 
         elif normalize_publish_platform(publish_platform) == "xiaohongshu":

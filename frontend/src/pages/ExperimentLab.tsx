@@ -14,6 +14,8 @@ import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 import { Input } from "../../@/components/ui/input";
 import { Label } from "../../@/components/ui/label";
+import { LlmProviderSelector } from "@/components/LlmProviderSelector";
+import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import {
   getExperimentCampaign,
   getExperimentLabRun,
@@ -34,6 +36,7 @@ import type {
   StrategyResult,
   UploadedDatasetDocument,
 } from "@/types/experimentLab";
+import type { ProviderComparisonRow } from "@/types/providerComparison";
 
 export function ExperimentLab() {
   const [configuration, setConfiguration] =
@@ -64,6 +67,7 @@ export function ExperimentLab() {
       totalSamples: 5,
       completedQueries: 0,
       totalQueries: activeQueries(configuration).length || 1,
+      provider: configuration.provider,
       estimatedRemainingTime: "Calculating",
       overall: {
         visibilityScore: 0,
@@ -123,6 +127,7 @@ export function ExperimentLab() {
         configuration.benchmarkSource === "geo_bench"
           ? "geo_bench"
           : configuration.dataset,
+      provider: configuration.provider,
       model: configuration.llm,
       queryCount: activeQueries(configuration).length || 1,
       seedCount: configuration.benchmarkSource === "geo_bench" ? 5 : 1,
@@ -330,8 +335,12 @@ export function ExperimentLab() {
                 title="Advanced Settings"
                 onToggle={() => setAdvancedOpen((value) => !value)}
               >
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <ReadOnlySetting label="Model" value="GPT-3.5 Turbo" />
+                  <LlmProviderSelector
+                    value={configuration.provider}
+                    onChange={(provider) => updateField("provider", provider)}
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="temperature">Temperature</Label>
                     <Input
@@ -710,6 +719,10 @@ function ExperimentResults({
         </CardContent>
       </Card>
 
+      <ExperimentProviderComparison
+        citationCount={run.overall.citationCount}
+        visibilityScore={run.overall.visibilityScore}
+      />
       <PaperAggregateResults run={run} />
       <PerStrategyDetails run={run} ranking={ranking} />
       <EvidencePanel run={run} />
@@ -780,6 +793,13 @@ function CampaignResults({
         </CardContent>
       </Card>
 
+      <ExperimentProviderComparison
+        citationCount={ranking.reduce(
+          (total, result) => total + result.citationCountMean,
+          0,
+        )}
+        visibilityScore={ranking[0]?.visibilityMean || 0}
+      />
       <PaperAggregateResults run={campaign} />
 
       <Card className="border-zinc-800 bg-zinc-950">
@@ -830,6 +850,43 @@ function CampaignResults({
 
       <CampaignExplorer campaign={campaign} />
     </div>
+  );
+}
+
+function ExperimentProviderComparison({
+  citationCount,
+  visibilityScore,
+}: {
+  citationCount: number;
+  visibilityScore: number;
+}) {
+  const rows: ProviderComparisonRow[] = [
+    {
+      provider: "chatgpt",
+      label: "ChatGPT",
+      status: "completed",
+      mentioned: citationCount > 0,
+      rank: null,
+      citation: `Visibility ${visibilityScore.toFixed(4)} · citations ${Math.round(
+        citationCount,
+      )}`,
+      latency: "-",
+    },
+  ];
+
+  return (
+    <Card className="border-zinc-800 bg-zinc-950">
+      <CardContent className="p-6">
+        <StepHeader
+          step="Provider Comparison"
+          title="Cross-Provider Results"
+          description="Current experiment output is available for ChatGPT. Future providers are shown as comparison placeholders."
+        />
+        <div className="mt-5">
+          <ProviderComparisonTable rows={rows} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1217,7 +1274,7 @@ function EvidencePanel({ run }: { run: ExperimentRun }) {
                           value={detail.modifiedDocument}
                         />
                         <CodeBlock
-                          label="Final prompt sent to GPT"
+                          label="Final prompt sent to ChatGPT"
                           value={detail.finalPrompt}
                         />
                         <CodeBlock

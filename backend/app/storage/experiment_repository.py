@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.llm_provider import normalize_llm_provider
 from app.ge.geo_rewriter import STRATEGY_LABELS
 from app.ge.search_provider import RetrievedDocument
 from app.models.experiment import (
@@ -28,6 +29,7 @@ class ExperimentRepository:
         name: str,
         description: str | None,
         llm_model: str,
+        provider: str | None = None,
         dataset_name: str,
         benchmark_queries: list[Any],
         strategies: list[str],
@@ -42,6 +44,7 @@ class ExperimentRepository:
             name=name,
             description=description,
             status="queued",
+            provider=normalize_llm_provider(provider),
             llm_model=llm_model,
             dataset_name=dataset_name,
             benchmark_queries_json=json.dumps(benchmark_queries),
@@ -68,6 +71,7 @@ class ExperimentRepository:
         name: str,
         description: str | None,
         llm_model: str,
+        provider: str | None = None,
         dataset_name: str,
         benchmark_queries: list[Any],
         strategies: list[str],
@@ -82,6 +86,7 @@ class ExperimentRepository:
             name=name,
             description=description,
             status="queued",
+            provider=normalize_llm_provider(provider),
             llm_model=llm_model,
             dataset_name=dataset_name,
             benchmark_queries_json=json.dumps(benchmark_queries),
@@ -383,6 +388,7 @@ class ExperimentRepository:
         return {
             "id": experiment.id,
             "status": experiment.status,
+            "provider": experiment.provider,
             "currentQuery": experiment.current_query or "",
             "currentStrategy": experiment.current_strategy or "original",
             "currentSample": experiment.current_sample or 0,
@@ -416,6 +422,7 @@ class ExperimentRepository:
             "name": campaign.name,
             "description": campaign.description,
             "datasetName": campaign.dataset_name,
+            "provider": campaign.provider,
             "model": campaign.llm_model,
             "queryCount": campaign.query_count or 0,
             "seedCount": campaign.seed_count or 0,

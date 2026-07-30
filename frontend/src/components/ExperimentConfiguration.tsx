@@ -8,6 +8,7 @@ import {
   evaluationMetricOptions,
   strategyOptions,
 } from "@/data/experimentLabConfig";
+import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import type {
   EvaluationMetricId,
   ExperimentConfigurationValues,
@@ -104,6 +105,11 @@ export function ExperimentConfiguration({
           >
             <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
           </SelectField>
+
+          <LlmProviderSelector
+            value={value.provider}
+            onChange={(provider) => updateField("provider", provider)}
+          />
 
           <SelectField
             id="experiment-dataset"

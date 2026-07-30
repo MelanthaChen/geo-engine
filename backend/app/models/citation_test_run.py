@@ -22,6 +22,13 @@ class CitationTestRun(Base):
 
     target_brand = Column(String, nullable=True)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     status = Column(String, default="queued", index=True)
 
     created_at = Column(

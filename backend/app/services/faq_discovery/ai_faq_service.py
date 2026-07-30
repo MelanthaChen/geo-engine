@@ -3,6 +3,7 @@ import re
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
+from app.core.llm_provider import normalize_llm_provider
 from app.core.config import settings
 from app.services.history.faq_history_service import create_faq_set
 
@@ -15,7 +16,9 @@ def discover_ai_faqs(
     category: str,
     content_type: str,
     property_id: int | None = None,
+    provider: str | None = None,
 ):
+    normalized_provider = normalize_llm_provider(provider)
     prompt = f"""
 You are an expert researcher.
 
@@ -72,6 +75,7 @@ Format:
         faq_source="AI",
         questions=questions,
         content_type=content_type,
+        provider=normalized_provider,
     )
 
 

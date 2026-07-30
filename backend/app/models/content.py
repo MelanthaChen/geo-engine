@@ -49,6 +49,13 @@ class Content(Base):
 
     content_type = Column(String)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     strategy_type = Column(
         String,
         nullable=True

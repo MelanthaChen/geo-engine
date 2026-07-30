@@ -24,6 +24,13 @@ class FaqSet(Base):
 
     content_type = Column(String, nullable=True, index=True)
 
+    provider = Column(
+        String,
+        nullable=False,
+        default="chatgpt",
+        server_default="chatgpt",
+    )
+
     website_url = Column(String, nullable=True)
 
     created_at = Column(

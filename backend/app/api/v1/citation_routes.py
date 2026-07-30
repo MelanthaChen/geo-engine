@@ -15,6 +15,7 @@ router = APIRouter(
 def citation_check(
     query: str,
     property_id: int | None = None,
+    provider: str | None = "chatgpt",
     db: Session = Depends(get_db),
 ):
 
@@ -22,6 +23,7 @@ def citation_check(
         db=db,
         query=query,
         property_id=property_id,
+        provider=provider,
     )
 
     return result

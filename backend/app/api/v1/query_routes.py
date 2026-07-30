@@ -28,7 +28,8 @@ async def generate_query_list(
     queries = generate_queries(
         db=db,
         category=request.category,
-        niche=request.niche
+        niche=request.niche,
+        provider=request.provider,
     )
 
     return {

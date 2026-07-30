@@ -9,6 +9,7 @@ import {
   type HistoryItem,
 } from "@/api/history";
 import { useProperty } from "@/contexts/PropertyContext";
+import { providerLabel } from "@/types/providerComparison";
 
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
@@ -38,6 +39,17 @@ function groupHistoryByDate(history: HistoryItem[]) {
     return {
       ...groups,
       [dateKey]: [...(groups[dateKey] || []), item],
+    };
+  }, {});
+}
+
+function groupHistoryByProvider(history: HistoryItem[]) {
+  return history.reduce<Record<string, HistoryItem[]>>((groups, item) => {
+    const label = providerLabel(item.provider);
+
+    return {
+      ...groups,
+      [label]: [...(groups[label] || []), item],
     };
   }, {});
 }
@@ -183,116 +195,133 @@ export function ContentHistory() {
                     {date}
                   </p>
 
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedHistory(item)}
-                      className={[
-                        "relative cursor-pointer rounded-xl border bg-black p-4 transition hover:bg-zinc-900/60",
-                        selectedHistory?.id === item.id
-                          ? "border-blue-500"
-                          : "border-zinc-800",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="pr-6 text-base font-semibold text-zinc-50">
-                          {item.title}
-                        </h3>
-
-                        <div className="flex items-center gap-2">
-                          <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
-                            {formatEventType(item.event_type)}
-                          </span>
-
-                          <button
-                            aria-label="Delete history item"
-                            className="text-sm leading-none text-zinc-500 hover:text-red-300"
-                            onClick={(event) =>
-                              handleDeleteHistoryItem(item, event)
-                            }
-                            type="button"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-
-                      <p className="mt-2 text-sm text-zinc-400">
-                        {item.target_persona || "Property event"}
-                        {" • "}
-                        {item.strategy_type || item.content_type || "timeline"}
-                        {" • "}
-                        {item.faq_source || "property source"}
-                        {" • "}
-                        {item.generation_mode || "event"}
-                        {" • "}
-                        {formatPublishStatus(item.publish_status || "draft")}
-                      </p>
-
-                      {item.content_id && (
-                        <Link
-                          className="mt-3 inline-block text-sm text-blue-400 underline hover:text-blue-300"
-                          to={`/content?content_id=${item.content_id}`}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          Related content #{item.content_id}
-                        </Link>
-                      )}
-
-                      {item.event_summary && (
-                        <p className="mt-3 text-sm text-zinc-500">
-                          {item.event_summary}
+                  {Object.entries(groupHistoryByProvider(items)).map(
+                    ([provider, providerItems]) => (
+                      <div key={`${date}-${provider}`} className="space-y-3">
+                        <p className="text-xs font-medium text-zinc-500">
+                          Provider:{" "}
+                          <span className="text-zinc-300">{provider}</span>
                         </p>
-                      )}
 
-                      {(item.published_account ||
-                        item.published_platform ||
-                        item.published_url) && (
-                        <div className="mt-3 space-y-1 text-sm text-zinc-400">
-                          <p>
-                            Published Account{" "}
-                            <span className="text-zinc-200">
-                              {item.published_account || "Unassigned"}
-                            </span>
-                          </p>
-                          <p>
-                            Published Platform{" "}
-                            <span className="text-zinc-200">
-                              {item.published_platform || "Not selected"}
-                            </span>
-                          </p>
+                        {providerItems.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => setSelectedHistory(item)}
+                            className={[
+                              "relative cursor-pointer rounded-xl border bg-black p-4 transition hover:bg-zinc-900/60",
+                              selectedHistory?.id === item.id
+                                ? "border-blue-500"
+                                : "border-zinc-800",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <h3 className="pr-6 text-base font-semibold text-zinc-50">
+                                {item.title}
+                              </h3>
 
-                          {item.published_url && (
-                            <a
-                              className="text-blue-400 underline"
-                              href={item.published_url}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              Published URL
-                            </a>
-                          )}
+                              <div className="flex items-center gap-2">
+                                <span className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
+                                  {formatEventType(item.event_type)}
+                                </span>
 
-                          {!item.published_url && item.preview_url && (
-                            <a
-                              className="text-emerald-300 underline"
-                              href={item.preview_url}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              Review Preview
-                            </a>
-                          )}
+                                <button
+                                  aria-label="Delete history item"
+                                  className="text-sm leading-none text-zinc-500 hover:text-red-300"
+                                  onClick={(event) =>
+                                    handleDeleteHistoryItem(item, event)
+                                  }
+                                  type="button"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
 
-                          {item.publish_status === "review_ready" && (
-                            <p className="font-semibold text-emerald-300">
-                              Human Review Required
+                            <p className="mt-2 text-sm text-zinc-400">
+                              {providerLabel(item.provider)}
+                              {" • "}
+                              {item.target_persona || "Property event"}
+                              {" • "}
+                              {item.strategy_type ||
+                                item.content_type ||
+                                "timeline"}
+                              {" • "}
+                              {item.faq_source || "property source"}
+                              {" • "}
+                              {item.generation_mode || "event"}
+                              {" • "}
+                              {formatPublishStatus(
+                                item.publish_status || "draft",
+                              )}
                             </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+
+                            {item.content_id && (
+                              <Link
+                                className="mt-3 inline-block text-sm text-blue-400 underline hover:text-blue-300"
+                                to={`/content?content_id=${item.content_id}`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                Related content #{item.content_id}
+                              </Link>
+                            )}
+
+                            {item.event_summary && (
+                              <p className="mt-3 text-sm text-zinc-500">
+                                {item.event_summary}
+                              </p>
+                            )}
+
+                            {(item.published_account ||
+                              item.published_platform ||
+                              item.published_url) && (
+                              <div className="mt-3 space-y-1 text-sm text-zinc-400">
+                                <p>
+                                  Published Account{" "}
+                                  <span className="text-zinc-200">
+                                    {item.published_account || "Unassigned"}
+                                  </span>
+                                </p>
+                                <p>
+                                  Published Platform{" "}
+                                  <span className="text-zinc-200">
+                                    {item.published_platform || "Not selected"}
+                                  </span>
+                                </p>
+
+                                {item.published_url && (
+                                  <a
+                                    className="text-blue-400 underline"
+                                    href={item.published_url}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Published URL
+                                  </a>
+                                )}
+
+                                {!item.published_url && item.preview_url && (
+                                  <a
+                                    className="text-emerald-300 underline"
+                                    href={item.preview_url}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    Review Preview
+                                  </a>
+                                )}
+
+                                {item.publish_status === "review_ready" && (
+                                  <p className="font-semibold text-emerald-300">
+                                    Human Review Required
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  )}
                 </section>
               ))}
 
@@ -310,6 +339,15 @@ export function ContentHistory() {
             <h2 className="mb-5 text-xl font-semibold text-zinc-50">
               Preview
             </h2>
+
+            {selectedHistory && (
+              <div className="mb-4 rounded-lg border border-zinc-800 bg-black p-4 text-sm text-zinc-400">
+                Provider{" "}
+                <span className="font-medium text-zinc-100">
+                  {providerLabel(selectedHistory.provider)}
+                </span>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-800 bg-black p-5 text-sm leading-6 text-zinc-300">
               {selectedHistory?.body ||

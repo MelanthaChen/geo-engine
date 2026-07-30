@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 
 from app.core.config import OPENAI_API_KEY
+from app.core.llm_provider import normalize_llm_provider
 
 from app.repositories.query_repository import create_query
 
@@ -17,8 +18,10 @@ client = OpenAI(
 def generate_queries(
     db: Session,
     category: str,
-    niche: str
+    niche: str,
+    provider: str | None = None,
 ) -> List[str]:
+    normalize_llm_provider(provider)
 
     prompt = f"""
 You are a GEO query strategist.

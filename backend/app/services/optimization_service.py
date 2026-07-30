@@ -3,6 +3,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.llm_provider import normalize_llm_provider
 
 from app.models.content import Content
 
@@ -15,7 +16,9 @@ client = OpenAI(
 def optimize_content(
     content_id: int,
     db: Session,
+    provider: str | None = None,
 ):
+    normalize_llm_provider(provider)
 
     content = (
         db.query(Content)

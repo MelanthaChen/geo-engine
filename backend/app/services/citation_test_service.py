@@ -5,6 +5,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.llm_provider import normalize_llm_provider
 
 from app.models.content import Content
 from app.models.citation_test import CitationTest
@@ -35,6 +36,7 @@ def run_prompt_citation_test(
     property_id: int,
     prompt: str,
     models: list[str],
+    provider: str | None = None,
 ):
     from app.services.property_service import get_property
 
@@ -44,11 +46,13 @@ def run_prompt_citation_test(
         return None
 
     target_brand = property_record.brand_name or property_record.name
+    normalized_provider = normalize_llm_provider(provider)
 
     citation_run = CitationTestRun(
         property_id=property_id,
         prompt=prompt,
         target_brand=target_brand,
+        provider=normalized_provider,
         status="processing",
     )
 
@@ -79,6 +83,7 @@ def run_prompt_citation_test(
             CitationTestResult(
                 run_id=citation_run.id,
                 model=model_name,
+                provider=normalized_provider,
                 status=result["status"],
                 mentioned=result["mentioned"],
                 rank=result["rank"],
@@ -290,7 +295,9 @@ def run_citation_test(
     platform: str = "openai",
     source_type: str = "published_content",
     property_id: int | None = None,
+    provider: str | None = None,
 ):
+    normalized_provider = normalize_llm_provider(provider)
 
     query = db.query(Content).filter(Content.id == content_id)
 
@@ -407,6 +414,7 @@ published content, or a personal comment.
     citation_test = CitationTest(
         property_id=content.property_id,
         content_id=content.id,
+        provider=normalized_provider,
         platform=platform,
         query=test_query,
         prompt=test_query,
@@ -437,6 +445,7 @@ published content, or a personal comment.
     citation_result = CitationResult(
         citation_test_id=citation_test.id,
         model=platform,
+        provider=normalized_provider,
         mentioned=mentioned,
         rank=None,
         response=ai_response,

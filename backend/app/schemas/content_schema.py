@@ -25,6 +25,8 @@ class ContentGenerationRequest(BaseModel):
 
     publish_platform: str | None = "reddit"
 
+    provider: str | None = "chatgpt"
+
     angle: str | None = None
 
     perspective: str | None = None
