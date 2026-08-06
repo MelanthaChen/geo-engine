@@ -14,7 +14,7 @@ export type StrategyId =
 
 export type EvaluationMetricId = "pawc" | "citation_count" | "visibility_score";
 export type BenchmarkSource = "manual" | "csv" | "geo_bench";
-export type LlmProvider = "chatgpt";
+export type LlmProvider = "chatgpt" | "perplexity";
 
 export type ExperimentConfigurationValues = {
   experimentName: string;

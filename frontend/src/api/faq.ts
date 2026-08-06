@@ -1,4 +1,5 @@
 import apiClient from "./client"
+import type { LlmProvider } from "@/types/experimentLab";
 
 export type PlatformQuestion = {
   id: number;
@@ -29,7 +30,7 @@ export type GenerateFaqsResponse = {
     id: number;
     category: string;
     faq_source: string;
-    provider?: "chatgpt" | null;
+    provider?: LlmProvider | null;
     questions: string[];
   } | null;
   platform_questions: PlatformQuestion[];
@@ -60,7 +61,7 @@ export async function generateFaqs(
   contentType: string = "comparison",
   publishPlatform: string = "reddit",
   propertyId?: number | null,
-  provider: "chatgpt" = "chatgpt",
+  provider: LlmProvider = "chatgpt",
   accountId?: number | null,
 ): Promise<GenerateFaqsResponse> {
   const params = new URLSearchParams({

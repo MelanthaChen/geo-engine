@@ -8,6 +8,7 @@ from app.services.session_resolver import SessionResolver
 
 PLATFORM_LOGIN_URLS = {
     ("reddit", None): "https://www.reddit.com/login/",
+    ("perplexity", None): "https://www.perplexity.ai/",
     ("xiaohongshu", "creator"): "https://creator.xiaohongshu.com/",
     ("xiaohongshu", "web"): "https://www.rednote.com/",
 }
@@ -152,7 +153,7 @@ def main():
     resolver = SessionResolver()
 
     with sync_playwright() as playwright:
-        if args.platform in {"reddit", "xiaohongshu"}:
+        if args.platform in {"reddit", "xiaohongshu", "perplexity"}:
             profile_dir = resolver.canonical_profile_dir(
                 platform=args.platform,
                 purpose=purpose,

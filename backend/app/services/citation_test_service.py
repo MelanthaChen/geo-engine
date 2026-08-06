@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+import json
 import re
+import time
 
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,12 @@ SUPPORTED_PROMPT_MODELS = {
     "chatgpt",
     "openai",
     "gpt-4.1-mini",
+    "perplexity",
+}
+
+EXECUTABLE_CITATION_PROVIDERS = {
+    "chatgpt",
+    "perplexity",
 }
 
 
@@ -32,6 +40,7 @@ def run_prompt_citation_test(
     prompt: str,
     models: list[str],
     provider: str | None = None,
+    providers: list[str] | None = None,
 ):
     from app.services.property_service import get_property
 
@@ -41,13 +50,17 @@ def run_prompt_citation_test(
         return None
 
     target_brand = property_record.brand_name or property_record.name
-    normalized_provider = normalize_llm_provider(provider)
+    normalized_providers = normalize_citation_providers(
+        providers=providers,
+        models=models,
+        provider=provider,
+    )
 
     citation_run = CitationTestRun(
         property_id=property_id,
         prompt=prompt,
         target_brand=target_brand,
-        provider=normalized_provider,
+        provider=normalized_providers[0],
         status="processing",
     )
 
@@ -65,26 +78,26 @@ def run_prompt_citation_test(
         details=prompt,
     )
 
-    normalized_models = dedupe_models(models)
-
-    for model_name in normalized_models:
+    for provider_name in normalized_providers:
         result = execute_prompt_model(
             prompt=prompt,
-            model_name=model_name,
+            model_name=provider_name,
             target_brand=target_brand,
             domain=property_record.domain,
-            provider=normalized_provider,
+            provider=provider_name,
         )
         db.add(
             CitationTestResult(
                 run_id=citation_run.id,
-                model=model_name,
-                provider=normalized_provider,
+                model=provider_label(provider_name),
+                provider=provider_name,
                 status=result["status"],
                 mentioned=result["mentioned"],
                 rank=result["rank"],
                 response_snippet=result["response_snippet"],
                 raw_response=result["raw_response"],
+                citations_json=json.dumps(result["citations"]),
+                latency_ms=result["latency_ms"],
                 error_message=result["error_message"],
             )
         )
@@ -105,6 +118,30 @@ def run_prompt_citation_test(
     )
 
     return citation_run
+
+
+def normalize_citation_providers(
+    *,
+    providers: list[str] | None,
+    models: list[str] | None,
+    provider: str | None,
+) -> list[str]:
+    requested = providers or models or ([provider] if provider else ["chatgpt"])
+    normalized = []
+
+    for item in requested:
+        provider_name = provider_from_label(item)
+
+        if provider_name not in EXECUTABLE_CITATION_PROVIDERS:
+            continue
+
+        if provider_name not in normalized:
+            normalized.append(provider_name)
+
+    if not normalized:
+        normalized.append(normalize_llm_provider(provider))
+
+    return normalized
 
 
 def dedupe_models(models: list[str]):
@@ -133,7 +170,7 @@ def execute_prompt_model(
     domain: str,
     provider: str | None = None,
 ):
-    normalized_model = model_name.strip().lower()
+    normalized_model = provider_from_label(model_name)
 
     if normalized_model not in SUPPORTED_PROMPT_MODELS:
         error = (
@@ -150,17 +187,38 @@ def execute_prompt_model(
             "error_message": error,
         }
 
-    provider_engine = ProviderManager.get_provider(provider)
-    raw_response = provider_engine.run_citation_test(
-        system_prompt=(
-            "Answer the user's prompt naturally. Do not force a "
-            "brand mention. If a website or brand is relevant, mention "
-            "it in the same way a normal AI answer would."
-        ),
-        user_prompt=prompt,
-        model="gpt-4.1-mini",
-        temperature=0.4,
-    )
+    provider_name = normalize_llm_provider(provider or normalized_model)
+    provider_engine = ProviderManager.get_provider(provider_name)
+    started_at = time.perf_counter()
+
+    try:
+        raw_response = provider_engine.run_citation_test(
+            system_prompt=(
+                "Answer the user's prompt naturally. Do not force a "
+                "brand mention. If a website or brand is relevant, mention "
+                "it in the same way a normal AI answer would."
+            ),
+            user_prompt=prompt,
+            model="gpt-4.1-mini",
+            temperature=0.4,
+        )
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+    except Exception as error:
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+        message = str(error)
+
+        return {
+            "status": "failed",
+            "mentioned": False,
+            "rank": None,
+            "response_snippet": message,
+            "raw_response": "",
+            "citations": [],
+            "latency_ms": latency_ms,
+            "error_message": message,
+        }
+
+    citations = extract_citations(raw_response)
     mentioned = detect_mention(
         response_text=raw_response,
         target_brand=target_brand,
@@ -181,8 +239,47 @@ def execute_prompt_model(
             domain=domain,
         ),
         "raw_response": raw_response,
+        "citations": citations,
+        "latency_ms": latency_ms,
         "error_message": None,
     }
+
+
+def provider_from_label(value: str | None):
+    normalized = (value or "chatgpt").strip().lower()
+
+    aliases = {
+        "openai": "chatgpt",
+        "gpt-4.1-mini": "chatgpt",
+        "gpt": "chatgpt",
+        "chat gpt": "chatgpt",
+        "chatgpt": "chatgpt",
+        "perplexity": "perplexity",
+        "perplexity web": "perplexity",
+    }
+
+    return aliases.get(normalized, normalized)
+
+
+def provider_label(provider: str):
+    labels = {
+        "chatgpt": "ChatGPT",
+        "perplexity": "Perplexity",
+    }
+
+    return labels.get(provider, provider)
+
+
+def extract_citations(response_text: str):
+    citations = []
+
+    for url in re.findall(r"https?://[^\s)>\]]+", response_text or ""):
+        clean_url = url.rstrip(".,;:")
+
+        if clean_url not in citations:
+            citations.append(clean_url)
+
+    return citations
 
 
 def detect_mention(
@@ -272,8 +369,8 @@ def normalize_domain(domain: str | None):
 
 def serialize_run_preview(citation_run: CitationTestRun):
     return "\n".join(
-        f"{result.model}: {result.status}, mentioned={result.mentioned}, "
-        f"rank={result.rank or '-'}"
+        f"{result.provider}: {result.status}, mentioned={result.mentioned}, "
+        f"rank={result.rank or '-'}, latency={result.latency_ms or '-'}ms"
         for result in citation_run.results
     )
 

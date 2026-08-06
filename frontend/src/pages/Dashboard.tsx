@@ -44,7 +44,7 @@ export function Dashboard() {
         if (isMounted) {
           setMetrics(metricResult);
           setHistory(historyResult.history || []);
-          setCitationTests(citationResult);
+          setCitationTests(citationResult.tests || []);
           setLastUpdated(new Date().toLocaleString());
         }
       } catch (error) {
@@ -108,6 +108,10 @@ export function Dashboard() {
                 value={activeProperty?.domain || "No active domain"}
               />
               <MetricLine label="Current Provider" value="ChatGPT" />
+              <MetricLine
+                label="Providers Executed"
+                value={formatProviders(metrics?.providers_executed)}
+              />
               <MetricLine
                 label="Generated Contents"
                 value={String(metrics?.generated_content ?? 0)}
@@ -286,6 +290,22 @@ function formatLatency(value?: number | null) {
   }
 
   return `${Math.round(value)} ms`;
+}
+
+function formatProviders(providers?: string[]) {
+  if (!providers || providers.length === 0) {
+    return "No data yet.";
+  }
+
+  return providers
+    .map((provider) =>
+      provider === "chatgpt"
+        ? "ChatGPT"
+        : provider === "perplexity"
+          ? "Perplexity"
+          : provider,
+    )
+    .join(", ");
 }
 
 function latestPublishLabel(history: HistoryItem[]) {

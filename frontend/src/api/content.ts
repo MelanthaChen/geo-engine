@@ -1,4 +1,5 @@
 import apiClient from "./client";
+import type { LlmProvider } from "@/types/experimentLab";
 
 export async function generateContent(
   query: string,
@@ -11,7 +12,7 @@ export async function generateContent(
   sourceFaqSetId?: number | null,
   publishPlatform: string = "reddit",
   propertyId?: number | null,
-  provider: "chatgpt" = "chatgpt",
+  provider: LlmProvider = "chatgpt",
 ) {
 
   const response = await apiClient.post(

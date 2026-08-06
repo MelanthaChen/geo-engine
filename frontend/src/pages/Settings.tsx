@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 
+import {
+  fetchProviderStatus,
+  type ProviderStatus,
+} from "@/api/providers";
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
@@ -20,29 +24,6 @@ const integrationSections = [
   },
 ];
 
-const llmProviders = [
-  {
-    name: "OpenAI",
-    status: "Connected",
-    detail: "ChatGPT is the active provider.",
-  },
-  {
-    name: "Anthropic",
-    status: "Coming Soon",
-    detail: "Claude support is planned in a future release.",
-  },
-  {
-    name: "Google AI",
-    status: "Coming Soon",
-    detail: "Gemini support is planned in a future release.",
-  },
-  {
-    name: "Perplexity",
-    status: "Coming Soon",
-    detail: "Perplexity support is planned in a future release.",
-  },
-];
-
 export function Settings() {
   const { activeProperty, updateActiveProperty } = useProperty();
   const [form, setForm] = useState({
@@ -53,6 +34,7 @@ export function Settings() {
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [llmProviders, setLlmProviders] = useState<ProviderStatus[]>([]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -67,6 +49,31 @@ export function Settings() {
 
     return () => window.clearTimeout(timeoutId);
   }, [activeProperty]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProviderStatus() {
+      try {
+        const providers = await fetchProviderStatus();
+
+        if (isMounted) {
+          setLlmProviders(providers);
+        }
+      } catch (error) {
+        console.error(error);
+        if (isMounted) {
+          setLlmProviders([]);
+        }
+      }
+    }
+
+    void loadProviderStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function handleSave() {
     if (!activeProperty) {
@@ -235,19 +242,37 @@ export function Settings() {
                   </div>
                   <span
                     className={
-                      provider.status === "Connected"
+                      provider.status === "connected"
                         ? "rounded-full border border-emerald-700 bg-emerald-950 px-3 py-1 text-xs font-medium text-emerald-300"
                         : "rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-xs font-medium text-zinc-400"
                     }
                   >
-                    {provider.status}
+                    {formatProviderStatus(provider.status)}
                   </span>
                 </div>
               ))}
+
+              {llmProviders.length === 0 && (
+                <p className="text-sm text-zinc-500">
+                  Provider status is unavailable.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
+}
+
+function formatProviderStatus(status: ProviderStatus["status"]) {
+  if (status === "connected") {
+    return "Connected";
+  }
+
+  if (status === "missing_session") {
+    return "Session Required";
+  }
+
+  return "Coming Soon";
 }

@@ -14,6 +14,7 @@ from app.services.session_resolver import SessionResolver
 
 PLATFORM_LOGIN_URLS = {
     ("reddit", None): "https://www.reddit.com/login/",
+    ("perplexity", None): "https://www.perplexity.ai/",
     ("xiaohongshu", "creator"): "https://creator.xiaohongshu.com/",
     ("xiaohongshu", "web"): "https://www.rednote.com/",
 }
@@ -35,7 +36,7 @@ class PlaywrightSessionService:
         platform = (account.platform or "reddit").strip().lower()
         resolved_purpose = self.default_purpose(platform, purpose)
 
-        if platform in {"reddit", "xiaohongshu"}:
+        if platform in {"reddit", "xiaohongshu", "perplexity"}:
             return self.session_resolver.canonical_profile_dir(
                 platform=platform,
                 purpose=resolved_purpose,
@@ -76,7 +77,7 @@ class PlaywrightSessionService:
                 f"Account {account.handle} does not have a Playwright session path."
             )
 
-        if platform in {"reddit", "xiaohongshu"}:
+        if platform in {"reddit", "xiaohongshu", "perplexity"}:
             path = self.session_resolver.resolve_profile(
                 platform=account.platform,
                 profile_path=session_path,
@@ -99,7 +100,7 @@ class PlaywrightSessionService:
     ) -> str:
         resolved_purpose = self.default_purpose(platform, purpose)
 
-        if platform in {"reddit", "xiaohongshu"}:
+        if platform in {"reddit", "xiaohongshu", "perplexity"}:
             try:
                 path = self.session_resolver.resolve_profile(
                     platform=platform,
@@ -142,7 +143,7 @@ class PlaywrightSessionService:
         session_path.parent.mkdir(parents=True, exist_ok=True)
 
         with sync_playwright() as playwright:
-            if platform in {"reddit", "xiaohongshu"}:
+            if platform in {"reddit", "xiaohongshu", "perplexity"}:
                 session_path.mkdir(parents=True, exist_ok=True)
                 context = playwright.chromium.launch_persistent_context(
                     user_data_dir=str(session_path),

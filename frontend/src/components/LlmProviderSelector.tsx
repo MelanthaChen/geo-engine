@@ -16,7 +16,7 @@ const providerOptions: ProviderOption[] = [
   { id: "chatgpt", label: "ChatGPT", status: "available" },
   { id: "claude", label: "Claude", status: "coming_soon" },
   { id: "gemini", label: "Gemini", status: "coming_soon" },
-  { id: "perplexity", label: "Perplexity", status: "coming_soon" },
+  { id: "perplexity", label: "Perplexity", status: "available" },
 ];
 
 type LlmProviderSelectorProps = {

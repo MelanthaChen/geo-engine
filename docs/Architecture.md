@@ -101,20 +101,21 @@ citation results, experiment runs, and experiment campaigns, store a
 
 Current implementation:
 
-- `chatgpt` is the default and only active provider.
+- `chatgpt` is the default provider.
+- `perplexity` is executable through Perplexity Web browser automation.
 - LLM execution is routed through the Provider Execution Layer.
 - API requests may omit `provider`; the backend normalizes missing values to
   `chatgpt`.
 
-Future providers such as Claude, Gemini, and Perplexity should be added behind
-the provider interface without changing stored experiment, content, or citation
-records. The current implementation does not call any non-OpenAI provider APIs.
+Future providers such as Claude and Gemini should be added behind the provider
+interface without changing stored experiment, content, or citation records.
+Perplexity Web intentionally does not use the Perplexity API.
 
 ## Provider Execution Layer
 
-All LLM-backed execution flows now resolve a provider before calling a model.
-ChatGPT remains the only concrete implementation, but service code no longer
-constructs OpenAI clients directly.
+All LLM-backed execution flows now resolve a provider before calling a model or
+browser-backed provider. Service code no longer constructs provider clients
+directly.
 
 ```mermaid
 flowchart TD
@@ -123,15 +124,21 @@ flowchart TD
     PM["ProviderManager"]
     PI["Provider Interface"]
     GPT["ChatGPTProvider"]
-    FUT["Claude/Gemini/Perplexity Stubs"]
+    PPLX["PerplexityProvider"]
+    FUT["Claude/Gemini Stubs"]
     OAI["OpenAI API"]
+    CHROME["Persistent Chrome Profile"]
+    WEB["Perplexity Web"]
 
     UI --> API
     API --> PM
     PM --> PI
     PI --> GPT
+    PI --> PPLX
     PI --> FUT
     GPT --> OAI
+    PPLX --> CHROME
+    CHROME --> WEB
 ```
 
 Provider-aware execution currently covers:
@@ -143,9 +150,23 @@ Provider-aware execution currently covers:
 - citation tests;
 - content optimization.
 
-Future provider integrations should implement the same provider methods and
-register with `ProviderManager`. Unsupported providers intentionally raise
-`NotImplementedError` until their API integrations are added.
+Provider implementations:
+
+- `ChatGPTProvider`: calls the OpenAI API.
+- `PerplexityProvider`: opens `https://www.perplexity.ai/` with Playwright,
+  reuses `sessions/perplexity/profile`, submits the prompt, waits for a stable
+  answer, extracts source links, and returns normalized plain text.
+- `ClaudeProvider` and `GeminiProvider`: registered stubs that intentionally
+  raise `NotImplementedError`.
+
+The Perplexity browser profile is initialized with:
+
+```bash
+python save_platform_state.py perplexity
+```
+
+Unsupported providers intentionally raise `NotImplementedError` until their
+integrations are added.
 
 ## Cross-Provider Evaluation
 
@@ -155,18 +176,45 @@ result. The frontend now models results as provider comparison rows so citation
 tests, Experiment Lab results, dashboard coverage, and history timelines can
 all display one row per provider.
 
+Citation Tests now execute as a true provider comparison:
+
+```mermaid
+flowchart TD
+    Q["Question"]
+    RUN["CitationTestRun"]
+    PM["ProviderManager"]
+    GPT["ChatGPTProvider"]
+    PPLX["PerplexityProvider"]
+    R1["CitationTestResult: ChatGPT"]
+    R2["CitationTestResult: Perplexity"]
+    VIEW["Unified Comparison View"]
+    HIST["Single History Event Group"]
+
+    Q --> RUN
+    RUN --> PM
+    PM --> GPT
+    PM --> PPLX
+    GPT --> R1
+    PPLX --> R2
+    R1 --> VIEW
+    R2 --> VIEW
+    RUN --> HIST
+```
+
 Current implementation:
 
-- ChatGPT is the only active provider.
-- Existing backend execution still produces ChatGPT results only.
-- Cross-provider tables include ChatGPT results plus placeholders for future
-  providers.
+- ChatGPT is active through the OpenAI API.
+- Perplexity is active through Perplexity Web browser automation.
+- Cross-provider tables include active ChatGPT and Perplexity rows plus
+  placeholders for future providers.
+- One citation test run can contain multiple provider results.
+- Provider results store response text, extracted citations, latency, status,
+  rank, mention detection, and timestamp.
 
 Future provider comparison targets:
 
 - Claude
 - Gemini
-- Perplexity
 
 Future integrations should populate the same provider comparison result shape
 without changing retrieval, publishing, or experiment execution semantics.

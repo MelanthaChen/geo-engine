@@ -24,7 +24,7 @@ export const comparisonProviders: Array<{
   { id: "chatgpt", label: "ChatGPT", status: "active" },
   { id: "claude", label: "Claude", status: "coming_soon" },
   { id: "gemini", label: "Gemini", status: "coming_soon" },
-  { id: "perplexity", label: "Perplexity", status: "coming_soon" },
+  { id: "perplexity", label: "Perplexity", status: "active" },
 ];
 
 export function providerLabel(provider?: string | null) {

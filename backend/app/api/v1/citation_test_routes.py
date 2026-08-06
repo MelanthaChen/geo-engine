@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi import Depends
 
+import json
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,7 @@ class PromptCitationTestRequest(BaseModel):
     prompt: str
     models: list[str]
     provider: str | None = "chatgpt"
+    providers: list[str] | None = None
 
 
 @router.get("")
@@ -44,8 +46,28 @@ def list_tests(
     )
 
     rows = []
+    run_rows = []
 
     for run in runs:
+        serialized_results = [
+            serialize_citation_test_result(result)
+            for result in run.results
+        ]
+        run_rows.append(
+            {
+                "run_id": run.id,
+                "property_id": run.property_id,
+                "question": run.prompt,
+                "prompt": run.prompt,
+                "target_brand": run.target_brand,
+                "provider": run.provider,
+                "status": run.status,
+                "created_at": run.created_at,
+                "completed_at": run.completed_at,
+                "results": serialized_results,
+            }
+        )
+
         for result in run.results:
             rows.append(
                 {
@@ -65,8 +87,10 @@ def list_tests(
                     "ai_response": result.raw_response,
                     "raw_response": result.raw_response,
                     "response_snippet": result.response_snippet,
+                    "citations": parse_json(result.citations_json, []),
                     "mentioned": result.mentioned,
                     "rank": result.rank,
+                    "latency_ms": result.latency_ms,
                     "evidence_found": result.mentioned,
                     "citation_type": (
                         "mention"
@@ -130,6 +154,7 @@ def list_tests(
     )
 
     return {
+        "runs": run_rows,
         "tests": sorted(
             rows,
             key=lambda row: row["last_run"] or row["created_at"],
@@ -149,6 +174,7 @@ def run_prompt_test(
         prompt=request.prompt,
         models=request.models,
         provider=request.provider,
+        providers=request.providers,
     )
 
     if not result:
@@ -160,23 +186,41 @@ def run_prompt_test(
         "run_id": result.id,
         "property_id": result.property_id,
         "prompt": result.prompt,
+        "question": result.prompt,
         "status": result.status,
         "results": [
-            {
-                "id": item.id,
-                "model": item.model,
-                "provider": item.provider,
-                "status": item.status,
-                "mentioned": item.mentioned,
-                "rank": item.rank,
-                "response_snippet": item.response_snippet,
-                "raw_response": item.raw_response,
-                "error_message": item.error_message,
-                "tested_at": item.tested_at,
-            }
+            serialize_citation_test_result(item)
             for item in result.results
         ],
     }
+
+
+def serialize_citation_test_result(item):
+    return {
+        "id": item.id,
+        "model": item.model,
+        "provider": item.provider,
+        "status": item.status,
+        "mentioned": item.mentioned,
+        "rank": item.rank,
+        "response_snippet": item.response_snippet,
+        "raw_response": item.raw_response,
+        "response": item.raw_response,
+        "citations": parse_json(item.citations_json, []),
+        "latency_ms": item.latency_ms,
+        "error_message": item.error_message,
+        "tested_at": item.tested_at,
+    }
+
+
+def parse_json(value: str | None, fallback):
+    if not value:
+        return fallback
+
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return fallback
 
 
 @router.post("/run/{content_id}")

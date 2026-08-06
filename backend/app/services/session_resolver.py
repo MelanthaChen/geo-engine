@@ -4,6 +4,7 @@ from pathlib import Path
 class SessionResolver:
     PLATFORM_DEFAULTS = {
         "reddit": "sessions/reddit/profile",
+        "perplexity": "sessions/perplexity/profile",
         "xiaohongshu": {
             "creator": "sessions/xiaohongshu/creator/profile",
             "web": "sessions/xiaohongshu/web/profile",
@@ -11,6 +12,7 @@ class SessionResolver:
     }
     STORAGE_STATE_FALLBACKS = {
         "reddit": "sessions/reddit/storage_state.json",
+        "perplexity": "sessions/perplexity/storage_state.json",
         "xiaohongshu": {
             "creator": "sessions/xiaohongshu/creator/storage_state.json",
             "web": "sessions/xiaohongshu/web/storage_state.json",
@@ -69,7 +71,7 @@ class SessionResolver:
     ) -> Path:
         normalized_platform = (platform or "").strip().lower()
 
-        if normalized_platform not in {"reddit", "xiaohongshu"}:
+        if normalized_platform not in {"reddit", "xiaohongshu", "perplexity"}:
             raise ValueError(
                 f"No canonical persistent profile directory for platform: {platform}"
             )
@@ -119,7 +121,7 @@ class SessionResolver:
 
         if (
             normalized_platform := (platform or "").strip().lower()
-        ) == "reddit" and normalized_profile_path == self.canonical_storage_state_path(
+        ) in {"reddit", "perplexity"} and normalized_profile_path == self.canonical_storage_state_path(
             platform=normalized_platform,
             purpose=purpose,
         ):

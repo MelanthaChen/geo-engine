@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db
 from app.models.citation_test import CitationTest
 from app.models.citation_test_run import CitationTestRun
+from app.models.citation_test_result import CitationTestResult
 from app.models.content import Content
 from app.models.publishing_job import PublishingJob
 from app.models.website_audit import WebsiteAudit
@@ -180,6 +181,18 @@ def get_property_metrics(
         else 0
     )
 
+    providers_executed = [
+        row[0]
+        for row in (
+            db.query(CitationTestResult.provider)
+            .join(CitationTestRun)
+            .filter(CitationTestRun.property_id == property_id)
+            .distinct()
+            .all()
+        )
+        if row[0]
+    ]
+
     latest_audit = (
         db.query(WebsiteAudit)
         .filter(WebsiteAudit.property_id == property_id)
@@ -196,6 +209,7 @@ def get_property_metrics(
         "visibility_score": visibility_score,
         "clicks": 0,
         "impressions": 0,
+        "providers_executed": providers_executed,
         "latest_audit": (
             {
                 "id": latest_audit.id,

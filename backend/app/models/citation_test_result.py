@@ -37,6 +37,10 @@ class CitationTestResult(Base):
 
     raw_response = Column(Text, nullable=True)
 
+    citations_json = Column(Text, nullable=True)
+
+    latency_ms = Column(Integer, nullable=True)
+
     error_message = Column(Text, nullable=True)
 
     tested_at = Column(
