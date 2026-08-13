@@ -18,6 +18,15 @@ CREATOR_PUBLISH_URLS = [
     "https://creator.xiaohongshu.com/publish/publish",
 ]
 
+PERPLEXITY_COMPOSER_SELECTORS = [
+    "textarea[placeholder*='Ask']",
+    "textarea[placeholder*='anything']",
+    "textarea",
+    "[contenteditable='true'][role='textbox']",
+    "div[contenteditable='true']",
+    "[role='textbox']",
+]
+
 
 def inspect_creator_publish_state(page):
     return page.evaluate(
@@ -116,6 +125,61 @@ def wait_for_creator_publish_authorization(page):
         page.wait_for_timeout(3000)
 
 
+def inspect_perplexity_state(page):
+    return page.evaluate(
+        """(selectors) => {
+            const text = document.body?.innerText || '';
+            const composerExists = selectors.some((selector) =>
+                Boolean(document.querySelector(selector))
+            );
+
+            return {
+                url: window.location.href,
+                title: document.title,
+                readyState: document.readyState,
+                composerExists,
+                isChallengePage:
+                    document.title.includes('Just a moment') ||
+                    text.includes('Verifying you are human') ||
+                    text.includes('Cloudflare'),
+                bodyPreview: text.slice(0, 200),
+            };
+        }""",
+        PERPLEXITY_COMPOSER_SELECTORS,
+    )
+
+
+def wait_for_perplexity_authorization(page):
+    print("Waiting for Perplexity authorization...")
+    last_url = None
+    last_message = None
+
+    while True:
+        state = inspect_perplexity_state(page)
+
+        if state["url"] != last_url:
+            last_url = state["url"]
+            print(f"Current URL: {state['url']}")
+            print(f"Current title: {state['title']}")
+
+        if state["composerExists"]:
+            print("Perplexity authorization verified.")
+            return state
+
+        message = (
+            "Perplexity is still verifying the browser session."
+            if state["isChallengePage"]
+            else "Perplexity composer is not available yet."
+        )
+
+        if message != last_message:
+            print(message)
+            print(f"Page preview: {state['bodyPreview']}")
+            last_message = message
+
+        page.wait_for_timeout(3000)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Save Playwright login state for a publishing platform."
@@ -196,6 +260,23 @@ def main():
                 print(
                     "Upload tab exists: "
                     f"{verification_state['uploadTabExists']}"
+                )
+                input(
+                    "Press ENTER to save the profile..."
+                )
+            elif args.platform == "perplexity":
+                verification_state = wait_for_perplexity_authorization(page)
+                print(
+                    "Current URL: "
+                    f"{verification_state['url']}"
+                )
+                print(
+                    "Current title: "
+                    f"{verification_state['title']}"
+                )
+                print(
+                    "Composer available: "
+                    f"{verification_state['composerExists']}"
                 )
                 input(
                     "Press ENTER to save the profile..."

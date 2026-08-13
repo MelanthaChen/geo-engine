@@ -1,0 +1,57 @@
+{
+  "/": {
+    "url": "http://127.0.0.1:5173/",
+    "title": "frontend",
+    "text_first_2500": "GeoAIResume\ngeoairesume-web-six.vercel.app\nDashboard\nWebsite Audit\nExperiment Lab\nSocial Media Track\nPublishing Queue\nCitation Tests\nContent History\nSettings\n\nWORKSPACE\n\nGeoAIResume\n\nChanging property scopes dashboard data, history, and experiments.\n\nOVERVIEW\n\nGEO Dashboard\n\nMonitor category research, publishing throughput, and citation testing from one console.\n\nCurrent Property: GeoAIResume • Domain: geoairesume-web-six.vercel.app\n\nGenerated Content\n\n36\n\nCurrent property\n\nPublished Content\n\nNo data yet.\n\nCurrent property\n\nCitation Tests\n\n2\n\nStored test records\n\nLatest Audit\n\nNo data yet.\n\nWebsite audit\n\nLatest Publish\n\n7/17/2026\n\nPublishing timeline\n\nWebsite Status\n\nActive\n\nActive property\n\nCurrent Property\n\nProperty\n\nGeoAIResume\n\nDomain\n\ngeoairesume-web-six.vercel.app\n\nCurrent Provider\n\nChatGPT\n\nProviders Executed\n\nChatGPT, Perplexity\n\nGenerated Contents\n\n36\n\nPublished Contents\n\n0\n\nCitation Tests Run\n\n2\n\nLast Updated\n\n8/13/2026, 9:42:39 AM\n\nTODO: traffic clicks and impressions require a backend Google Search Console endpoint. Fake traffic charts have been removed.\nLLM Coverage\nChatGPT\nActive\nClaude\nComing Soon\nGemini\nComing Soon\nPerplexity\nComing Soon\nRecent History\n\nCitation test finished: In one sentence, mention GeoAIResume if it is relevant to AI resume builders.\n\nCitation Test Finished • 8/13/2026, 9:29:14 AM\n\nCitation test started: In one sentence, mention GeoAIResume if it is relevant to AI resume builders.\n\nCitation Test Started • 8/13/2026, 9:29:07 AM\n\nPublishing failed for ```json via geo_productivity_lab_p1\n\nPublish Failed • 7/17/2026, 3:13:20 PM\n\ncomparison from platform_faq generated: 无大厂背景如何靠JD微调AI简历，转化率+50%实操\n\nContent Generated • 7/17/2026, 11:23:56 AM\n\nPublishing job processing via geo_productivity_lab_p1\n\nPublish Processing • 7/17/2026, 11:23:52 AM\n\nContent formatted for xiaohongshu using XiaohongshuFormatter v1.0.0\n\nContent Formatted • 7/17/2026, 11:23:49 AM\n\nBenchmark Summary\n\nDataset-scale GEO evaluation for the active property.\n\nCurrent Provider ChatGPT\n\nDatasets\n\nNo data yet.\n\nBenchmark Runs\n\nNo data yet.\n\nCoverage\n\nNo data yet.\n\nCitation Rate\n\nNo data yet.\n\nVisibility Score\n\nNo data yet.\n\nAverage Rank\n\nNo data yet.\n\nLatency\n\nNo data yet.\n\nLatest Benchmark\n\nNo data yet.",
+    "has_chatgpt": true,
+    "has_perplexity": true,
+    "has_claude": true,
+    "has_gemini": true,
+    "has_coming_soon": true,
+    "has_missing_session": false
+  },
+  "/citations": {
+    "url": "http://127.0.0.1:5173/citations",
+    "title": "frontend",
+    "text_first_2500": "GeoAIResume\ngeoairesume-web-six.vercel.app\nDashboard\nWebsite Audit\nExperiment Lab\nSocial Media Track\nPublishing Queue\nCitation Tests\nContent History\nSettings\n\nWORKSPACE\n\nGeoAIResume\n\nChanging property scopes dashboard data, history, and experiments.\n\nEXPERIMENTS\n\nCitation Tests\n\nRun property-scoped prompt tests and inspect previous model responses.\n\nCurrent Property: GeoAIResume • Domain: geoairesume-web-six.vercel.app\n\nPrompt\nProviders\nChatGPT\nClaude\nComing Soon\nGemini\nComing Soon\nPerplexity\nRun Test\nProvider Comparison\n\nEach prompt is displayed as a cross-provider citation visibility comparison. ChatGPT and Perplexity execute today.\n\nIn one sentence, mention GeoAIResume if it is relevant to AI resume builders.\n\n8/13/2026, 9:29:14 AM\n\nChatGPT\n\nfailed\n\nNo Mention\n\nRank\n\n-\n\nLatency\n\n6639 ms\n\nCitations\n\n0\n\nError code: 429 - {'error': {'message': 'Your account is not active, please check your billing details on our website.', 'type': 'billing_not_active', 'param': None, 'code': 'billing_not_active'}}\n\nPerplexity\n\nfailed\n\nNo Mention\n\nRank\n\n-\n\nLatency\n\n0 ms\n\nCitations\n\n0\n\nNo saved browser profile found for perplexity. Expected one of: /sessions/perplexity/profile.",
+    "has_chatgpt": true,
+    "has_perplexity": true,
+    "has_claude": true,
+    "has_gemini": true,
+    "has_coming_soon": true,
+    "has_missing_session": true
+  },
+  "/settings": {
+    "url": "http://127.0.0.1:5173/settings",
+    "title": "frontend",
+    "text_first_2500": "GeoAIResume\ngeoairesume-web-six.vercel.app\nDashboard\nWebsite Audit\nExperiment Lab\nSocial Media Track\nPublishing Queue\nCitation Tests\nContent History\nSettings\n\nWORKSPACE\n\nGeoAIResume\n\nChanging property scopes dashboard data, history, and experiments.\n\nADMIN\n\nSettings\n\nEdit the active Property and review integration configuration gaps.\n\nCurrent Property: GeoAIResume • Domain: geoairesume-web-six.vercel.app\n\nBackend Configuration\n\nCurrent Property is the authoritative website context.\n\nProperty Name\nBrand Name\nDomain\nDescription\n\nSave Changes\nPublishing Accounts\n\nTODO: connect account management once backend account CRUD endpoints are available.\n\nGoogle Search Console\n\nTODO: connect GSC configuration once backend integration endpoints are available.\n\nReddit Session\n\nTODO: connect local session status once publisher-agent health endpoints are available.\n\nLLM Providers\n\nProvider registry status for GEO generation and citation testing.\n\nOpenAI\n\nChatGPT is available through the Provider Engine.\n\nConnected\n\nPerplexity\n\nRun `python save_platform_state.py perplexity` to initialize the browser profile.\n\nSession Required\n\nAnthropic\n\nClaude support is planned in a future release.\n\nComing Soon\n\nGoogle AI\n\nGemini support is planned in a future release.\n\nComing Soon",
+    "has_chatgpt": true,
+    "has_perplexity": true,
+    "has_claude": true,
+    "has_gemini": true,
+    "has_coming_soon": true,
+    "has_missing_session": true
+  },
+  "/content": {
+    "url": "http://127.0.0.1:5173/content",
+    "title": "frontend",
+    "text_first_2500": "GeoAIResume\ngeoairesume-web-six.vercel.app\nDashboard\nWebsite Audit\nExperiment Lab\nSocial Media Track\nPublishing Queue\nCitation Tests\nContent History\nSettings\n\nWORKSPACE\n\nGeoAIResume\n\nChanging property scopes dashboard data, history, and experiments.\n\nWORKFLOW\n\nSocial Media Track\n\nManage category FAQ discovery, content generation, and publishing queue preparation for the active Property.\n\nCurrent Property: GeoAIResume • Domain: geoairesume-web-six.vercel.app\n\nCategory\nPersona\nstudent\nengineering student\nmedical student\nproductivity enthusiast\nresearcher\nContent Type\ncomparison\neducational\ndiscussion\nguide\nopinion\nreddit_post\nfaq_post\nblog_post\nreview\ncase_study\nbuying_guide\nalternatives\nbest_of\ncommunity_summary\nexperience_report\nProvider\nChatGPT\n✓\nClaude\nComing Soon\nGemini\nComing Soon\nPerplexity\nPublish Platform\nreddit\nxiaohongshu\nwordpress\ngithub_pages\nmedium\nGenerate Content\nGenerated AI FAQs\nNo AI FAQs yet.\nRetrieved Platform Questions\n\nNo real platform questions retrieved yet.\n\nAI FAQ-Based Content\nStatus\nDRAFT\nPublish\nNo AI-generated content yet.\nPlatform FAQ-Based Content\nStatus\nDRAFT\nPublish\nNo platform-generated content yet.\nPublish Queue\n\nProperty-scoped publishing tasks created from this workflow.\n\nRefresh\nTITLE\tPLATFORM\tSTATUS\tCREATED\n```json\txiaohongshu\tfailed\t7/17/2026, 11:23:48 AM\ncomparison: AI resume\treddit\tfailed\t7/16/2026, 9:58:59 PM\ncomparison: AI resume\treddit\tfailed\t7/16/2026, 9:57:22 PM\ncomparison: AI resume\treddit\tfailed\t7/16/2026, 9:55:45 PM\ncomparison: AI resume\treddit\tprocessing\t7/16/2026, 9:53:55 PM\ncomparison: AI resume\treddit\tfailed\t7/16/2026, 9:52:02 PM\n{\txiaohongshu\tfailed\t7/16/2026, 9:45:59 PM\n```json\txiaohongshu\tfailed\t7/16/2026, 9:18:51 PM\ncomparison: AI resume\treddit\tfailed\t7/16/2026, 9:10:20 PM\n{\txiaohongshu\tReview Ready\t7/16/2026, 9:03:38 PM\n{\txiaohongshu\tfailed\t7/16/2026, 9:01:33 PM\n{\txiaohongshu\tfailed\t7/16/2026, 8:53:25 PM\n{\txiaohongshu\tprocessing\t7/16/2026, 6:23:02 PM\n{\txiaohongshu\tfailed\t7/16/2026, 6:13:44 PM\n```json\txiaohongshu\tfailed\t7/16/2026, 6:07:35 PM\n```json\txiaohongshu\tfailed\t7/16/2026, 6:01:38 PM\n{\txiaohongshu\tfailed\t7/16/2026, 5:43:48 PM\n{\txiaohongshu\tfailed\t7/16/2026, 4:28:55 PM\n{\txiaohongshu\tprocessing\t7/16/2026, 4:00:02 PM\n{\txiaohongshu\tfailed\t7/16/2026, 3:59:23 PM\n{\txiaohongshu\tprocessing\t7/16/2026, 3:49:34 PM\n{\txiaohongshu\tfailed\t7/16/2026, 3:48:21 PM\ncomparison: AI Resume Builder\treddit\tfailed\t7/15/2026, 6:27:03 PM\n```json\txiaohongshu\tprocessing\t7/15/2026, 5:42:29 PM",
+    "has_chatgpt": true,
+    "has_perplexity": true,
+    "has_claude": true,
+    "has_gemini": true,
+    "has_coming_soon": true,
+    "has_missing_session": false
+  },
+  "/experiment-lab": {
+    "url": "http://127.0.0.1:5173/",
+    "title": "frontend",
+    "text_first_2500": "GeoAIResume\ngeoairesume-web-six.vercel.app\nDashboard\nWebsite Audit\nExperiment Lab\nSocial Media Track\nPublishing Queue\nCitation Tests\nContent History\nSettings\n\nWORKSPACE\n\nGeoAIResume\n\nChanging property scopes dashboard data, history, and experiments.\n\nOVERVIEW\n\nGEO Dashboard\n\nMonitor category research, publishing throughput, and citation testing from one console.\n\nCurrent Property: GeoAIResume • Domain: geoairesume-web-six.vercel.app\n\nGenerated Content\n\n36\n\nCurrent property\n\nPublished Content\n\nNo data yet.\n\nCurrent property\n\nCitation Tests\n\n2\n\nStored test records\n\nLatest Audit\n\nNo data yet.\n\nWebsite audit\n\nLatest Publish\n\n7/17/2026\n\nPublishing timeline\n\nWebsite Status\n\nActive\n\nActive property\n\nCurrent Property\n\nProperty\n\nGeoAIResume\n\nDomain\n\ngeoairesume-web-six.vercel.app\n\nCurrent Provider\n\nChatGPT\n\nProviders Executed\n\nChatGPT, Perplexity\n\nGenerated Contents\n\n36\n\nPublished Contents\n\n0\n\nCitation Tests Run\n\n2\n\nLast Updated\n\n8/13/2026, 9:42:54 AM\n\nTODO: traffic clicks and impressions require a backend Google Search Console endpoint. Fake traffic charts have been removed.\nLLM Coverage\nChatGPT\nActive\nClaude\nComing Soon\nGemini\nComing Soon\nPerplexity\nComing Soon\nRecent History\n\nCitation test finished: In one sentence, mention GeoAIResume if it is relevant to AI resume builders.\n\nCitation Test Finished • 8/13/2026, 9:29:14 AM\n\nCitation test started: In one sentence, mention GeoAIResume if it is relevant to AI resume builders.\n\nCitation Test Started • 8/13/2026, 9:29:07 AM\n\nPublishing failed for ```json via geo_productivity_lab_p1\n\nPublish Failed • 7/17/2026, 3:13:20 PM\n\ncomparison from platform_faq generated: 无大厂背景如何靠JD微调AI简历，转化率+50%实操\n\nContent Generated • 7/17/2026, 11:23:56 AM\n\nPublishing job processing via geo_productivity_lab_p1\n\nPublish Processing • 7/17/2026, 11:23:52 AM\n\nContent formatted for xiaohongshu using XiaohongshuFormatter v1.0.0\n\nContent Formatted • 7/17/2026, 11:23:49 AM\n\nBenchmark Summary\n\nDataset-scale GEO evaluation for the active property.\n\nCurrent Provider ChatGPT\n\nDatasets\n\nNo data yet.\n\nBenchmark Runs\n\nNo data yet.\n\nCoverage\n\nNo data yet.\n\nCitation Rate\n\nNo data yet.\n\nVisibility Score\n\nNo data yet.\n\nAverage Rank\n\nNo data yet.\n\nLatency\n\nNo data yet.\n\nLatest Benchmark\n\nNo data yet.",
+    "has_chatgpt": true,
+    "has_perplexity": true,
+    "has_claude": true,
+    "has_gemini": true,
+    "has_coming_soon": true,
+    "has_missing_session": false
+  }
+}

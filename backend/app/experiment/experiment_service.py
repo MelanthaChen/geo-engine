@@ -55,6 +55,7 @@ class ExperimentService:
         queries: list[str] | None = None,
         dataset_documents: list[dict[str, Any]] | None = None,
     ) -> dict:
+        strategies = self._normalize_strategies(strategies)
         self._validate_strategies(strategies)
         strategies = self._paper_mode_strategies(dataset_name, strategies)
         experiment = self.create_experiment(
@@ -94,6 +95,7 @@ class ExperimentService:
         queries: list[str] | None = None,
         dataset_documents: list[dict[str, Any]] | None = None,
     ) -> Experiment:
+        strategies = self._normalize_strategies(strategies)
         self._validate_strategies(strategies)
         strategies = self._paper_mode_strategies(dataset_name, strategies)
         benchmark_input = self._build_benchmark_input(
@@ -404,3 +406,16 @@ class ExperimentService:
 
         if unknown:
             raise ValueError(f"Unsupported GEO strategies: {', '.join(unknown)}")
+
+    def _normalize_strategies(self, strategies: list[str]) -> list[str]:
+        label_to_key = {
+            label.lower(): key
+            for key, label in STRATEGY_LABELS.items()
+        }
+
+        return [
+            strategy
+            if strategy in STRATEGY_LABELS
+            else label_to_key.get(strategy.lower(), strategy)
+            for strategy in strategies
+        ]
