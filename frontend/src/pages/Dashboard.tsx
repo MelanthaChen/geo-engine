@@ -15,6 +15,12 @@ import {
 import { Card, CardContent } from "../../@/components/ui/card";
 import { DashboardCards } from "@/components/DashboardCards";
 import { LlmCoverageCard } from "@/components/LlmCoverageCard";
+import {
+  Page,
+  PageHeader,
+  ResponsiveGrid,
+  SplitLayout,
+} from "@/components/layout/PageLayout";
 import { useProperty } from "@/contexts/PropertyContext";
 
 export function Dashboard() {
@@ -60,20 +66,13 @@ export function Dashboard() {
   }, [activeProperty]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Overview
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          GEO Dashboard
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Monitor category research, publishing throughput, and citation
-          testing from one console.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Overview"
+        title="GEO Dashboard"
+        description="Monitor category research, publishing throughput, and citation testing from one console."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -81,7 +80,7 @@ export function Dashboard() {
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
       <DashboardCards
         citationTests={formatMetric(citationTests.length)}
@@ -92,7 +91,45 @@ export function Dashboard() {
         websiteStatus={activeProperty ? "Active" : "No data yet."}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_420px]">
+      <SplitLayout
+        aside={
+          <div className="space-y-4">
+            <LlmCoverageCard />
+
+            <Card className="border-zinc-800 bg-zinc-950">
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold text-zinc-50">
+                  Recent History
+                </h2>
+                <div className="mt-4 space-y-3">
+                  {history.slice(0, 6).map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg border border-zinc-800 bg-black p-3"
+                    >
+                      <p className="text-sm font-medium text-zinc-100">
+                        {item.event_summary || item.title || "History event"}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {formatEventLabel(item.event_type)}
+                        {item.created_at
+                          ? ` • ${new Date(item.created_at).toLocaleString()}`
+                          : ""}
+                      </p>
+                    </div>
+                  ))}
+
+                  {history.length === 0 && (
+                    <p className="text-sm text-zinc-500">
+                      No history events for the current property.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        }
+      >
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-6">
             <h2 className="text-lg font-semibold text-zinc-50">
@@ -137,42 +174,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <LlmCoverageCard />
-
-          <Card className="border-zinc-800 bg-zinc-950">
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-zinc-50">
-                Recent History
-              </h2>
-              <div className="mt-4 space-y-3">
-                {history.slice(0, 6).map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-lg border border-zinc-800 bg-black p-3"
-                  >
-                    <p className="text-sm font-medium text-zinc-100">
-                      {item.event_summary || item.title || "History event"}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {formatEventLabel(item.event_type)}
-                      {item.created_at
-                        ? ` • ${new Date(item.created_at).toLocaleString()}`
-                        : ""}
-                    </p>
-                  </div>
-                ))}
-
-                {history.length === 0 && (
-                  <p className="text-sm text-zinc-500">
-                    No history events for the current property.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      </SplitLayout>
 
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="p-6">
@@ -191,7 +193,7 @@ export function Dashboard() {
             </p>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <ResponsiveGrid className="mt-5" minItemWidth={260}>
             <MetricLine
               label="Datasets"
               value={formatMetric(metrics?.benchmarks?.dataset_count)}
@@ -233,10 +235,10 @@ export function Dashboard() {
                 "No data yet."
               }
             />
-          </div>
+          </ResponsiveGrid>
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }
 

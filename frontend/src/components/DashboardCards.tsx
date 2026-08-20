@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent } from "../../@/components/ui/card";
+import { ResponsiveGrid } from "@/components/layout/PageLayout";
 
 type DashboardCardsProps = {
   generatedContent: string;
@@ -66,7 +67,7 @@ export function DashboardCards({
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <ResponsiveGrid minItemWidth={300}>
       {cards.map((card) => (
         <Card key={card.label} className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-5">
@@ -87,6 +88,6 @@ export function DashboardCards({
           </CardContent>
         </Card>
       ))}
-    </div>
+    </ResponsiveGrid>
   );
 }

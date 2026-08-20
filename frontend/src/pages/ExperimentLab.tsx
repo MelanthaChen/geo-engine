@@ -16,6 +16,7 @@ import { Input } from "../../@/components/ui/input";
 import { Label } from "../../@/components/ui/label";
 import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
+import { Page, PageHeader as SharedPageHeader } from "@/components/layout/PageLayout";
 import {
   getExperimentCampaign,
   getExperimentLabRun,
@@ -252,14 +253,14 @@ export function ExperimentLab() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
+    <Page>
+      <SharedPageHeader
         eyebrow="Research Benchmark"
         title="Experiment Lab"
         description="Run a faithful Princeton GEO paper reproduction experiment: one query, Google Top-5 retrieval, one randomly selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-6">
             <StepHeader
@@ -427,7 +428,7 @@ export function ExperimentLab() {
           onRun={handleRunExperiment}
         />
       </div>
-    </div>
+    </Page>
   );
 }
 

@@ -10,6 +10,7 @@ import {
 } from "@/api/history";
 import { useProperty } from "@/contexts/PropertyContext";
 import { providerLabel } from "@/types/providerComparison";
+import { Page, PageHeader } from "@/components/layout/PageLayout";
 
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
@@ -149,7 +150,7 @@ export function ContentHistory() {
   }
 
   return (
-    <div className="space-y-6">
+    <Page>
       {toast && (
         <div
           className={[
@@ -163,18 +164,12 @@ export function ContentHistory() {
         </div>
       )}
 
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Archive
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Content History
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Browse persisted FAQ discovery runs and generated content artifacts.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+      <PageHeader
+        eyebrow="Archive"
+        title="Content History"
+        description="Browse persisted FAQ discovery runs and generated content artifacts."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -182,9 +177,9 @@ export function ContentHistory() {
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
-      <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="flex h-[760px] flex-col p-6">
             <h2 className="mb-5 text-xl font-semibold text-zinc-50">
@@ -360,6 +355,6 @@ export function ContentHistory() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </Page>
   );
 }

@@ -10,6 +10,7 @@ import {
   type WebsitePageAudit,
 } from "@/api/audit";
 import { useProperty } from "@/contexts/PropertyContext";
+import { Page, PageHeader } from "@/components/layout/PageLayout";
 
 type AuditCardProps = {
   title: string;
@@ -71,20 +72,13 @@ export function WebsiteAudit() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Analysis
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Website Audit
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Analyze the active Property for GEO readiness, missing topics, and
-          future citation opportunities.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Analysis"
+        title="Website Audit"
+        description="Analyze the active Property for GEO readiness, missing topics, and future citation opportunities."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -92,7 +86,7 @@ export function WebsiteAudit() {
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-end lg:justify-between">
@@ -196,7 +190,7 @@ export function WebsiteAudit() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }
 

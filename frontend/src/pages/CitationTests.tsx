@@ -11,6 +11,7 @@ import {
 } from "@/api/citationTests";
 import { useProperty } from "@/contexts/PropertyContext";
 import type { LlmProvider } from "@/types/experimentLab";
+import { Page, PageHeader } from "@/components/layout/PageLayout";
 import {
   comparisonProviders,
   providerLabel,
@@ -117,20 +118,13 @@ export function CitationTests() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Experiments
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Citation Tests
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Run property-scoped prompt tests and inspect previous model
-          responses.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Experiments"
+        title="Citation Tests"
+        description="Run property-scoped prompt tests and inspect previous model responses."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -138,10 +132,10 @@ export function CitationTests() {
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 lg:grid-cols-[1fr_420px_auto]">
+        <CardContent className="grid gap-4 p-6 2xl:grid-cols-[minmax(0,1fr)_420px_auto]">
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Prompt</span>
             <input
@@ -274,7 +268,7 @@ export function CitationTests() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }
 

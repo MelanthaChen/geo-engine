@@ -19,6 +19,7 @@ import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import type { Property } from "@/api/properties";
 import type { LlmProvider } from "@/types/experimentLab";
 import { useProperty } from "@/contexts/PropertyContext";
+import { Page, PageHeader, ResponsiveGrid } from "@/components/layout/PageLayout";
 
 const contentTypes = [
   { value: "comparison", label: "comparison" },
@@ -386,20 +387,13 @@ function ContentGenerationWorkspace({
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Workflow
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Social Media Track
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Manage category FAQ discovery, content generation, and publishing
-          queue preparation for the active Property.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Workflow"
+        title="Social Media Track"
+        description="Manage category FAQ discovery, content generation, and publishing queue preparation for the active Property."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -407,7 +401,7 @@ function ContentGenerationWorkspace({
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
       {reviewBannerVisible && (
         <div className="rounded-lg border border-emerald-500 bg-emerald-950 px-5 py-4 font-semibold text-emerald-100">
@@ -422,7 +416,8 @@ function ContentGenerationWorkspace({
       )}
 
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 lg:grid-cols-6">
+        <CardContent className="p-6">
+          <ResponsiveGrid minItemWidth={180}>
           <label className="space-y-2 lg:col-span-4">
             <span className="text-sm text-zinc-400">Category</span>
             <input
@@ -491,6 +486,7 @@ function ContentGenerationWorkspace({
               {loading ? "Generating..." : "Generate Content"}
             </Button>
           </div>
+          </ResponsiveGrid>
         </CardContent>
       </Card>
 
@@ -596,7 +592,7 @@ function ContentGenerationWorkspace({
           </div>
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }
 

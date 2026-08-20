@@ -30,7 +30,7 @@ export function Sidebar() {
   const { activeProperty } = useProperty();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-zinc-800 bg-zinc-950">
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-zinc-800 bg-zinc-950">
       <div className="border-b border-zinc-800 p-4">
         <PropertySelector />
       </div>

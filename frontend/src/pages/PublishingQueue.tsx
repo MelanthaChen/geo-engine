@@ -8,6 +8,7 @@ import {
   type PublishingTask,
 } from "@/api/publishingQueue";
 import { useProperty } from "@/contexts/PropertyContext";
+import { Page, PageHeader } from "@/components/layout/PageLayout";
 
 function statusBadgeClass(status: string) {
   if (status === "published") {
@@ -83,27 +84,21 @@ export function PublishingQueue() {
   }, [loadTasks]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Operations
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">
-          Publishing Queue
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Review queued publishing tasks, assigned platforms, and current
-          processing status.
-        </p>
-        {activeProperty && (
-          <div className="mt-3 flex items-center justify-between gap-4">
-            <p className="text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Operations"
+        title="Publishing Queue"
+        description="Review queued publishing tasks, assigned platforms, and current processing status."
+        meta={activeProperty && (
+            <p>
               Current Property:{" "}
               <span className="text-zinc-100">{activeProperty.name}</span>
               {" • "}
               Domain:{" "}
               <span className="text-zinc-100">{activeProperty.domain}</span>
             </p>
+        )}
+        actions={activeProperty && (
             <Button
               disabled={loading}
               onClick={() => void loadTasks()}
@@ -112,9 +107,8 @@ export function PublishingQueue() {
             >
               {loading ? "Refreshing..." : "Refresh"}
             </Button>
-          </div>
         )}
-      </div>
+      />
 
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="p-0">
@@ -207,6 +201,6 @@ export function PublishingQueue() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </Page>
   );
 }

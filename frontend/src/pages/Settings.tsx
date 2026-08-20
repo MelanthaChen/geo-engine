@@ -8,6 +8,7 @@ import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 
 import { useProperty } from "@/contexts/PropertyContext";
+import { Page, PageHeader, ResponsiveGrid } from "@/components/layout/PageLayout";
 
 const integrationSections = [
   {
@@ -99,17 +100,13 @@ export function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500">
-          Admin
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold text-zinc-50">Settings</h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-500">
-          Edit the active Property and review integration configuration gaps.
-        </p>
-        {activeProperty && (
-          <p className="mt-3 text-sm text-zinc-400">
+    <Page>
+      <PageHeader
+        eyebrow="Admin"
+        title="Settings"
+        description="Edit the active Property and review integration configuration gaps."
+        meta={activeProperty && (
+          <p>
             Current Property:{" "}
             <span className="text-zinc-100">{activeProperty.name}</span>
             {" • "}
@@ -117,9 +114,9 @@ export function Settings() {
             <span className="text-zinc-100">{activeProperty.domain}</span>
           </p>
         )}
-      </div>
+      />
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <ResponsiveGrid minItemWidth={460}>
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="space-y-4 p-6">
             <div>
@@ -260,8 +257,8 @@ export function Settings() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </ResponsiveGrid>
+    </Page>
   );
 }
 
