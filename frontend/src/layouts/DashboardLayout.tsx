@@ -12,7 +12,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <Sidebar />
 
       <main className="min-h-screen pl-72">
-        <div className="mx-auto w-full max-w-[1500px] px-8 py-8">
+        <div className="w-full px-8 py-8">
           {children}
         </div>
       </main>
