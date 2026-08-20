@@ -33,11 +33,16 @@ class RedditSubmissionAdapter:
     def open_submission_page(self, page: Page, target: str) -> None:
         subreddit = target or "test"
         page.goto(
-            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT"
+            f"https://www.reddit.com/r/{subreddit}/submit/?type=TEXT",
+            wait_until="domcontentloaded",
         )
 
-    def fill_title(self, page: Page, title: str) -> None:
-        fill_first_visible(
+    def wait_until_ready(self, page: Page) -> None:
+        fill_target = page.locator('textarea[name="title"]').first
+        fill_target.wait_for(state="visible", timeout=30000)
+
+    def fill_title(self, page: Page, title: str) -> int:
+        return fill_first_visible(
             page=page,
             selectors=['textarea[name="title"]'],
             value=title,
@@ -46,7 +51,7 @@ class RedditSubmissionAdapter:
     def fill_body(self, page: Page, body: str) -> int:
         return insert_into_first_visible_editor(
             page=page,
-            selectors=['[contenteditable="true"]'],
+            selectors=['[contenteditable="true"][name="body"]'],
             body=body,
         )
 

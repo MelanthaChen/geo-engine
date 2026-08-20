@@ -102,7 +102,6 @@ def publish_with_review_adapter(
             wait_until_ready(page)
         else:
             page.wait_for_load_state("domcontentloaded")
-            page.wait_for_load_state("networkidle", timeout=30000)
 
         print(f"[REVIEW MODE] Filling {adapter.display_name} title")
         title_inserted_chars = adapter.fill_title(page, title)
