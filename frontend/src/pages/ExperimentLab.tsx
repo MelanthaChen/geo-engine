@@ -18,7 +18,13 @@ import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import { PrincetonReplicationPanel } from "@/components/PrincetonReplicationPanel";
 import { ScientificReplicationDashboard } from "@/components/ScientificReplicationDashboard";
-import { Page, PageHeader as SharedPageHeader } from "@/components/layout/PageLayout";
+import {
+  Page,
+  PageHeader as SharedPageHeader,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+} from "@/components/layout/PageLayout";
 import {
   getExperimentCampaign,
   getExperimentLabRun,
@@ -262,8 +268,36 @@ export function ExperimentLab() {
         description="Run a faithful Princeton GEO paper reproduction experiment: one query, Google Top-5 retrieval, one randomly selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
       />
 
+      <SummaryGrid>
+        <SummaryCard
+          label="Experiment Status"
+          value="Ready"
+          detail="No experiment is currently running"
+        />
+        <SummaryCard
+          label="Queries"
+          value={String(activeQueries(configuration).length || configuration.numberOfQueries)}
+          detail={configuration.benchmarkSource.replace("_", " ")}
+        />
+        <SummaryCard
+          label="Strategies"
+          value={String(configuration.strategies.length)}
+          detail="Selected GEO methods"
+        />
+        <SummaryCard
+          label="Provider"
+          value={configuration.provider}
+          detail={configuration.llm}
+        />
+      </SummaryGrid>
+
       <PrincetonReplicationPanel />
 
+      <section>
+      <SectionHeader
+        title="Custom experiment"
+        description="Configure and run the existing query-level experiment workflow."
+      />
       <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="p-6">
@@ -432,6 +466,7 @@ export function ExperimentLab() {
           onRun={handleRunExperiment}
         />
       </div>
+      </section>
     </Page>
   );
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
+import { Input } from "../../@/components/ui/input";
 
 import {
   fetchCitationTests,
@@ -11,7 +12,14 @@ import {
 } from "@/api/citationTests";
 import { useProperty } from "@/contexts/PropertyContext";
 import type { LlmProvider } from "@/types/experimentLab";
-import { Page, PageHeader } from "@/components/layout/PageLayout";
+import {
+  EmptyState,
+  Page,
+  PageHeader,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+} from "@/components/layout/PageLayout";
 import {
   comparisonProviders,
   providerLabel,
@@ -134,12 +142,40 @@ export function CitationTests() {
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard
+          label="Property"
+          value={activeProperty?.name || "Not selected"}
+          detail={activeProperty?.domain || "Select a property to run tests"}
+        />
+        <SummaryCard
+          label="Tested Providers"
+          value={String(new Set(testRuns.flatMap((run) => run.results.map((result) => result.provider))).size)}
+          detail="Providers with stored responses"
+        />
+        <SummaryCard
+          label="Total Prompts"
+          value={String(testRuns.length)}
+          detail="Stored comparison runs"
+        />
+        <SummaryCard
+          label="Latest Run"
+          value={formatLatestRun(testRuns[0])}
+          detail={latestMentionSummary(testRuns[0])}
+        />
+      </SummaryGrid>
+
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="grid gap-4 p-6 2xl:grid-cols-[minmax(0,1fr)_420px_auto]">
+        <CardContent className="p-6">
+          <SectionHeader
+            title="Test controls"
+            description="Submit one prompt to the selected providers and store their responses as a comparison run."
+          />
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px_auto]">
           <label className="space-y-2">
             <span className="text-sm text-zinc-400">Prompt</span>
-            <input
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
+            <Input
+              className="border-zinc-800 bg-black"
               placeholder="best ai resume builder for students"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
@@ -211,21 +247,17 @@ export function CitationTests() {
               {runMessage}
             </div>
           )}
+          </div>
         </CardContent>
       </Card>
 
+      <section>
+        <SectionHeader
+          title="Provider comparison"
+          description="Each prompt is shown as a cross-provider citation visibility comparison."
+        />
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="space-y-4 p-6">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-50">
-              Provider Comparison
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Each prompt is displayed as a cross-provider citation visibility
-              comparison. ChatGPT and Perplexity execute today.
-            </p>
-          </div>
-
           {testRuns.map((group) => (
             <div
               key={group.run_id}
@@ -260,16 +292,28 @@ export function CitationTests() {
           ))}
 
           {testRuns.length === 0 && (
-            <div className="rounded-lg border border-zinc-800 bg-black px-5 py-8 text-sm text-zinc-500">
+            <EmptyState>
               {loading
                 ? "Loading citation tests..."
                 : "No citation tests for the current property."}
-            </div>
+            </EmptyState>
           )}
         </CardContent>
       </Card>
+      </section>
     </Page>
   );
+}
+
+function formatLatestRun(run?: CitationTestRun) {
+  const value = run?.completed_at || run?.created_at;
+  return value ? new Date(value).toLocaleDateString() : "Not recorded";
+}
+
+function latestMentionSummary(run?: CitationTestRun) {
+  if (!run) return "Run a prompt test to create a baseline";
+  const mentions = run.results.filter((result) => result.mentioned).length;
+  return `${mentions} of ${run.results.length} providers mentioned the property`;
 }
 
 function ProviderResultCards({

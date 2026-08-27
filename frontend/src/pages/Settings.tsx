@@ -6,9 +6,18 @@ import {
 } from "@/api/providers";
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
+import { Input } from "../../@/components/ui/input";
 
 import { useProperty } from "@/contexts/PropertyContext";
-import { Page, PageHeader, ResponsiveGrid } from "@/components/layout/PageLayout";
+import {
+  Page,
+  PageHeader,
+  ResponsiveGrid,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+  fieldClassName,
+} from "@/components/layout/PageLayout";
 
 const integrationSections = [
   {
@@ -116,6 +125,18 @@ export function Settings() {
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard label="Property" value={activeProperty?.name || "Not selected"} detail="Active research context" />
+        <SummaryCard label="Domain" value={activeProperty?.domain || "Not recorded"} detail="Website under study" />
+        <SummaryCard label="Connected Providers" value={String(llmProviders.filter((provider) => provider.status === "connected").length)} detail="Available for platform workflows" />
+        <SummaryCard label="Session Required" value={String(llmProviders.filter((provider) => provider.status === "missing_session").length)} detail="Providers requiring attention" />
+      </SummaryGrid>
+
+      <section>
+      <SectionHeader
+        title="Configuration"
+        description="Manage the active property and review the current integration status."
+      />
       <ResponsiveGrid minItemWidth={460}>
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="space-y-4 p-6">
@@ -131,8 +152,8 @@ export function Settings() {
             <div className="space-y-3">
               <label className="block space-y-2">
                 <span className="text-sm text-zinc-400">Property Name</span>
-                <input
-                  className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition placeholder:text-zinc-700 focus:border-blue-500"
+                <Input
+                  className="border-zinc-800 bg-black"
                   value={form.name}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -145,8 +166,8 @@ export function Settings() {
 
               <label className="block space-y-2">
                 <span className="text-sm text-zinc-400">Brand Name</span>
-                <input
-                  className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition placeholder:text-zinc-700 focus:border-blue-500"
+                <Input
+                  className="border-zinc-800 bg-black"
                   value={form.brand_name}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -159,8 +180,8 @@ export function Settings() {
 
               <label className="block space-y-2">
                 <span className="text-sm text-zinc-400">Domain</span>
-                <input
-                  className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition placeholder:text-zinc-700 focus:border-blue-500"
+                <Input
+                  className="border-zinc-800 bg-black"
                   value={form.domain}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -174,7 +195,7 @@ export function Settings() {
               <label className="block space-y-2">
                 <span className="text-sm text-zinc-400">Description</span>
                 <textarea
-                  className="min-h-28 w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition placeholder:text-zinc-700 focus:border-blue-500"
+                  className={`${fieldClassName} min-h-28 py-3`}
                   value={form.description}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -258,6 +279,7 @@ export function Settings() {
           </CardContent>
         </Card>
       </ResponsiveGrid>
+      </section>
     </Page>
   );
 }

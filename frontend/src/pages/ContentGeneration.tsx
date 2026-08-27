@@ -19,7 +19,15 @@ import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import type { Property } from "@/api/properties";
 import type { LlmProvider } from "@/types/experimentLab";
 import { useProperty } from "@/contexts/PropertyContext";
-import { Page, PageHeader, ResponsiveGrid } from "@/components/layout/PageLayout";
+import {
+  Page,
+  PageHeader,
+  ResponsiveGrid,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+  fieldClassName,
+} from "@/components/layout/PageLayout";
 
 const contentTypes = [
   { value: "comparison", label: "comparison" },
@@ -64,6 +72,14 @@ function formatPublishStatus(status: string) {
   }
 
   return status;
+}
+
+function queueSummary(tasks: PublishingTask[]) {
+  if (tasks.length === 0) return "Empty";
+  const active = tasks.filter((task) =>
+    ["queued", "processing", "review_ready"].includes(task.status),
+  ).length;
+  return active > 0 ? `${active} active` : "Clear";
 }
 
 function statusClass(status: string) {
@@ -403,6 +419,29 @@ function ContentGenerationWorkspace({
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard
+          label="Property"
+          value={activeProperty?.name || "Not selected"}
+          detail={activeProperty?.domain || "Select a property to begin"}
+        />
+        <SummaryCard
+          label="Platform"
+          value={formatPlatformName(publishPlatform)}
+          detail="Selected publishing destination"
+        />
+        <SummaryCard
+          label="Category"
+          value={query.trim() || "Not set"}
+          detail={persona}
+        />
+        <SummaryCard
+          label="Queue Status"
+          value={queueSummary(publishTasks)}
+          detail={`${publishTasks.length} stored publishing tasks`}
+        />
+      </SummaryGrid>
+
       {reviewBannerVisible && (
         <div className="rounded-lg border border-emerald-500 bg-emerald-950 px-5 py-4 font-semibold text-emerald-100">
           Human Review Required
@@ -417,6 +456,10 @@ function ContentGenerationWorkspace({
 
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="p-6">
+          <SectionHeader
+            title="Generation controls"
+            description="Define the research category, audience, provider, and publishing destination."
+          />
           <ResponsiveGrid minItemWidth={180}>
           <label className="space-y-2 lg:col-span-4">
             <span className="text-sm text-zinc-400">Category</span>
@@ -424,7 +467,7 @@ function ContentGenerationWorkspace({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="AI Resume Builder"
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
+              className={fieldClassName}
             />
           </label>
 
@@ -433,7 +476,7 @@ function ContentGenerationWorkspace({
             <select
               value={persona}
               onChange={(event) => setPersona(event.target.value)}
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
+              className={fieldClassName}
             >
               <option>student</option>
               <option>engineering student</option>
@@ -448,7 +491,7 @@ function ContentGenerationWorkspace({
             <select
               value={contentType}
               onChange={(event) => setContentType(event.target.value)}
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
+              className={fieldClassName}
             >
               {contentTypes.map((type) => (
                 <option key={type.value} value={type.value}>
@@ -467,7 +510,7 @@ function ContentGenerationWorkspace({
             <select
               value={publishPlatform}
               onChange={(event) => setPublishPlatform(event.target.value)}
-              className="w-full rounded-lg border border-zinc-800 bg-black p-3 text-sm outline-none transition focus:border-blue-500"
+              className={fieldClassName}
             >
               <option>reddit</option>
               <option>xiaohongshu</option>
@@ -490,6 +533,11 @@ function ContentGenerationWorkspace({
         </CardContent>
       </Card>
 
+      <section>
+        <SectionHeader
+          title="Research inputs"
+          description="Generated questions and retrieved platform evidence used by the content workflow."
+        />
       <div className="grid gap-4 xl:grid-cols-2">
         <FaqPanel
           title="Generated AI FAQs"
@@ -506,7 +554,13 @@ function ContentGenerationWorkspace({
           title="Trending Xiaohongshu Posts"
         />
       </div>
+      </section>
 
+      <section>
+        <SectionHeader
+          title="Generated content"
+          description="Review the two grounded content variants before sending either one to publishing."
+        />
       <div className="grid gap-4 xl:grid-cols-2">
         <ContentPanel
           body={aiGeneratedContent || "No AI-generated content yet."}
@@ -533,27 +587,23 @@ function ContentGenerationWorkspace({
           platform={publishPlatform}
         />
       </div>
+      </section>
 
-      <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="p-6">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold text-zinc-50">
-                Publish Queue
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Property-scoped publishing tasks created from this workflow.
-              </p>
-            </div>
+      <section>
+        <SectionHeader
+          title="Publish queue"
+          description="Property-scoped publishing tasks created from this workflow."
+          actions={(
             <Button
               onClick={() => void loadPublishTasks()}
-              size="sm"
               variant="outline"
             >
               Refresh
             </Button>
-          </div>
-
+          )}
+        />
+      <Card className="border-zinc-800 bg-zinc-950">
+        <CardContent className="p-6">
           <div className="overflow-hidden rounded-lg border border-zinc-800">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-800 bg-zinc-900/70 text-xs uppercase tracking-[0.16em] text-zinc-500">
@@ -592,6 +642,7 @@ function ContentGenerationWorkspace({
           </div>
         </CardContent>
       </Card>
+      </section>
     </Page>
   );
 }
@@ -604,9 +655,9 @@ type FaqPanelProps = {
 function FaqPanel({ title, value }: FaqPanelProps) {
   return (
     <Card className="border-zinc-800 bg-zinc-950">
-      <CardContent className="flex h-[430px] flex-col p-6">
-        <h2 className="mb-4 text-xl font-semibold text-zinc-50">{title}</h2>
-        <div className="flex-1 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
+      <CardContent className="flex min-h-72 flex-col p-6">
+        <h2 className="mb-4 text-lg font-semibold text-zinc-50">{title}</h2>
+        <div className="max-h-[360px] min-h-52 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
           {value}
         </div>
       </CardContent>
@@ -631,9 +682,9 @@ function PlatformQuestionPanel({
 
   return (
     <Card className="border-zinc-800 bg-zinc-950">
-      <CardContent className="flex h-[430px] flex-col p-6">
-        <h2 className="mb-4 text-xl font-semibold text-zinc-50">{title}</h2>
-        <div className="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-black p-4">
+      <CardContent className="flex min-h-72 flex-col p-6">
+        <h2 className="mb-4 text-lg font-semibold text-zinc-50">{title}</h2>
+        <div className="max-h-[360px] min-h-52 flex-1 overflow-y-auto rounded-lg border border-zinc-800 bg-black p-4">
           {questions.length === 0 ? (
             <p className="text-sm text-zinc-500">
               No real platform questions retrieved yet.
@@ -703,9 +754,9 @@ function PlatformPostPanel({
 
   return (
     <Card className="border-zinc-800 bg-zinc-950 xl:col-span-1">
-      <CardContent className="flex h-[430px] flex-col p-6">
-        <h2 className="mb-4 text-xl font-semibold text-zinc-50">{title}</h2>
-        <div className="flex-1 overflow-y-auto rounded-xl border border-zinc-800 bg-black p-4">
+      <CardContent className="flex min-h-72 flex-col p-6">
+        <h2 className="mb-4 text-lg font-semibold text-zinc-50">{title}</h2>
+        <div className="max-h-[360px] min-h-52 flex-1 overflow-y-auto rounded-lg border border-zinc-800 bg-black p-4">
           {posts.length === 0 ? (
             <p className="text-sm text-zinc-500">
               No Xiaohongshu posts retrieved yet.
@@ -828,10 +879,10 @@ function ContentPanel({
 
   return (
     <Card className="border-zinc-800 bg-zinc-950">
-      <CardContent className="flex h-[560px] flex-col p-6">
+      <CardContent className="flex min-h-[480px] flex-col p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-zinc-50">{title}</h2>
+            <h2 className="text-lg font-semibold text-zinc-50">{title}</h2>
             <div className="mt-2 flex items-center gap-3 text-sm">
               <span className="text-zinc-500">Status</span>
               <span className={`font-semibold ${statusClass(status)}`}>

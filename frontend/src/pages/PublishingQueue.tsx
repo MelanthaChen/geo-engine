@@ -8,7 +8,14 @@ import {
   type PublishingTask,
 } from "@/api/publishingQueue";
 import { useProperty } from "@/contexts/PropertyContext";
-import { Page, PageHeader } from "@/components/layout/PageLayout";
+import {
+  EmptyState,
+  Page,
+  PageHeader,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+} from "@/components/layout/PageLayout";
 
 function statusBadgeClass(status: string) {
   if (status === "published") {
@@ -102,7 +109,6 @@ export function PublishingQueue() {
             <Button
               disabled={loading}
               onClick={() => void loadTasks()}
-              size="sm"
               variant="outline"
             >
               {loading ? "Refreshing..." : "Refresh"}
@@ -110,6 +116,18 @@ export function PublishingQueue() {
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard label="Total Jobs" value={String(tasks.length)} detail="Current property" />
+        <SummaryCard label="Review Ready" value={String(countStatus(tasks, "review_ready"))} detail="Awaiting confirmation" />
+        <SummaryCard label="Processing" value={String(countStatus(tasks, "processing"))} detail="Currently handled by agents" />
+        <SummaryCard label="Failed" value={String(countStatus(tasks, "failed"))} detail="Jobs requiring attention" />
+      </SummaryGrid>
+
+      <section>
+      <SectionHeader
+        title="Publishing jobs"
+        description="Expand any row to inspect the existing agent logs and formatted output metadata."
+      />
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="p-0">
           <div className="overflow-hidden rounded-lg">
@@ -194,13 +212,16 @@ export function PublishingQueue() {
             </table>
 
             {tasks.length === 0 && (
-              <div className="border-t border-zinc-800 px-5 py-8 text-sm text-zinc-500">
-                No publishing tasks for the current property.
-              </div>
+              <div className="p-5"><EmptyState>No publishing tasks exist for the current property.</EmptyState></div>
             )}
           </div>
         </CardContent>
       </Card>
+      </section>
     </Page>
   );
+}
+
+function countStatus(tasks: PublishingTask[], status: string) {
+  return tasks.filter((task) => task.status === status).length;
 }

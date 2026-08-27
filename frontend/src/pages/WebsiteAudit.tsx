@@ -10,7 +10,14 @@ import {
   type WebsitePageAudit,
 } from "@/api/audit";
 import { useProperty } from "@/contexts/PropertyContext";
-import { Page, PageHeader } from "@/components/layout/PageLayout";
+import {
+  EmptyState,
+  Page,
+  PageHeader,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+} from "@/components/layout/PageLayout";
 
 type AuditCardProps = {
   title: string;
@@ -88,25 +95,40 @@ export function WebsiteAudit() {
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard
+          label="GEO Score"
+          value={audit?.overall_geo_score == null ? "Not recorded" : `${audit.overall_geo_score}/100`}
+          detail="Overall audit result"
+        />
+        <SummaryCard
+          label="Pages Crawled"
+          value={String(audit?.pages?.length || 0)}
+          detail="Stored in the latest audit"
+        />
+        <SummaryCard
+          label="Missing Topics"
+          value={String(audit?.missing_geo_topics?.length || 0)}
+          detail="GEO content opportunities"
+        />
+        <SummaryCard
+          label="Last Audit"
+          value={audit?.last_audit ? new Date(audit.last_audit).toLocaleDateString() : "Not recorded"}
+          detail={audit?.last_audit ? new Date(audit.last_audit).toLocaleTimeString() : "Run an audit to establish a baseline"}
+        />
+      </SummaryGrid>
+
       <Card className="border-zinc-800 bg-zinc-950">
         <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="grid gap-4 md:grid-cols-3">
-            <AuditFact
-              label="Current Property"
-              value={activeProperty?.name || "No property selected"}
-            />
-            <AuditFact
-              label="Website URL"
-              value={activeProperty?.domain || "No website selected"}
-            />
-            <AuditFact
-              label="Last Audit"
-              value={
-                audit?.last_audit
-                  ? new Date(audit.last_audit).toLocaleString()
-                  : "No data yet."
-              }
-            />
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-zinc-50">Audit controls</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-500">
+              Analyze the selected property and replace the current stored audit result.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <span className="text-zinc-500">Property <strong className="ml-1 font-medium text-zinc-200">{activeProperty?.name || "Not selected"}</strong></span>
+              <span className="text-zinc-500">Website <strong className="ml-1 font-medium text-zinc-200">{activeProperty?.domain || "Not selected"}</strong></span>
+            </div>
           </div>
 
           <Button
@@ -124,19 +146,12 @@ export function WebsiteAudit() {
         </div>
       )}
 
+      <section>
+        <SectionHeader
+          title="Audit findings"
+          description="Score components, content gaps, and structural recommendations from the latest stored audit."
+        />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card className="border-zinc-800 bg-zinc-950">
-          <CardContent className="p-6">
-            <p className="text-sm text-zinc-500">Overall GEO Score</p>
-            <p className="mt-3 text-3xl font-semibold text-zinc-50">
-              {audit?.overall_geo_score === null ||
-              audit?.overall_geo_score === undefined
-                ? "No data yet."
-                : `${audit.overall_geo_score}/100`}
-            </p>
-          </CardContent>
-        </Card>
-
         <AuditCard
           title="Score Components"
           items={formatSubscores(audit)}
@@ -174,32 +189,27 @@ export function WebsiteAudit() {
           emptyText="No content recommendations yet."
         />
       </div>
+      </section>
 
-      <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-50">Crawled Pages</h2>
+      <section>
+        <SectionHeader
+          title="Crawled pages"
+          description="Page-level evidence retained by the latest website audit."
+        />
+        <Card className="border-zinc-800 bg-zinc-950">
+          <CardContent className="p-6">
           <div className="mt-4 space-y-2">
             {(audit?.pages || []).map((page) => (
               <PageAuditRow key={page.id} page={page} />
             ))}
             {(!audit?.pages || audit.pages.length === 0) && (
-              <p className="text-sm text-zinc-500">
-                No crawled pages stored yet.
-              </p>
+              <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>
             )}
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </section>
     </Page>
-  );
-}
-
-function AuditFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-48 rounded-lg border border-zinc-800 bg-black p-4">
-      <p className="text-sm text-zinc-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-zinc-100">{value}</p>
-    </div>
   );
 }
 
@@ -218,7 +228,7 @@ function AuditCard({ title, items, emptyText }: AuditCardProps) {
             </div>
           ))}
           {items.length === 0 && (
-            <p className="text-sm text-zinc-500">{emptyText}</p>
+            <EmptyState className="min-h-24">{emptyText}</EmptyState>
           )}
         </div>
       </CardContent>

@@ -12,15 +12,15 @@ export function ProviderComparisonTable({ rows }: ProviderComparisonTableProps) 
   }));
 
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-800">
+    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-zinc-800 bg-black text-xs uppercase tracking-[0.16em] text-zinc-500">
           <tr>
-            <th className="px-4 py-3 font-medium">Provider</th>
-            <th className="px-4 py-3 font-medium">Mentioned</th>
-            <th className="px-4 py-3 font-medium">Rank</th>
-            <th className="px-4 py-3 font-medium">Citation</th>
-            <th className="px-4 py-3 font-medium">Latency</th>
+            <th className="px-5 py-4 font-medium">Provider</th>
+            <th className="px-5 py-4 font-medium">Mentioned</th>
+            <th className="px-5 py-4 font-medium">Rank</th>
+            <th className="px-5 py-4 font-medium">Citation</th>
+            <th className="px-5 py-4 font-medium">Latency</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-800">
@@ -32,7 +32,7 @@ export function ProviderComparisonTable({ rows }: ProviderComparisonTableProps) 
                 key={row.provider}
                 className={isComingSoon ? "bg-zinc-950/60" : "bg-zinc-950"}
               >
-                <td className="px-4 py-3 font-medium text-zinc-100">
+                <td className="px-5 py-4 font-medium text-zinc-100">
                   <div className="flex items-center gap-2">
                     <span>{row.label}</span>
                     <span
@@ -46,7 +46,7 @@ export function ProviderComparisonTable({ rows }: ProviderComparisonTableProps) 
                     </span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-zinc-300">
+                <td className="px-5 py-4 text-zinc-300">
                   {isComingSoon ? (
                     "Coming Soon"
                   ) : row.mentioned ? (
@@ -55,13 +55,13 @@ export function ProviderComparisonTable({ rows }: ProviderComparisonTableProps) 
                     <span className="text-zinc-500">No</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-zinc-300">
+                <td className="px-5 py-4 text-zinc-300">
                   {isComingSoon ? "-" : row.rank ? `#${row.rank}` : "-"}
                 </td>
-                <td className="max-w-md px-4 py-3 text-zinc-400">
+                <td className="max-w-md px-5 py-4 text-zinc-400">
                   {isComingSoon ? "Support planned in a future release." : row.citation || "-"}
                 </td>
-                <td className="px-4 py-3 text-zinc-400">
+                <td className="px-5 py-4 text-zinc-400">
                   {isComingSoon ? "-" : row.latency || "-"}
                 </td>
               </tr>

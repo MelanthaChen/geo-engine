@@ -10,7 +10,13 @@ import {
 } from "@/api/history";
 import { useProperty } from "@/contexts/PropertyContext";
 import { providerLabel } from "@/types/providerComparison";
-import { Page, PageHeader } from "@/components/layout/PageLayout";
+import {
+  Page,
+  PageHeader,
+  SectionHeader,
+  SummaryCard,
+  SummaryGrid,
+} from "@/components/layout/PageLayout";
 
 function formatPublishStatus(status: string) {
   if (status === "review_ready") {
@@ -179,6 +185,18 @@ export function ContentHistory() {
         )}
       />
 
+      <SummaryGrid>
+        <SummaryCard label="Property" value={activeProperty?.name || "Not selected"} detail={activeProperty?.domain || "No active domain"} />
+        <SummaryCard label="History Items" value={String(history.length)} detail="Stored research and workflow events" />
+        <SummaryCard label="Source Groups" value={String(Object.keys(groupHistoryByProvider(history)).length)} detail="Providers and benchmarks" />
+        <SummaryCard label="Latest Activity" value={latestHistoryDate(history)} detail={history[0] ? formatEventType(history[0].event_type) : "No activity recorded"} />
+      </SummaryGrid>
+
+      <section>
+      <SectionHeader
+        title="History archive"
+        description="Select an item to inspect its persisted content and provenance."
+      />
       <div className="grid min-w-0 gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
         <Card className="border-zinc-800 bg-zinc-950">
           <CardContent className="flex h-[760px] flex-col p-6">
@@ -355,6 +373,12 @@ export function ContentHistory() {
           </CardContent>
         </Card>
       </div>
+      </section>
     </Page>
   );
+}
+
+function latestHistoryDate(history: HistoryItem[]) {
+  const value = history[0]?.created_at;
+  return value ? new Date(value).toLocaleDateString() : "Not recorded";
 }
