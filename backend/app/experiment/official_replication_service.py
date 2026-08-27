@@ -61,10 +61,33 @@ class OfficialReplicationService:
         experiment = self.repository.get_run(experiment_id)
         if not experiment:
             raise ValueError(f"Experiment {experiment_id} not found")
-        payload = self.repository.serialize(experiment)
-        # Replication pages consume aggregate state and generated artifacts. Avoid
-        # transferring every full prompt/answer through the polling endpoint.
-        payload["queryResults"] = []
+        # This polling endpoint deliberately reads only experiment-level state.
+        # Sample prompts and answers remain in the existing database/artifacts.
+        payload = {
+            "id": experiment.id,
+            "name": experiment.name,
+            "description": experiment.description,
+            "datasetName": experiment.dataset_name,
+            "model": experiment.llm_model,
+            "status": experiment.status,
+            "provider": experiment.provider,
+            "currentQuery": experiment.current_query or "",
+            "currentStrategy": experiment.current_strategy or "original",
+            "currentSample": experiment.current_sample or 0,
+            "totalSamples": experiment.total_samples or 5,
+            "completedQueries": experiment.completed_queries or 0,
+            "totalQueries": experiment.total_queries or 0,
+            "estimatedRemainingTime": experiment.estimated_remaining_time or "Not recorded",
+            "runCount": experiment.run_count or len(experiment.runs),
+            "overall": {
+                "visibilityScore": experiment.visibility_score or 0,
+                "citationCount": experiment.citation_count or 0,
+                "pawc": experiment.pawc or 0,
+            },
+            "strategyResults": [],
+            "queryResults": [],
+            "errorMessage": experiment.error_message,
+        }
         payload.update(
             {
                 "createdAt": self._iso(experiment.created_at),
@@ -109,7 +132,9 @@ class OfficialReplicationService:
                     )
         claims = verification.get("claims", []) if verification else []
         passed = sum(claim.get("status") == "PASS" for claim in claims)
+        failed = sum(claim.get("status") == "FAIL" for claim in claims)
         testable = sum(claim.get("status") in {"PASS", "FAIL"} for claim in claims)
+        fidelity = verification.get("fidelity", {}) if verification else {}
         started = self._started_datetime(experiment)
         finished = experiment.completed_at
         runtime_seconds = None
@@ -126,14 +151,20 @@ class OfficialReplicationService:
         has_cost = any(run.token_cost is not None for run in experiment.runs)
         return {
             "stage": config.get("stage") or self._stage(experiment.total_queries),
-            "subjectiveEnabled": bool(config.get("subjective", False)),
+            "subjectiveEnabled": bool(config.get("subjective", False)) or any(
+                row.metric_name == "subjective_impression_calibrated"
+                for row in experiment.statistics
+            ),
             "strategyCount": len(json.loads(experiment.strategies_json or "[]")),
             "runtimeSeconds": runtime_seconds,
             "apiCost": cost if has_cost else None,
             "trendSimilarity": verification.get("trend_similarity") if verification else None,
             "claimsPassed": passed if verification else None,
+            "claimsFailed": failed if verification else None,
             "claimsTested": testable if verification else None,
             "stageDecision": (verification.get("stage_decision") or {}).get("decision") if verification else None,
+            "methodFidelity": fidelity.get("method_fidelity"),
+            "implementationFidelity": fidelity.get("implementation_fidelity"),
             "claims": claims,
             "artifacts": artifacts,
         }

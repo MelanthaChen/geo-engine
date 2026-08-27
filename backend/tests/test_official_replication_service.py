@@ -45,16 +45,33 @@ class OfficialReplicationServiceTests(unittest.TestCase):
         )
         experiment = SimpleNamespace(
             id=11,
+            name="Stage 1",
+            description="Official GEO-bench staged replication: stage1",
+            dataset_name="geo_bench",
+            llm_model="gpt-3.5-turbo-16k",
+            status="completed",
+            provider="chatgpt",
+            current_query="done",
+            current_strategy="completed",
+            current_sample=0,
+            total_samples=5,
+            completed_queries=30,
             created_at=now,
             completed_at=now + timedelta(minutes=31),
             events=[configured, started],
             total_queries=30,
             strategies_json=json.dumps(["original", "citation"]),
+            run_count=300,
+            visibility_score=0.2,
+            citation_count=12,
+            pawc=0.3,
+            estimated_remaining_time="0 min",
+            error_message=None,
+            statistics=[],
             runs=[SimpleNamespace(token_cost=None)],
         )
         repository = Mock()
         repository.get_run.return_value = experiment
-        repository.serialize.return_value = {"id": 11, "queryResults": [{"large": "payload"}]}
 
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "11"
@@ -79,6 +96,7 @@ class OfficialReplicationServiceTests(unittest.TestCase):
         self.assertEqual(detail["queryResults"], [])
         self.assertEqual(detail["replication"]["trendSimilarity"], 0.75)
         self.assertEqual(detail["replication"]["claimsPassed"], 1)
+        self.assertEqual(detail["replication"]["claimsFailed"], 1)
         self.assertEqual(detail["replication"]["runtimeSeconds"], 30 * 60)
         self.assertIsNone(detail["replication"]["apiCost"])
         self.assertEqual(

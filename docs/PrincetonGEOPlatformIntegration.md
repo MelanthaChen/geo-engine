@@ -29,6 +29,10 @@ Open **Experiment Lab**, then use **Princeton GEO Replication**:
 
 The page polls the existing experiment record for status, current query, current strategy, completed queries, elapsed time, and estimated remaining time. Completed runs expose only artifacts that already exist on disk, including the replication report, conclusion verification, CSV, JSON, and generated figures.
 
+The same panel lists previous official replication runs with their stage, creation time, status, runtime, recorded trend similarity, and stage decision. Selecting **Open Result** changes the active record without creating or recomputing anything.
+
+Summary indicators and figure previews are read from the generated paper-conclusion JSON and existing PNG files. Claim counts and fidelity values are displayed only when those generated outputs contain them.
+
 Missing values are displayed as **Not recorded**. The frontend does not infer costs, claims, or scientific metrics.
 
 ## API

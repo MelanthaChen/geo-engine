@@ -160,8 +160,11 @@ export type OfficialReplicationRun = ExperimentRun & {
     apiCost: number | null;
     trendSimilarity: number | null;
     claimsPassed: number | null;
+    claimsFailed: number | null;
     claimsTested: number | null;
     stageDecision: string | null;
+    methodFidelity: number | null;
+    implementationFidelity: number | null;
     claims: ReplicationClaim[];
     artifacts: ReplicationArtifact[];
   };
