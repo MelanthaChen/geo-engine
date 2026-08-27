@@ -139,6 +139,34 @@ export type ExperimentRun = {
   timeline?: ExperimentTimelineEvent[];
 };
 
+export type ReplicationArtifact = {
+  name: string;
+  path: string;
+  kind: "figure" | "report" | "csv" | "json" | "file";
+};
+
+export type ReplicationClaim = {
+  id: string;
+  claim: string;
+  status: "PASS" | "FAIL" | "NOT_TESTED";
+};
+
+export type OfficialReplicationRun = ExperimentRun & {
+  replication: {
+    stage: "stage1" | "stage2" | "stage3" | "full";
+    subjectiveEnabled: boolean;
+    strategyCount: number;
+    runtimeSeconds: number | null;
+    apiCost: number | null;
+    trendSimilarity: number | null;
+    claimsPassed: number | null;
+    claimsTested: number | null;
+    stageDecision: string | null;
+    claims: ReplicationClaim[];
+    artifacts: ReplicationArtifact[];
+  };
+};
+
 export type ExperimentStatistic = {
   strategy: StrategyId;
   metric: string;

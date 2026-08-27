@@ -3,7 +3,7 @@ import io
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.core.deps import get_db
 from app.core.database import SessionLocal
 from app.experiment.campaign_service import ExperimentCampaignService
 from app.experiment.experiment_service import ExperimentService
+from app.experiment.official_replication_service import OfficialReplicationService
 from app.storage.experiment_repository import ExperimentRepository
 
 
@@ -42,6 +43,61 @@ class ExperimentRunRequest(BaseModel):
     random_seed: int = Field(default=42)
     temperature: float = Field(default=0.7, ge=0, le=2)
     evaluation_metrics: list[str]
+
+
+class OfficialReplicationRequest(BaseModel):
+    stage: str = Field(pattern="^(stage1|stage2|stage3|full)$")
+    subjective: bool = False
+    experiment_name: str | None = Field(default=None, max_length=255)
+
+
+@router.post("/official-replications")
+def start_official_replication(
+    request: OfficialReplicationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    service = OfficialReplicationService(ExperimentRepository(db))
+    experiment = service.create(
+        stage=request.stage,
+        subjective=request.subjective,
+        name=request.experiment_name,
+    )
+    background_tasks.add_task(execute_official_replication_background, experiment.id)
+    return service.detail(experiment.id)
+
+
+@router.get("/official-replications")
+def list_official_replications(db: Session = Depends(get_db)):
+    return {"experiments": OfficialReplicationService(ExperimentRepository(db)).list()}
+
+
+@router.get("/official-replications/{experiment_id}")
+def get_official_replication(experiment_id: int, db: Session = Depends(get_db)):
+    try:
+        return OfficialReplicationService(ExperimentRepository(db)).detail(experiment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/official-replications/{experiment_id}/artifacts/{artifact_path:path}")
+def get_official_replication_artifact(
+    experiment_id: int,
+    artifact_path: str,
+    db: Session = Depends(get_db),
+):
+    service = OfficialReplicationService(ExperimentRepository(db))
+    if not service.repository.get_run(experiment_id):
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    try:
+        path = service.artifact_path(experiment_id, artifact_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Artifact not found") from exc
+    return FileResponse(
+        path,
+        filename=path.name,
+        content_disposition_type=("inline" if path.suffix.lower() in {".png", ".svg"} else "attachment"),
+    )
 
 
 @router.post("/run")
@@ -276,6 +332,12 @@ def execute_experiment_background(experiment_id: int):
         repository = ExperimentRepository(db)
         service = ExperimentService(repository=repository)
         service.execute_experiment(experiment_id)
+
+
+def execute_official_replication_background(experiment_id: int):
+    with SessionLocal() as db:
+        service = OfficialReplicationService(ExperimentRepository(db))
+        service.execute(experiment_id)
 
 
 def execute_campaign_background(campaign_id: int):

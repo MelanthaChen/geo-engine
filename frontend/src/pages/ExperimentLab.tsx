@@ -16,6 +16,7 @@ import { Input } from "../../@/components/ui/input";
 import { Label } from "../../@/components/ui/label";
 import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
+import { PrincetonReplicationPanel } from "@/components/PrincetonReplicationPanel";
 import { ScientificReplicationDashboard } from "@/components/ScientificReplicationDashboard";
 import { Page, PageHeader as SharedPageHeader } from "@/components/layout/PageLayout";
 import {
@@ -260,6 +261,8 @@ export function ExperimentLab() {
         title="Experiment Lab"
         description="Run a faithful Princeton GEO paper reproduction experiment: one query, Google Top-5 retrieval, one randomly selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
       />
+
+      <PrincetonReplicationPanel />
 
       <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="border-zinc-800 bg-zinc-950">

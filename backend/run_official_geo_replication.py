@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from app.core.database import SessionLocal
-from app.experiment.official_replication_runner import OfficialReplicationRunner
+from app.experiment.official_replication_service import OfficialReplicationService
 from app.storage.experiment_repository import ExperimentRepository
 from app.experiment.trend_validation import STAGES, estimate_stage
 
@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--confirm-stage", help="Required confirmation token, e.g. stage1")
     parser.add_argument("--prior-report", type=Path, help="Previous stage paper_conclusion_verification.json")
     parser.add_argument("--subjective", action="store_true")
+    parser.add_argument("--name")
     parser.add_argument("--output-dir", default="replication_artifacts")
     parser.add_argument("--plan", action="store_true")
     args = parser.parse_args()
@@ -39,10 +40,20 @@ def main():
         if prior.get("stage") != previous or prior.get("stage_decision", {}).get("decision") != "PROCEED":
             parser.error(f"Prior report must be a passing {previous} report")
     with SessionLocal() as db:
-        runner = OfficialReplicationRunner(ExperimentRepository(db), subjective=args.subjective)
-        experiment = runner.repository.get_run(args.experiment_id) if args.experiment_id else runner.create(stage=args.stage)
-        runner.execute(experiment.id)
-        report = runner.export(experiment.id, Path(args.output_dir) / str(experiment.id))
+        service = OfficialReplicationService(
+            ExperimentRepository(db),
+            artifact_root=Path(args.output_dir),
+        )
+        experiment = (
+            service.repository.get_run(args.experiment_id)
+            if args.experiment_id
+            else service.create(
+                stage=args.stage,
+                subjective=args.subjective,
+                name=args.name,
+            )
+        )
+        report = service.execute(experiment.id, subjective=args.subjective)
         print(f"Experiment {experiment.id} completed. Report: {report}")
 
 

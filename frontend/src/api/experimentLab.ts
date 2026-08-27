@@ -3,6 +3,7 @@ import type {
   ExperimentConfigurationValues,
   ExperimentCampaignRun,
   ExperimentRun,
+  OfficialReplicationRun,
 } from "@/types/experimentLab";
 
 function experimentPayload(configuration: ExperimentConfigurationValues) {
@@ -73,4 +74,45 @@ export async function getExperimentCampaign(campaignId: number) {
   );
 
   return response.data;
+}
+
+export async function startOfficialReplication(values: {
+  stage: "stage1" | "stage2" | "stage3" | "full";
+  subjective: boolean;
+  experimentName?: string;
+}) {
+  const response = await apiClient.post<OfficialReplicationRun>(
+    "/api/v1/experiment-lab/official-replications",
+    {
+      stage: values.stage,
+      subjective: values.subjective,
+      experiment_name: values.experimentName || null,
+    },
+  );
+  return response.data;
+}
+
+export async function getOfficialReplication(experimentId: number) {
+  const response = await apiClient.get<OfficialReplicationRun>(
+    `/api/v1/experiment-lab/official-replications/${experimentId}`,
+  );
+  return response.data;
+}
+
+export async function listOfficialReplications() {
+  const response = await apiClient.get<{ experiments: OfficialReplicationRun[] }>(
+    "/api/v1/experiment-lab/official-replications",
+  );
+  return response.data.experiments;
+}
+
+export function officialReplicationArtifactUrl(
+  experimentId: number,
+  artifactPath: string,
+) {
+  const base = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+  return `${base}/api/v1/experiment-lab/official-replications/${experimentId}/artifacts/${artifactPath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}`;
 }
