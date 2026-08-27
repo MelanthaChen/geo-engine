@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 import json
 import time
 
@@ -18,14 +19,11 @@ from app.services.property_service import get_property
 
 
 DEFAULT_BENCHMARK_METRICS = [
-    "citation_rate",
-    "recommendation_rate",
-    "average_rank",
+    "brand_mention_rate",
+    "average_position",
     "coverage",
-    "visibility_score",
     "latency",
     "response_length",
-    "citation_count",
 ]
 
 
@@ -38,16 +36,22 @@ def create_benchmark_dataset(
     description: str | None = None,
     metadata: dict | None = None,
 ):
+    cleaned_queries = [query.strip() for query in queries if query.strip()]
+    checksum = hashlib.sha256("\n".join(cleaned_queries).encode("utf-8")).hexdigest()
     dataset = BenchmarkDataset(
         property_id=property_id,
         name=name,
         description=description,
         metadata_json=json.dumps(metadata or {}),
+        dataset_type=(metadata or {}).get("dataset_type", "question_set"),
+        version=str((metadata or {}).get("version", "1")),
+        checksum=checksum,
+        is_frozen=1,
     )
     db.add(dataset)
     db.flush()
 
-    for index, query_text in enumerate(queries, start=1):
+    for index, query_text in enumerate(cleaned_queries, start=1):
         cleaned_query = query_text.strip()
 
         if not cleaned_query:
@@ -207,8 +211,11 @@ def run_benchmark(
             raw_response = result.get("raw_response") or ""
             mentioned = bool(result.get("mentioned"))
             rank = result.get("rank")
-            citation_count = 1 if mentioned else 0
-            visibility_score = compute_visibility_score(mentioned, rank)
+            # A brand mention is not evidence of a citation. These legacy
+            # columns remain neutral; only directly observed metrics are
+            # exposed in metrics_json.
+            citation_count = 0
+            visibility_score = 0
 
             db.add(
                 BenchmarkResult(
@@ -228,14 +235,11 @@ def run_benchmark(
                     raw_response=raw_response,
                     metrics_json=json.dumps(
                         {
-                            "citation_rate": 1 if mentioned else 0,
-                            "recommendation_rate": 1 if mentioned else 0,
-                            "average_rank": rank,
+                            "brand_mention_rate": 1 if mentioned else 0,
+                            "average_position": rank,
                             "coverage": 1,
-                            "visibility_score": visibility_score,
                             "latency": latency_ms,
                             "response_length": len(raw_response),
-                            "citation_count": citation_count,
                         }
                     ),
                     error_message=result.get("error_message"),
@@ -353,37 +357,27 @@ def aggregate_execution_metrics(results):
 
     if total == 0:
         return {
-            "citation_rate": 0,
-            "recommendation_rate": 0,
-            "average_rank": None,
+            "brand_mention_rate": 0,
+            "average_position": None,
             "coverage": 0,
-            "visibility_score": 0,
             "latency": 0,
             "response_length": 0,
-            "citation_count": 0,
         }
 
     successful = [result for result in results if result.status == "finished"]
     ranked = [result.rank for result in results if result.rank is not None]
 
     return {
-        "citation_rate": safe_ratio(
+        "brand_mention_rate": safe_ratio(
             sum(result.mentioned for result in results),
             total,
         ),
-        "recommendation_rate": safe_ratio(
-            sum(result.recommendation_found for result in results),
-            total,
-        ),
-        "average_rank": (
+        "average_position": (
             sum(ranked) / len(ranked)
             if ranked
             else None
         ),
         "coverage": safe_ratio(len(successful), total),
-        "visibility_score": safe_average(
-            [result.visibility_score for result in results]
-        ),
         "latency": safe_average(
             [
                 result.latency_ms
@@ -394,15 +388,7 @@ def aggregate_execution_metrics(results):
         "response_length": safe_average(
             [result.response_length for result in results]
         ),
-        "citation_count": sum(result.citation_count for result in results),
     }
-
-
-def compute_visibility_score(mentioned: bool, rank: int | None):
-    if rank is not None:
-        return max(0, 100 - ((rank - 1) * 15))
-
-    return 60 if mentioned else 0
 
 
 def safe_ratio(numerator: int, denominator: int):

@@ -56,6 +56,10 @@ class GeoBenchLoader:
 
         documents = []
 
+        suggested_index = row.get("sugg_idx")
+        if not isinstance(suggested_index, int) or not 0 <= suggested_index < 5:
+            return None
+
         for rank, source in enumerate(sources[:5], start=1):
             url = str(source.get("url") or "").strip()
             content = str(
@@ -72,6 +76,7 @@ class GeoBenchLoader:
                     "url": url,
                     "content": content,
                     "raw_text": source.get("raw_text"),
+                    "is_optimization_target": rank - 1 == suggested_index,
                 }
             )
 

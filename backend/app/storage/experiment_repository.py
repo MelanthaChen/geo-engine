@@ -1,5 +1,6 @@
 import json
 import statistics
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,7 +15,15 @@ from app.models.experiment import (
     ExperimentDocument,
     ExperimentQuery,
     ExperimentStrategyResult,
+    ExperimentPromptVersion,
+    ExperimentRun,
+    ExperimentEvaluation,
+    ExperimentMetric,
+    ExperimentStatistic,
+    ExperimentEvent,
 )
+from app.evaluation.experiment_pipeline import METRIC_UNITS, descriptive_statistics
+from app.ge.prompt_builder import GE_SYSTEM_PROMPT
 
 
 class ExperimentRepository:
@@ -38,6 +47,13 @@ class ExperimentRepository:
         random_seed: int,
         temperature: float,
     ) -> Experiment:
+        prompt_version = self._get_or_create_prompt_version()
+        generation_params = {
+            "temperature": temperature,
+            "top_p": 1,
+            "samples_per_strategy": 5,
+            "random_seed": random_seed,
+        }
         experiment = Experiment(
             property_id=property_id,
             campaign_id=campaign_id,
@@ -50,6 +66,9 @@ class ExperimentRepository:
             benchmark_queries_json=json.dumps(benchmark_queries),
             strategies_json=json.dumps(strategies),
             metrics_json=json.dumps(metrics),
+            dataset_version="1",
+            prompt_version_id=prompt_version.id,
+            generation_params_json=json.dumps(generation_params),
             number_of_queries=number_of_queries,
             random_seed=random_seed,
             temperature=temperature,
@@ -62,7 +81,32 @@ class ExperimentRepository:
         self.db.add(experiment)
         self.db.commit()
         self.db.refresh(experiment)
+        self.add_event(experiment, "configured", "queued", "Experiment configuration saved")
         return experiment
+
+    def _get_or_create_prompt_version(self) -> ExperimentPromptVersion:
+        user_template = "Question: {query}\n\nSearch Results:\n{sources}"
+        checksum = hashlib.sha256(
+            f"{GE_SYSTEM_PROMPT}\n{user_template}".encode("utf-8")
+        ).hexdigest()
+        version = (
+            self.db.query(ExperimentPromptVersion)
+            .filter(ExperimentPromptVersion.checksum == checksum)
+            .first()
+        )
+        if version:
+            return version
+        version = ExperimentPromptVersion(
+            name="Princeton GEO answer prompt",
+            version=checksum[:12],
+            system_template=GE_SYSTEM_PROMPT,
+            user_template=user_template,
+            checksum=checksum,
+            is_active=True,
+        )
+        self.db.add(version)
+        self.db.flush()
+        return version
 
     def create_campaign(
         self,
@@ -167,6 +211,7 @@ class ExperimentRepository:
 
     def mark_running(self, experiment: Experiment):
         experiment.status = "running"
+        self.add_event(experiment, "execution_started", "running", "Generation started", commit=False)
         self.db.commit()
         self.db.refresh(experiment)
 
@@ -241,9 +286,48 @@ class ExperimentRepository:
 
         for output in strategy_outputs:
             evaluation = output["evaluation"]
+            now = datetime.now(timezone.utc)
+            run = ExperimentRun(
+                experiment_id=experiment.id,
+                experiment_query_id=experiment_query.id,
+                prompt_version_id=experiment.prompt_version_id,
+                strategy=output["strategy"],
+                sample_index=output["sample_index"],
+                seed_value=seed_value,
+                provider=experiment.provider,
+                model=experiment.llm_model or "gpt-3.5-turbo",
+                status="completed",
+                raw_prompt=output["prompt"],
+                raw_response=output["answer"],
+                generation_params_json=experiment.generation_params_json,
+                latency_ms=output.get("latency_ms"),
+                started_at=now,
+                finished_at=now,
+            )
+            self.db.add(run)
+            self.db.flush()
+            evaluation_record = output["evaluation_record"]
+            stored_evaluation = ExperimentEvaluation(
+                run_id=run.id,
+                evaluator=evaluation_record["evaluator"],
+                evaluator_version=evaluation_record["evaluator_version"],
+                status="completed",
+                details_json=json.dumps(evaluation_record["details"]),
+            )
+            self.db.add(stored_evaluation)
+            self.db.flush()
+            for name, value in evaluation_record["metrics"].items():
+                self.db.add(ExperimentMetric(
+                    run_id=run.id,
+                    evaluation_id=stored_evaluation.id,
+                    name=name,
+                    value=float(value) if value is not None else None,
+                    unit=METRIC_UNITS.get(name),
+                ))
             self.db.add(
                 ExperimentStrategyResult(
                     experiment_query_id=experiment_query.id,
+                    run_id=run.id,
                     strategy=output["strategy"],
                     sample_index=output["sample_index"],
                     modified_document_text=output["modified_document_text"],
@@ -261,6 +345,247 @@ class ExperimentRepository:
         self.db.refresh(experiment_query)
         return experiment_query
 
+    def ensure_experiment_query(
+        self,
+        experiment: Experiment,
+        *,
+        query: str,
+        seed_value: int | None,
+        documents: list[RetrievedDocument],
+        selected_document_rank: int,
+    ) -> ExperimentQuery:
+        existing = (
+            self.db.query(ExperimentQuery)
+            .filter(
+                ExperimentQuery.experiment_id == experiment.id,
+                ExperimentQuery.query == query,
+            )
+            .first()
+        )
+        if existing:
+            return existing
+        row = ExperimentQuery(
+            experiment_id=experiment.id,
+            query=query,
+            seed_value=seed_value,
+            selected_document_rank=selected_document_rank,
+        )
+        self.db.add(row)
+        self.db.flush()
+        for document in documents:
+            self.db.add(ExperimentDocument(
+                experiment_query_id=row.id,
+                rank=document.rank,
+                title=document.title,
+                url=document.url,
+                plain_text=document.plain_text,
+                is_selected=document.rank == selected_document_rank,
+            ))
+        self.db.commit()
+        self.db.refresh(row)
+        return row
+
+    def completed_sample_exists(
+        self,
+        *,
+        experiment_id: int,
+        experiment_query_id: int,
+        strategy: str,
+        sample_index: int,
+    ) -> bool:
+        return self.db.query(ExperimentRun.id).filter(
+            ExperimentRun.experiment_id == experiment_id,
+            ExperimentRun.experiment_query_id == experiment_query_id,
+            ExperimentRun.strategy == strategy,
+            ExperimentRun.sample_index == sample_index,
+            ExperimentRun.status == "completed",
+        ).first() is not None
+
+    def strategy_sample_group(
+        self,
+        *,
+        experiment_id: int,
+        experiment_query_id: int,
+        strategy: str,
+    ) -> list[ExperimentRun]:
+        return (
+            self.db.query(ExperimentRun)
+            .filter(
+                ExperimentRun.experiment_id == experiment_id,
+                ExperimentRun.experiment_query_id == experiment_query_id,
+                ExperimentRun.strategy == strategy,
+            )
+            .order_by(ExperimentRun.sample_index)
+            .all()
+        )
+
+    def store_generated_batch(
+        self,
+        experiment: Experiment,
+        experiment_query: ExperimentQuery,
+        *,
+        query: str,
+        strategy: str,
+        modified_document_text: str,
+        prompt: str,
+        answers: list[str],
+        seed_value: int | None,
+        latency_ms: int | None,
+    ) -> list[ExperimentRun]:
+        """Durably store the complete official n=5 response before evaluation."""
+        if len(answers) != 5:
+            raise ValueError(f"Official GEO generation requires five answers, got {len(answers)}")
+        existing = self.strategy_sample_group(
+            experiment_id=experiment.id,
+            experiment_query_id=experiment_query.id,
+            strategy=strategy,
+        )
+        if existing:
+            raise RuntimeError("Refusing to overwrite an existing strategy sample group")
+
+        now = datetime.now(timezone.utc)
+        runs = []
+        for sample_index, answer in enumerate(answers):
+            run = ExperimentRun(
+                experiment_id=experiment.id,
+                experiment_query_id=experiment_query.id,
+                prompt_version_id=experiment.prompt_version_id,
+                strategy=strategy,
+                sample_index=sample_index,
+                seed_value=seed_value,
+                provider=experiment.provider,
+                model=experiment.llm_model or "gpt-3.5-turbo-16k",
+                status="generated",
+                raw_prompt=prompt,
+                raw_response=answer,
+                generation_params_json=experiment.generation_params_json,
+                latency_ms=latency_ms,
+                started_at=now,
+            )
+            self.db.add(run)
+            self.db.flush()
+            self.db.add(ExperimentStrategyResult(
+                experiment_query_id=experiment_query.id,
+                run_id=run.id,
+                strategy=strategy,
+                sample_index=sample_index,
+                modified_document_text=modified_document_text,
+                prompt=prompt,
+                answer=answer,
+                word_count=0,
+                position=None,
+                pawc=0,
+                citation_count=0,
+                visibility_score=0,
+            ))
+            runs.append(run)
+
+        self.db.commit()
+        for run in runs:
+            self.db.refresh(run)
+        return runs
+
+    def complete_generated_sample(self, run: ExperimentRun, *, output: dict) -> ExperimentRun:
+        if run.status != "generated" or run.strategy_result is None:
+            raise RuntimeError(f"Run {run.id} is not a staged generated sample")
+        evaluation = output["evaluation"]
+        record = output["evaluation_record"]
+        stored_evaluation = ExperimentEvaluation(
+            run_id=run.id,
+            evaluator=record["evaluator"],
+            evaluator_version=record["evaluator_version"],
+            status="completed",
+            details_json=json.dumps(record["details"]),
+        )
+        self.db.add(stored_evaluation)
+        self.db.flush()
+        for name, value in record["metrics"].items():
+            self.db.add(ExperimentMetric(
+                run_id=run.id,
+                evaluation_id=stored_evaluation.id,
+                name=name,
+                value=float(value) if value is not None else None,
+                unit=METRIC_UNITS.get(name, "score"),
+            ))
+        result = run.strategy_result
+        result.word_count = evaluation.word_count
+        result.position = evaluation.position
+        result.pawc = evaluation.pawc
+        result.citation_count = evaluation.citation_count
+        result.visibility_score = evaluation.visibility_score
+        run.status = "completed"
+        run.finished_at = datetime.now(timezone.utc)
+        run.experiment.run_count = (run.experiment.run_count or 0) + 1
+        self.db.commit()
+        self.db.refresh(run)
+        return run
+
+    def store_completed_sample(
+        self,
+        experiment: Experiment,
+        experiment_query: ExperimentQuery,
+        *,
+        output: dict,
+        seed_value: int | None,
+    ) -> ExperimentRun:
+        evaluation = output["evaluation"]
+        now = datetime.now(timezone.utc)
+        run = ExperimentRun(
+            experiment_id=experiment.id,
+            experiment_query_id=experiment_query.id,
+            prompt_version_id=experiment.prompt_version_id,
+            strategy=output["strategy"],
+            sample_index=output["sample_index"],
+            seed_value=seed_value,
+            provider=experiment.provider,
+            model=experiment.llm_model or "gpt-3.5-turbo",
+            status="completed",
+            raw_prompt=output["prompt"],
+            raw_response=output["answer"],
+            generation_params_json=experiment.generation_params_json,
+            latency_ms=output.get("latency_ms"),
+            started_at=now,
+            finished_at=now,
+        )
+        self.db.add(run)
+        self.db.flush()
+        record = output["evaluation_record"]
+        stored_evaluation = ExperimentEvaluation(
+            run_id=run.id,
+            evaluator=record["evaluator"],
+            evaluator_version=record["evaluator_version"],
+            status="completed",
+            details_json=json.dumps(record["details"]),
+        )
+        self.db.add(stored_evaluation)
+        self.db.flush()
+        for name, value in record["metrics"].items():
+            self.db.add(ExperimentMetric(
+                run_id=run.id,
+                evaluation_id=stored_evaluation.id,
+                name=name,
+                value=float(value) if value is not None else None,
+                unit=METRIC_UNITS.get(name, "score"),
+            ))
+        self.db.add(ExperimentStrategyResult(
+            experiment_query_id=experiment_query.id,
+            run_id=run.id,
+            strategy=output["strategy"],
+            sample_index=output["sample_index"],
+            modified_document_text=output["modified_document_text"],
+            prompt=output["prompt"],
+            answer=output["answer"],
+            word_count=evaluation.word_count,
+            position=evaluation.position,
+            pawc=evaluation.pawc,
+            citation_count=evaluation.citation_count,
+            visibility_score=evaluation.visibility_score,
+        ))
+        experiment.run_count = (experiment.run_count or 0) + 1
+        self.db.commit()
+        self.db.refresh(run)
+        return run
+
     def mark_completed(self, experiment: Experiment):
         results = [
             result
@@ -271,6 +596,7 @@ class ExperimentRepository:
         experiment.completed_queries = experiment.total_queries
         experiment.estimated_remaining_time = "0 min"
         experiment.completed_at = datetime.now(timezone.utc)
+        experiment.run_count = len(experiment.runs)
 
         if results:
             experiment.visibility_score = sum(
@@ -287,15 +613,87 @@ class ExperimentRepository:
                 for result in query.strategy_results:
                     result.is_winner = result.strategy == winner_strategy
 
+        self._store_statistics(experiment)
+        self.add_event(experiment, "statistics_completed", "completed", "Metrics aggregated", commit=False)
+        self.add_event(experiment, "completed", "completed", "Experiment completed", commit=False)
+
         self.db.commit()
         self.db.refresh(experiment)
+
+    def store_calibrated_subjective_metrics(
+        self,
+        experiment: Experiment,
+        calibrated_by_run_id: dict[int, dict[str, float]],
+    ) -> None:
+        """Upsert dataset-level calibrated Subjective Impression per completed run."""
+        for run in experiment.runs:
+            if run.id not in calibrated_by_run_id or not run.evaluations:
+                continue
+            existing_by_name = {metric.name: metric for metric in run.metrics}
+            for name, value in calibrated_by_run_id[run.id].items():
+                existing = existing_by_name.get(name)
+                if existing:
+                    existing.value = value
+                else:
+                    self.db.add(ExperimentMetric(
+                        run_id=run.id,
+                        evaluation_id=run.evaluations[0].id,
+                        name=name,
+                        value=value,
+                        unit="ratio",
+                        metadata_json=json.dumps({
+                            "calibration": "matched to PAWC population mean and variance",
+                        }),
+                    ))
+        self.db.commit()
 
     def mark_failed(self, experiment: Experiment, error_message: str):
         experiment.status = "failed"
         experiment.error_message = error_message
         experiment.completed_at = datetime.now(timezone.utc)
+        self.add_event(experiment, "failed", "failed", error_message, commit=False)
         self.db.commit()
         self.db.refresh(experiment)
+
+    def _store_statistics(self, experiment: Experiment):
+        for row in list(experiment.statistics):
+            self.db.delete(row)
+        grouped = {}
+        for run in experiment.runs:
+            for metric in run.metrics:
+                if metric.value is not None:
+                    grouped.setdefault((run.strategy, metric.name), []).append(metric.value)
+        for (strategy, metric_name), values in grouped.items():
+            summary = descriptive_statistics(values)
+            self.db.add(ExperimentStatistic(
+                experiment_id=experiment.id,
+                strategy=strategy,
+                metric_name=metric_name,
+                sample_count=summary["sample_count"],
+                mean=summary["mean"], median=summary["median"],
+                variance=summary["variance"], stddev=summary["stddev"],
+                min_value=summary["min"], max_value=summary["max"],
+                confidence_level=summary["confidence_level"],
+                confidence_low=summary["confidence_low"],
+                confidence_high=summary["confidence_high"],
+            ))
+
+    def add_event(self, experiment, event_type, status=None, message=None, metadata=None, *, commit=True):
+        self.db.add(ExperimentEvent(
+            experiment_id=experiment.id,
+            event_type=event_type,
+            status=status,
+            message=message,
+            metadata_json=json.dumps(metadata or {}),
+        ))
+        if commit:
+            self.db.commit()
+
+    def list_experiments(self, property_id=None, limit=100):
+        query = self.db.query(Experiment)
+        if property_id is not None:
+            query = query.filter(Experiment.property_id == property_id)
+        return query.order_by(Experiment.created_at.desc()).limit(limit).all()
 
     def serialize(self, experiment: Experiment) -> dict:
         strategy_rows = {}
@@ -387,6 +785,18 @@ class ExperimentRepository:
 
         return {
             "id": experiment.id,
+            "name": experiment.name,
+            "description": experiment.description,
+            "propertyId": experiment.property_id,
+            "datasetId": experiment.dataset_id,
+            "datasetName": experiment.dataset_name,
+            "datasetVersion": experiment.dataset_version,
+            "model": experiment.llm_model,
+            "promptVersion": (
+                experiment.prompt_version.version if experiment.prompt_version else None
+            ),
+            "generationParameters": json.loads(experiment.generation_params_json or "{}"),
+            "runCount": experiment.run_count or len(experiment.runs),
             "status": experiment.status,
             "provider": experiment.provider,
             "currentQuery": experiment.current_query or "",
@@ -406,8 +816,67 @@ class ExperimentRepository:
             "strategyResults": strategy_results,
             "paperAggregates": paper_aggregates,
             "queryResults": query_results,
+            "statistics": [
+                {
+                    "strategy": row.strategy,
+                    "metric": row.metric_name,
+                    "sampleCount": row.sample_count,
+                    "mean": row.mean,
+                    "median": row.median,
+                    "variance": row.variance,
+                    "stddev": row.stddev,
+                    "min": row.min_value,
+                    "max": row.max_value,
+                    "confidenceLevel": row.confidence_level,
+                    "confidenceLow": row.confidence_low,
+                    "confidenceHigh": row.confidence_high,
+                }
+                for row in experiment.statistics
+            ],
+            "timeline": [
+                {
+                    "type": event.event_type,
+                    "status": event.status,
+                    "message": event.message,
+                    "metadata": json.loads(event.metadata_json or "{}"),
+                    "createdAt": event.created_at.isoformat() if event.created_at else None,
+                }
+                for event in sorted(experiment.events, key=lambda event: event.id)
+            ],
             "errorMessage": experiment.error_message,
         }
+
+    def experiment_csv_rows(self, experiment: Experiment) -> list[dict]:
+        rows = []
+        for run in sorted(experiment.runs, key=lambda item: item.id):
+            metrics = {metric.name: metric.value for metric in run.metrics}
+            row = {
+                "experiment_id": experiment.id,
+                "run_id": run.id,
+                "query_id": run.experiment_query_id,
+                "strategy": run.strategy,
+                "sample_index": run.sample_index,
+                "seed_value": run.seed_value,
+                "provider": run.provider,
+                "model": run.model,
+                "prompt_version": experiment.prompt_version.version if experiment.prompt_version else None,
+                "latency_ms": run.latency_ms,
+                "input_tokens": run.input_tokens,
+                "output_tokens": run.output_tokens,
+                "total_tokens": run.total_tokens,
+                "token_cost": run.token_cost,
+                "word_count": metrics.get("word_count"),
+                "position": metrics.get("position"),
+                "pawc": metrics.get("pawc"),
+                "citation_count": metrics.get("citation_count"),
+                "visibility_score": metrics.get("visibility_score"),
+                "response_length": metrics.get("response_length"),
+                "prompt": run.raw_prompt,
+                "response": run.raw_response,
+            }
+            row.update({f"metric_{name}": value for name, value in metrics.items()})
+            rows.append(row)
+        return rows
 
     def serialize_campaign(self, campaign: ExperimentCampaign) -> dict:
         experiments = sorted(
@@ -545,10 +1014,14 @@ class ExperimentRepository:
                             "baseline_visibility": baseline_visibility,
                             "baseline_pawc": baseline_pawc,
                             "baseline_citation_count": baseline_citations,
-                            "visibility_improvement": visibility - baseline_visibility,
-                            "pawc_improvement": pawc - baseline_pawc,
-                            "citation_count_improvement": (
-                                citation_count - baseline_citations
+                            "visibility_improvement": self._relative_improvement(
+                                visibility, baseline_visibility,
+                            ),
+                            "pawc_improvement": self._relative_improvement(
+                                pawc, baseline_pawc,
+                            ),
+                            "citation_count_improvement": self._relative_improvement(
+                                citation_count, baseline_citations,
                             ),
                         }
                     )
@@ -625,10 +1098,14 @@ class ExperimentRepository:
                         "baseline_visibility": baseline_visibility,
                         "baseline_pawc": baseline_pawc,
                         "baseline_citation_count": baseline_citations,
-                        "visibility_improvement": visibility - baseline_visibility,
-                        "pawc_improvement": pawc - baseline_pawc,
-                        "citation_count_improvement": (
-                            citation_count - baseline_citations
+                        "visibility_improvement": self._relative_improvement(
+                            visibility, baseline_visibility,
+                        ),
+                        "pawc_improvement": self._relative_improvement(
+                            pawc, baseline_pawc,
+                        ),
+                        "citation_count_improvement": self._relative_improvement(
+                            citation_count, baseline_citations,
                         ),
                     }
                 )
@@ -720,16 +1197,28 @@ class ExperimentRepository:
         return list(representative.values())
 
     def _mean(self, values: list[float]) -> float:
+        values = [value for value in values if value is not None]
         if not values:
             return 0.0
 
         return sum(values) / len(values)
 
     def _std(self, values: list[float]) -> float:
+        values = [value for value in values if value is not None]
         if len(values) < 2:
             return 0.0
 
         return statistics.stdev(values)
+
+    def _relative_improvement(
+        self,
+        modified: float,
+        baseline: float,
+    ) -> float | None:
+        if baseline == 0:
+            return None
+
+        return ((modified - baseline) / baseline) * 100
 
     def _evaluation_summary(
         self,

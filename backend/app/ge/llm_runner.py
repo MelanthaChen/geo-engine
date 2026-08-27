@@ -12,7 +12,21 @@ class LLMRunner(Protocol):
         temperature: float,
         top_p: float = 1,
         max_tokens: int | None = None,
+        purpose: str = "additional_evaluation",
     ) -> str:
+        ...
+
+    def generate_many(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        count: int,
+        top_p: float = 1,
+        max_tokens: int | None = None,
+        purpose: str = "additional_evaluation",
+    ) -> list[str]:
         ...
 
 
@@ -28,6 +42,7 @@ class OpenAILLMRunner:
         temperature: float,
         top_p: float = 1,
         max_tokens: int | None = None,
+        purpose: str = "additional_evaluation",
     ) -> str:
         return self.provider.run_experiment(
             system_prompt=system_prompt,
@@ -36,4 +51,27 @@ class OpenAILLMRunner:
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
+            purpose=purpose,
+        )
+
+    def generate_many(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        count: int,
+        top_p: float = 1,
+        max_tokens: int | None = None,
+        purpose: str = "additional_evaluation",
+    ) -> list[str]:
+        return self.provider.generate_texts(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=model,
+            temperature=temperature,
+            count=count,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            purpose=purpose,
         )

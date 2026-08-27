@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="740.16pt" height="470.7pt" viewBox="0 0 740.16 470.7" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-08-21T20:57:43.001764</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.8, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 470.7 
+L 740.16 470.7 
+L 740.16 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 96.84 335.4336 
+L 378.072 335.4336 
+Q 386.1072 335.4336 386.1072 330.444 
+L 386.1072 130.86 
+Q 386.1072 125.8704 378.072 125.8704 
+L 96.84 125.8704 
+Q 88.8048 125.8704 88.8048 130.86 
+L 88.8048 330.444 
+Q 88.8048 335.4336 96.84 335.4336 
+z
+" clip-path="url(#p97c0586742)" style="fill: #ecfdf3; stroke: #abefc6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 418.248 335.4336 
+L 699.48 335.4336 
+Q 707.5152 335.4336 707.5152 330.444 
+L 707.5152 130.86 
+Q 707.5152 125.8704 699.48 125.8704 
+L 418.248 125.8704 
+Q 410.2128 125.8704 410.2128 130.86 
+L 410.2128 330.444 
+Q 410.2128 335.4336 418.248 335.4336 
+z
+" clip-path="url(#p97c0586742)" style="fill: #fef3f2; stroke: #fecdca; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="123.624" y="155.808" transform="rotate(-0 123.624 155.808)">SUCCESSFULLY REPLICATED</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="445.032" y="155.808" transform="rotate(-0 445.032 155.808)">NOT REPLICATED</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="130.32" y="189.072" transform="rotate(-0 130.32 189.072)">✓  Quotation</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="130.32" y="218.178" transform="rotate(-0 130.32 218.178)">✓  Citation</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="130.32" y="247.284" transform="rotate(-0 130.32 247.284)">✓  Fluency</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="130.32" y="276.39" transform="rotate(-0 130.32 276.39)">✓  Authoritative</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="130.32" y="305.496" transform="rotate(-0 130.32 305.496)">✓  Keyword Stuffing</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="451.728" y="189.072" transform="rotate(-0 451.728 189.072)">✕  Statistics</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="451.728" y="226.494" transform="rotate(-0 451.728 226.494)">✕  Easy-to-Understand</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #667085" x="398.16" y="380.34" transform="rotate(-0 398.16 380.34)">MAIN OBSERVATION</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; fill: #172033" transform="translate(137.697891 396.083453)">Modern GPT models reproduced most tested Princeton GEO directions,</text>
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; fill: #172033" transform="translate(179.950938 413.604)">but Statistics Addition did not improve visibility in Stage 1.</text>
+   </g>
+  </g>
+  <g id="text_12">
+   <text style="font-weight: 700; font-size: 17px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="7.2" y="20.117344" transform="rotate(-0 7.2 20.117344)">Scientific findings</text>
+  </g>
+  <g id="text_13">
+   <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="7.2" y="35.638594" transform="rotate(-0 7.2 35.638594)">Directional reproduction of Princeton GEO Stage 1 claims</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p97c0586742">
+   <rect x="63.36" y="47.7" width="669.6" height="415.8"/>
+  </clipPath>
+ </defs>
+</svg>

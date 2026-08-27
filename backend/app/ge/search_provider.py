@@ -8,6 +8,7 @@ class RetrievedDocument:
     title: str
     url: str
     plain_text: str
+    is_optimization_target: bool = False
 
 
 class SearchProvider(Protocol):

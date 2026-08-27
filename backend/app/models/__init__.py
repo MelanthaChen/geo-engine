@@ -8,6 +8,12 @@ from app.models.experiment import (
     ExperimentDocument,
     ExperimentQuery,
     ExperimentStrategyResult,
+    ExperimentPromptVersion,
+    ExperimentRun,
+    ExperimentEvaluation,
+    ExperimentMetric,
+    ExperimentStatistic,
+    ExperimentEvent,
 )
 from app.models.citation_test import CitationTest
 from app.models.campaign import Campaign

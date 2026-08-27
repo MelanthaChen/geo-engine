@@ -1,0 +1,3 @@
+pawc_ci_high,pawc_ci_low,pawc_mean,pawc_relative_improvement_percent,pawc_stddev,position_score_ci_high,position_score_ci_low,position_score_mean,position_score_stddev,query,samples,strategy,target_rank,word_score_ci_high,word_score_ci_low,word_score_mean,word_score_stddev
+0.1184,-0.0384,0.04,,0.08944271909999159,0.1184,-0.0384,0.04,0.08944271909999159,mention the names of any 3 famous folklore sports in karnataka state,5,original,4,0.1184,-0.0384,0.04,0.08944271909999159
+0.17601999791710057,-0.01601999791710057,0.08,100.0,0.10954451150103323,0.17601999791710057,-0.01601999791710057,0.08,0.10954451150103323,mention the names of any 3 famous folklore sports in karnataka state,5,statistics,4,0.17601999791710057,-0.01601999791710057,0.08,0.10954451150103323

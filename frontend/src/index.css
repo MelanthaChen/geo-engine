@@ -11,6 +11,16 @@ body,
   padding: 0;
 }
 
+html {
+  --desktop-ui-scale: max(1, calc(.5 + 100vw / 2560px));
+}
+
+#root,
+[data-slot="dropdown-menu-content"],
+[data-slot="dialog-content"] {
+  zoom: var(--desktop-ui-scale);
+}
+
 body {
   background-color: black;
   color: white;

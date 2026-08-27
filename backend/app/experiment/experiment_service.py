@@ -7,6 +7,7 @@ from app.ge.geo_rewriter import STRATEGY_LABELS
 from app.ge.search_provider import RetrievedDocument
 from app.core.llm_provider import normalize_llm_provider
 from app.models.experiment import Experiment
+from app.evaluation.experiment_pipeline import ExperimentEvaluationPipeline
 from app.storage.experiment_repository import ExperimentRepository
 
 
@@ -32,10 +33,12 @@ class ExperimentService:
         repository: ExperimentRepository,
         ge_service: GenerativeEngineService | None = None,
         geo_bench_loader: GeoBenchLoader | None = None,
+        evaluation_pipeline: ExperimentEvaluationPipeline | None = None,
     ):
         self.repository = repository
         self.ge_service = ge_service or GenerativeEngineService()
         self.geo_bench_loader = geo_bench_loader or GeoBenchLoader()
+        self.evaluation_pipeline = evaluation_pipeline or ExperimentEvaluationPipeline()
 
     def run_experiment(
         self,
@@ -204,6 +207,10 @@ class ExperimentService:
                     )
                 )
             ),
+        )
+        self.evaluation_pipeline.evaluate_outputs(
+            result["strategy_outputs"],
+            selected_document=result["selected_document"],
         )
         self.repository.store_query_run(
             experiment,
@@ -394,6 +401,9 @@ class ExperimentService:
                     title=str(document.get("title") or ""),
                     url=str(document.get("url") or ""),
                     plain_text=str(document.get("content") or ""),
+                    is_optimization_target=bool(
+                        document.get("is_optimization_target")
+                    ),
                 )
             )
 

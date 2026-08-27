@@ -1,0 +1,16 @@
+{
+  "dataset": "GEO-Optim/geo-bench",
+  "split": "test",
+  "query": "mention the names of any 3 famous folklore sports in karnataka state",
+  "sugg_idx": 3,
+  "target_rank": 4,
+  "strategies": [
+    "original",
+    "statistics"
+  ],
+  "answer_model": "gpt-3.5-turbo",
+  "rewrite_model": "gpt-3.5-turbo-16k",
+  "temperature": 0.7,
+  "top_p": 1,
+  "samples_per_method": 5
+}

@@ -9,6 +9,8 @@ class EvaluationResult:
     word_count: int
     position: int | None
     pawc: float
+    word_score: float
+    position_score: float
     citation_count: int
     visibility_score: float
 
@@ -166,6 +168,16 @@ class Evaluator:
             source_count,
             normalize=False,
         )
+        normalized_word_scores = impression_word_count_simple(
+            sentences,
+            source_count,
+            normalize=True,
+        )
+        position_scores = impression_pos_count_simple(
+            sentences,
+            source_count,
+            normalize=True,
+        )
         citation_count, position = self._selected_citation_stats(
             sentences,
             selected_rank,
@@ -183,6 +195,14 @@ class Evaluator:
             word_count=round(selected_word_count),
             position=position,
             pawc=round(selected_pawc, 6),
+            word_score=round(
+                self._score_for_selected_source(normalized_word_scores, selected_index),
+                6,
+            ),
+            position_score=round(
+                self._score_for_selected_source(position_scores, selected_index),
+                6,
+            ),
             citation_count=citation_count,
             visibility_score=round(selected_pawc, 6),
         )

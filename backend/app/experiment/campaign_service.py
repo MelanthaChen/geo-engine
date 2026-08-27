@@ -198,6 +198,7 @@ class ExperimentCampaignService:
                         "title": document.title,
                         "url": document.url,
                         "content": document.plain_text,
+                        "is_optimization_target": document.is_optimization_target,
                     }
                     for document in documents
                 ],

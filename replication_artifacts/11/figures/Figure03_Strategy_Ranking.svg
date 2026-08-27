@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="676.8pt" height="562.14pt" viewBox="0 0 676.8 562.14" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-08-21T20:57:40.972054</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.8, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 562.14 
+L 676.8 562.14 
+L 676.8 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="line2d_1">
+    <path d="M 212.544 476.91 
+L 464.256 339.21 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #175cd3; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 212.544 522.81 
+L 464.256 522.81 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #d0d5dd; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_3">
+    <path d="M 212.544 431.01 
+L 464.256 476.91 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #d0d5dd; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_4">
+    <path d="M 212.544 339.21 
+L 464.256 385.11 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #d0d5dd; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_5">
+    <path d="M 212.544 385.11 
+L 464.256 247.41 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #d0d5dd; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_6">
+    <path d="M 212.544 293.31 
+L 464.256 293.31 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #d0d5dd; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_7">
+    <path d="M 212.544 201.51 
+L 464.256 109.71 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #175cd3; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_8">
+    <path d="M 212.544 247.41 
+L 464.256 155.61 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #175cd3; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_9">
+    <path d="M 212.544 109.71 
+L 464.256 201.51 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #175cd3; stroke-opacity: 0.85; stroke-width: 1.3; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_10">
+    <path d="M 212.544 155.61 
+L 464.256 431.01 
+" clip-path="url(#pe8da495880)" style="fill: none; stroke: #c4320a; stroke-opacity: 0.85; stroke-width: 3; stroke-linecap: square"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #667085" x="126.432" y="89.055" transform="rotate(-0 126.432 89.055)">PAPER RANKING</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #667085" x="550.368" y="89.055" transform="rotate(-0 550.368 89.055)">STAGE 1 RANKING</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="112.469375" transform="rotate(-0 199.296 112.469375)">1. Quotation</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="158.369375" transform="rotate(-0 199.296 158.369375)">2. Statistics</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="204.269375" transform="rotate(-0 199.296 204.269375)">3. Fluency</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="250.169375" transform="rotate(-0 199.296 250.169375)">4. Citation</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="296.069375" transform="rotate(-0 199.296 296.069375)">5. Technical Terms</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="341.969375" transform="rotate(-0 199.296 341.969375)">6. Easy-to-Understand</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="387.869375" transform="rotate(-0 199.296 387.869375)">7. Authoritative</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="433.769375" transform="rotate(-0 199.296 433.769375)">8. Unique Words</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="479.669375" transform="rotate(-0 199.296 479.669375)">9. Original</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172033" x="199.296" y="525.569375" transform="rotate(-0 199.296 525.569375)">10. Keyword Stuffing</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="112.469375" transform="rotate(-0 477.504 112.469375)">1. Fluency  ↑2</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="158.369375" transform="rotate(-0 477.504 158.369375)">2. Citation  ↑2</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="204.269375" transform="rotate(-0 477.504 204.269375)">3. Quotation  ↓2</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="250.169375" transform="rotate(-0 477.504 250.169375)">4. Authoritative  ↑3</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="296.069375" transform="rotate(-0 477.504 296.069375)">5. Technical Terms  —</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="341.969375" transform="rotate(-0 477.504 341.969375)">6. Original  ↑3</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="387.869375" transform="rotate(-0 477.504 387.869375)">7. Easy-to-Understand  ↓1</text>
+   </g>
+   <g id="text_20">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="477.504" y="433.769375" transform="rotate(-0 477.504 433.769375)">8. Statistics  ↓6</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="479.669375" transform="rotate(-0 477.504 479.669375)">9. Unique Words  ↓1</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="477.504" y="525.569375" transform="rotate(-0 477.504 525.569375)">10. Keyword Stuffing  —</text>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #c4320a" x="338.4" y="545.76" transform="rotate(-0 338.4 545.76)">Statistics moved from paper rank 2 to Stage 1 rank 8.</text>
+   </g>
+  </g>
+  <g id="text_24">
+   <text style="font-weight: 700; font-size: 17px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="21.6" y="20.117344" transform="rotate(-0 21.6 20.117344)">Strategy ranking comparison</text>
+  </g>
+  <g id="text_25">
+   <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="21.6" y="38.518594" transform="rotate(-0 21.6 38.518594)">Ranked by PAWC · lines reveal movement between the paper and Stage 1</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pe8da495880">
+   <rect x="7.2" y="77.58" width="662.4" height="477.36"/>
+  </clipPath>
+ </defs>
+</svg>

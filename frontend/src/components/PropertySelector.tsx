@@ -126,7 +126,11 @@ export function PropertySelector() {
         </div>
       )}
 
-      <DropdownMenu open={dropdownOpen} onOpenChange={handleDropdownOpenChange}>
+      <DropdownMenu
+        modal={false}
+        open={dropdownOpen}
+        onOpenChange={handleDropdownOpenChange}
+      >
         <DropdownMenuTrigger asChild>
           <button
             className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-left shadow-sm transition hover:border-zinc-700 hover:bg-zinc-900/80 data-[state=open]:border-zinc-700"

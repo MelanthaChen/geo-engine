@@ -207,21 +207,15 @@ export function Dashboard() {
               value={formatPercent(metrics?.benchmarks?.latest_metrics?.coverage)}
             />
             <MetricLine
-              label="Citation Rate"
+              label="Brand Mention Rate"
               value={formatPercent(
-                metrics?.benchmarks?.latest_metrics?.citation_rate,
+                metrics?.benchmarks?.latest_metrics?.brand_mention_rate,
               )}
             />
             <MetricLine
-              label="Visibility Score"
-              value={formatMetric(
-                metrics?.benchmarks?.latest_metrics?.visibility_score,
-              )}
-            />
-            <MetricLine
-              label="Average Rank"
+              label="Average Position"
               value={formatAverageRank(
-                metrics?.benchmarks?.latest_metrics?.average_rank,
+                metrics?.benchmarks?.latest_metrics?.average_position,
               )}
             />
             <MetricLine

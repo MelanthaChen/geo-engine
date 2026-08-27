@@ -1,0 +1,187 @@
+{
+  "profile_queries": 3,
+  "profile_query_texts": [
+    "sers.pa.gov",
+    "flower symbolism",
+    "dominos voucher codes"
+  ],
+  "experiment_id": 10,
+  "profiled_at": "2026-08-20T23:03:28.540273+00:00",
+  "sampling": "deterministic Random(42) subset of valid GEO-bench test rows",
+  "rewrite_cache": "cold",
+  "measured": [
+    {
+      "purpose": "answer_generation",
+      "models": [
+        "gpt-3.5-turbo-0125"
+      ],
+      "calls": 30,
+      "average_prompt_tokens": 4484.3,
+      "average_completion_tokens": 1031.6,
+      "average_total_tokens": 5515.9,
+      "average_latency_ms": 4151.3,
+      "average_cost_usd": 0.00378955,
+      "actual_cost_usd": 0.1136865
+    },
+    {
+      "purpose": "strategy_rewrite",
+      "models": [
+        "gpt-3.5-turbo-0125"
+      ],
+      "calls": 27,
+      "average_prompt_tokens": 1086.4074074074074,
+      "average_completion_tokens": 794.3333333333334,
+      "average_total_tokens": 1880.7407407407406,
+      "average_latency_ms": 6885.148148148148,
+      "average_cost_usd": 0.0017347037037037036,
+      "actual_cost_usd": 0.046837
+    },
+    {
+      "purpose": "subjective_evaluation",
+      "models": [
+        "gpt-3.5-turbo-instruct:20230824-v2"
+      ],
+      "calls": 1050,
+      "average_prompt_tokens": 489.7085714285714,
+      "average_completion_tokens": 1.0019047619047619,
+      "average_total_tokens": 490.7104761904762,
+      "average_latency_ms": 864.4190476190477,
+      "average_cost_usd": 0.0007365666666666668,
+      "actual_cost_usd": 0.773395
+    }
+  ],
+  "projections": [
+    {
+      "stage": "stage1",
+      "queries": 30,
+      "purpose": "answer_generation",
+      "provider_calls": 300,
+      "prompt_tokens": 1345290,
+      "completion_tokens": 309480,
+      "total_tokens": 1654770,
+      "estimated_runtime_seconds": 1245,
+      "estimated_cost_usd": 1.136865
+    },
+    {
+      "stage": "stage1",
+      "queries": 30,
+      "purpose": "strategy_rewrite",
+      "provider_calls": 270,
+      "prompt_tokens": 293330,
+      "completion_tokens": 214470,
+      "total_tokens": 507800,
+      "estimated_runtime_seconds": 1859,
+      "estimated_cost_usd": 0.46836999999999995
+    },
+    {
+      "stage": "stage1",
+      "queries": 30,
+      "purpose": "subjective_evaluation",
+      "provider_calls": 10500,
+      "prompt_tokens": 5141940,
+      "completion_tokens": 10520,
+      "total_tokens": 5152460,
+      "estimated_runtime_seconds": 9076,
+      "estimated_cost_usd": 7.73395
+    },
+    {
+      "stage": "stage2",
+      "queries": 100,
+      "purpose": "answer_generation",
+      "provider_calls": 1000,
+      "prompt_tokens": 4484300,
+      "completion_tokens": 1031600,
+      "total_tokens": 5515900,
+      "estimated_runtime_seconds": 4151,
+      "estimated_cost_usd": 3.78955
+    },
+    {
+      "stage": "stage2",
+      "queries": 100,
+      "purpose": "strategy_rewrite",
+      "provider_calls": 900,
+      "prompt_tokens": 977767,
+      "completion_tokens": 714900,
+      "total_tokens": 1692667,
+      "estimated_runtime_seconds": 6197,
+      "estimated_cost_usd": 1.5612333333333333
+    },
+    {
+      "stage": "stage2",
+      "queries": 100,
+      "purpose": "subjective_evaluation",
+      "provider_calls": 35000,
+      "prompt_tokens": 17139800,
+      "completion_tokens": 35067,
+      "total_tokens": 17174867,
+      "estimated_runtime_seconds": 30255,
+      "estimated_cost_usd": 25.779833333333336
+    },
+    {
+      "stage": "stage3",
+      "queries": 300,
+      "purpose": "answer_generation",
+      "provider_calls": 3000,
+      "prompt_tokens": 13452900,
+      "completion_tokens": 3094800,
+      "total_tokens": 16547700,
+      "estimated_runtime_seconds": 12454,
+      "estimated_cost_usd": 11.368649999999999
+    },
+    {
+      "stage": "stage3",
+      "queries": 300,
+      "purpose": "strategy_rewrite",
+      "provider_calls": 2700,
+      "prompt_tokens": 2933300,
+      "completion_tokens": 2144700,
+      "total_tokens": 5078000,
+      "estimated_runtime_seconds": 18590,
+      "estimated_cost_usd": 4.6837
+    },
+    {
+      "stage": "stage3",
+      "queries": 300,
+      "purpose": "subjective_evaluation",
+      "provider_calls": 105000,
+      "prompt_tokens": 51419400,
+      "completion_tokens": 105200,
+      "total_tokens": 51524600,
+      "estimated_runtime_seconds": 90764,
+      "estimated_cost_usd": 77.3395
+    },
+    {
+      "stage": "full",
+      "queries": 997,
+      "purpose": "answer_generation",
+      "provider_calls": 9970,
+      "prompt_tokens": 44708471,
+      "completion_tokens": 10285052,
+      "total_tokens": 54993523,
+      "estimated_runtime_seconds": 41388,
+      "estimated_cost_usd": 37.7818135
+    },
+    {
+      "stage": "full",
+      "queries": 997,
+      "purpose": "strategy_rewrite",
+      "provider_calls": 8973,
+      "prompt_tokens": 9748334,
+      "completion_tokens": 7127553,
+      "total_tokens": 16875887,
+      "estimated_runtime_seconds": 61780,
+      "estimated_cost_usd": 15.565496333333332
+    },
+    {
+      "stage": "full",
+      "queries": 997,
+      "purpose": "subjective_evaluation",
+      "provider_calls": 348950,
+      "prompt_tokens": 170883806,
+      "completion_tokens": 349615,
+      "total_tokens": 171233421,
+      "estimated_runtime_seconds": 301639,
+      "estimated_cost_usd": 257.02493833333335
+    }
+  ]
+}

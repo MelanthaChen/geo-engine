@@ -1,0 +1,14 @@
+{
+  "model": "gpt-3.5-turbo-instruct",
+  "prompt_commit": "c9e985f2bc4b539a01e8e9d226ff2a3d8d29a888",
+  "scores": {
+    "relevance": 4.282283245262855,
+    "influence": 4.51013913204147,
+    "uniqueness": 4.151308905420473,
+    "diversity": 3.900074084974034,
+    "follow_up": 3.983701849854955,
+    "subjective_position": 4.434115067761206,
+    "subjective_count": 4.065100848464487
+  },
+  "average": 4.189531876254212
+}

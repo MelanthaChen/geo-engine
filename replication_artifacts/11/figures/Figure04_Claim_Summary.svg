@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="826.56pt" height="706.14pt" viewBox="0 0 826.56 706.14" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-08-21T20:57:41.269493</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.8, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 706.14 
+L 826.56 706.14 
+L 826.56 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 23.4432 84.880092 
+L 803.1168 84.880092 
+L 803.1168 116.07274 
+L 23.4432 116.07274 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 23.4432 157.421133 
+L 803.1168 157.421133 
+L 803.1168 188.61378 
+L 23.4432 188.61378 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 23.4432 229.962173 
+L 803.1168 229.962173 
+L 803.1168 261.154821 
+L 23.4432 261.154821 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 23.4432 302.503214 
+L 803.1168 302.503214 
+L 803.1168 333.695861 
+L 23.4432 333.695861 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 23.4432 375.044254 
+L 803.1168 375.044254 
+L 803.1168 406.236902 
+L 23.4432 406.236902 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 23.4432 447.585295 
+L 803.1168 447.585295 
+L 803.1168 478.777942 
+L 23.4432 478.777942 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 23.4432 520.126335 
+L 803.1168 520.126335 
+L 803.1168 551.318983 
+L 23.4432 551.318983 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 23.4432 592.667376 
+L 803.1168 592.667376 
+L 803.1168 623.860023 
+L 23.4432 623.860023 
+z
+" clip-path="url(#p3b2bd163d7)" style="fill: #f2f4f7; stroke: #f2f4f7; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="43.7472" y="104.063604" transform="rotate(-0 43.7472 104.063604)">✕</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="102.987447" transform="rotate(-0 76.2336 102.987447)">Quotation Addition, Statistics Addition, and Cite Sources all outperform baseline on PAWC.</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #c4320a" x="782.8128" y="102.959854" transform="rotate(-0 782.8128 102.959854)">FAIL</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="43.7472" y="140.334124" transform="rotate(-0 43.7472 140.334124)">✕</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="139.257968" transform="rotate(-0 76.2336 139.257968)">The qualitative PAWC strategy ordering agrees with Table 1.</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #c4320a" x="782.8128" y="139.230374" transform="rotate(-0 782.8128 139.230374)">FAIL</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="176.604644" transform="rotate(-0 43.7472 176.604644)">✓</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="175.528488" transform="rotate(-0 76.2336 175.528488)">Quotation Addition outperforms the baseline on PAWC.</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="175.500894" transform="rotate(-0 782.8128 175.500894)">PASS</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="43.7472" y="212.875164" transform="rotate(-0 43.7472 212.875164)">✕</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="211.799008" transform="rotate(-0 76.2336 211.799008)">Statistics Addition outperforms the baseline on PAWC.</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #c4320a" x="782.8128" y="211.771414" transform="rotate(-0 782.8128 211.771414)">FAIL</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="249.145685" transform="rotate(-0 43.7472 249.145685)">✓</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="248.069528" transform="rotate(-0 76.2336 248.069528)">Cite Sources outperforms the baseline on PAWC.</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="248.041935" transform="rotate(-0 782.8128 248.041935)">PASS</text>
+   </g>
+   <g id="text_16">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="285.416205" transform="rotate(-0 43.7472 285.416205)">✓</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="284.340049" transform="rotate(-0 76.2336 284.340049)">Fluency Optimization improves PAWC over baseline.</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="284.312455" transform="rotate(-0 782.8128 284.312455)">PASS</text>
+   </g>
+   <g id="text_19">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="43.7472" y="321.686725" transform="rotate(-0 43.7472 321.686725)">✕</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="320.610569" transform="rotate(-0 76.2336 320.610569)">Easy-to-Understand improves PAWC over baseline.</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #c4320a" x="782.8128" y="320.582975" transform="rotate(-0 782.8128 320.582975)">FAIL</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="357.957245" transform="rotate(-0 43.7472 357.957245)">✓</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="356.881089" transform="rotate(-0 76.2336 356.881089)">Authoritative produces limited PAWC improvement.</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="356.853495" transform="rotate(-0 782.8128 356.853495)">PASS</text>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="394.227766" transform="rotate(-0 43.7472 394.227766)">✓</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="393.151609" transform="rotate(-0 76.2336 393.151609)">Keyword Stuffing provides little or no PAWC improvement.</text>
+   </g>
+   <g id="text_27">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="393.124016" transform="rotate(-0 782.8128 393.124016)">PASS</text>
+   </g>
+   <g id="text_28">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="430.498286" transform="rotate(-0 43.7472 430.498286)">✓</text>
+   </g>
+   <g id="text_29">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="429.42213" transform="rotate(-0 76.2336 429.42213)">Quotation Addition improves Subjective Impression.</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="429.394536" transform="rotate(-0 782.8128 429.394536)">PASS</text>
+   </g>
+   <g id="text_31">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #c4320a" x="43.7472" y="466.768806" transform="rotate(-0 43.7472 466.768806)">✕</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="465.69265" transform="rotate(-0 76.2336 465.69265)">Statistics Addition improves Subjective Impression.</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #c4320a" x="782.8128" y="465.665056" transform="rotate(-0 782.8128 465.665056)">FAIL</text>
+   </g>
+   <g id="text_34">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #16803c" x="43.7472" y="503.039326" transform="rotate(-0 43.7472 503.039326)">✓</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="501.96317" transform="rotate(-0 76.2336 501.96317)">Cite Sources improves Subjective Impression.</text>
+   </g>
+   <g id="text_36">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #16803c" x="782.8128" y="501.935576" transform="rotate(-0 782.8128 501.935576)">PASS</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="43.7472" y="539.309846" transform="rotate(-0 43.7472 539.309846)">○</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="538.23369" transform="rotate(-0 76.2336 538.23369)">Lower-ranked sources benefit more from GEO.</text>
+   </g>
+   <g id="text_39">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #667085" x="782.8128" y="538.001487" transform="rotate(-0 782.8128 538.001487)">NOT_TESTED</text>
+   </g>
+   <g id="text_40">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="43.7472" y="575.580367" transform="rotate(-0 43.7472 575.580367)">○</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="574.50421" transform="rotate(-0 76.2336 574.50421)">The most effective GEO method varies by domain and query type.</text>
+   </g>
+   <g id="text_42">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #667085" x="782.8128" y="574.272007" transform="rotate(-0 782.8128 574.272007)">NOT_TESTED</text>
+   </g>
+   <g id="text_43">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="43.7472" y="611.850887" transform="rotate(-0 43.7472 611.850887)">○</text>
+   </g>
+   <g id="text_44">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="610.774731" transform="rotate(-0 76.2336 610.774731)">Fluency plus Statistics is the strongest tested pair.</text>
+   </g>
+   <g id="text_45">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #667085" x="782.8128" y="610.542528" transform="rotate(-0 782.8128 610.542528)">NOT_TESTED</text>
+   </g>
+   <g id="text_46">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="43.7472" y="648.121407" transform="rotate(-0 43.7472 648.121407)">○</text>
+   </g>
+   <g id="text_47">
+    <text style="font-size: 9.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="76.2336" y="647.045251" transform="rotate(-0 76.2336 647.045251)">High-performing GEO methods generalize to Perplexity.ai.</text>
+   </g>
+   <g id="text_48">
+    <text style="font-weight: 700; font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #667085" x="782.8128" y="646.813048" transform="rotate(-0 782.8128 646.813048)">NOT_TESTED</text>
+   </g>
+  </g>
+  <g id="text_49">
+   <text style="font-weight: 700; font-size: 17px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172033" x="33.12" y="19.984531" transform="rotate(-0 33.12 19.984531)">PASS / FAIL summary</text>
+  </g>
+  <g id="text_50">
+   <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #667085" x="33.12" y="44.278594" transform="rotate(-0 33.12 44.278594)">All claims from paper_conclusion_verification.json</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p3b2bd163d7">
+   <rect x="7.2" y="71.46" width="812.16" height="627.48"/>
+  </clipPath>
+ </defs>
+</svg>

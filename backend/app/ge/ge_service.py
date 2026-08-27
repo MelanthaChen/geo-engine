@@ -1,6 +1,6 @@
 import random
+import time
 
-from app.evaluation.evaluator import Evaluator
 from app.ge.geo_rewriter import GeoRewriter
 from app.ge.google_search_provider import GoogleSearchProvider
 from app.ge.llm_runner import LLMRunner, OpenAILLMRunner
@@ -18,14 +18,12 @@ class GenerativeEngineService:
         search_provider: SearchProvider | None = None,
         llm_runner: LLMRunner | None = None,
         prompt_builder: PromptBuilder | None = None,
-        evaluator: Evaluator | None = None,
     ):
         runner = llm_runner or OpenAILLMRunner()
         self.search_provider = search_provider or GoogleSearchProvider()
         self.rewriter = GeoRewriter(runner)
         self.llm_runner = runner
         self.prompt_builder = prompt_builder or PromptBuilder()
-        self.evaluator = evaluator or Evaluator()
 
     def run_query(
         self,
@@ -58,7 +56,13 @@ class GenerativeEngineService:
             : self.PAPER_TOP_K
         ]
 
-        selected_document = random.Random(random_seed).choice(documents)
+        official_target = next(
+            (document for document in documents if document.is_optimization_target),
+            None,
+        )
+        # GEO-bench publishes the randomly selected source as zero-based
+        # sugg_idx. It must remain fixed across methods and repeated runs.
+        selected_document = official_target or random.Random(random_seed).choice(documents)
         strategy_outputs = []
 
         for strategy in strategies:
@@ -90,6 +94,7 @@ class GenerativeEngineService:
                 # Appendix B.1 specifies five answer samples per method with
                 # top_p=1. Temperature is passed through from the experiment
                 # configuration, whose default is set to the paper value 0.7.
+                started_at = time.perf_counter()
                 answer = runner.generate(
                     system_prompt="",
                     user_prompt=prompt,
@@ -97,21 +102,16 @@ class GenerativeEngineService:
                     temperature=temperature,
                     top_p=self.PAPER_TOP_P,
                 )
-                evaluation = self.evaluator.evaluate(
-                    answer=answer,
-                    selected_document_text=modified_document_text,
-                    selected_title=selected_document.title,
-                    selected_url=selected_document.url,
-                    selected_rank=selected_document.rank,
-                )
+                latency_ms = int((time.perf_counter() - started_at) * 1000)
                 strategy_outputs.append(
                     {
                         "strategy": strategy,
+                        "query": query,
                         "sample_index": sample_index,
                         "modified_document_text": modified_document_text,
                         "prompt": prompt,
                         "answer": answer,
-                        "evaluation": evaluation,
+                        "latency_ms": latency_ms,
                     }
                 )
 
@@ -119,5 +119,6 @@ class GenerativeEngineService:
             "query": query,
             "documents": documents,
             "selected_document_rank": selected_document.rank,
+            "selected_document": selected_document,
             "strategy_outputs": strategy_outputs,
         }

@@ -16,6 +16,7 @@ import { Input } from "../../@/components/ui/input";
 import { Label } from "../../@/components/ui/label";
 import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
+import { ScientificReplicationDashboard } from "@/components/ScientificReplicationDashboard";
 import { Page, PageHeader as SharedPageHeader } from "@/components/layout/PageLayout";
 import {
   getExperimentCampaign,
@@ -439,102 +440,11 @@ function RunningExperiment({
   onReset: () => void;
   run: ExperimentRun | null;
 }) {
-  const progress = run
-    ? Math.round((run.completedQueries / Math.max(run.totalQueries, 1)) * 100)
-    : 0;
-  const failed = run?.status === "failed";
+  if (!run) {
+    return null;
+  }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Step 3 · Running"
-        title="Running Princeton GEO Reproduction"
-        description="The benchmark is executing the paper workflow. Configuration is hidden until the run finishes or fails."
-      />
-
-      {failed && (
-        <div className="rounded-lg border border-red-900 bg-red-950/40 p-4 text-sm text-red-100">
-          {run?.errorMessage || "Experiment failed before completion."}
-          <Button className="ml-4" size="sm" onClick={onReset}>
-            Back to Configure
-          </Button>
-        </div>
-      )}
-
-      <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="p-6">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <StatusTile label="Current Query" value={run?.currentQuery || "Queued"} />
-            <StatusTile
-              label="Current Stage"
-              value={currentStage(run)}
-            />
-            <StatusTile
-              label="Current Strategy"
-              value={formatStrategy(run?.currentStrategy)}
-            />
-            <StatusTile
-              label="Current Sample"
-              value={`${run?.currentSample || 0} / ${run?.totalSamples || 5}`}
-            />
-          </div>
-
-          <div className="mt-6">
-            <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
-              <span>Overall Progress</span>
-              <span>
-                {run ? `${run.completedQueries}/${run.totalQueries}` : "0/0"}{" "}
-                queries
-              </span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-zinc-900">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-zinc-500">
-              Estimated Remaining Time:{" "}
-              {run?.estimatedRemainingTime || "Calculating"}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-50">
-            Live Timeline
-          </h2>
-          <div className="mt-5 space-y-3">
-            {timeline(run).map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-black px-4 py-3"
-              >
-                {item.state === "done" ? (
-                  <Check className="h-4 w-4 text-emerald-400" />
-                ) : item.state === "active" ? (
-                  <Circle className="h-4 w-4 fill-blue-500 text-blue-500" />
-                ) : (
-                  <Circle className="h-4 w-4 text-zinc-700" />
-                )}
-                <span
-                  className={
-                    item.state === "active"
-                      ? "text-sm font-medium text-blue-200"
-                      : "text-sm text-zinc-400"
-                  }
-                >
-                  {item.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <ScientificReplicationDashboard run={run} onReset={onReset} />;
 }
 
 function RunningCampaign({
@@ -629,6 +539,10 @@ function ExperimentResults({
   onReset: () => void;
   run: ExperimentRun;
 }) {
+  return <ScientificReplicationDashboard run={run} onReset={onReset} />;
+
+  /* Legacy result presentation retained below for reference while the
+     scientific visualization owns the completed-run surface. */
   const ranking = [...run.strategyResults].sort(
     (a, b) => b.visibility - a.visibility,
   );
@@ -1673,50 +1587,6 @@ function firstHeaderIndex(headers: string[], candidates: string[]) {
 
 function uniqueInOrder(values: string[]) {
   return values.filter((value, index) => values.indexOf(value) === index);
-}
-
-function currentStage(run: ExperimentRun | null) {
-  if (!run || run.status === "queued") {
-    return "Queued";
-  }
-
-  if (!run.currentQuery || run.currentQuery === "Queued") {
-    return "Retrieving Google Top-5";
-  }
-
-  if (run.currentSample > 0) {
-    return "Generating responses";
-  }
-
-  return "Applying GEO strategy";
-}
-
-function timeline(run: ExperimentRun | null) {
-  const activeStrategy = run?.currentStrategy;
-
-  return [
-    {
-      label: "Retrieve Sources",
-      state: run?.currentQuery && run.currentQuery !== "Queued" ? "done" : "active",
-    },
-    {
-      label: "Clean Documents",
-      state: run?.currentQuery && run.currentQuery !== "Queued" ? "done" : "pending",
-    },
-    ...strategyOptions.map((strategy) => ({
-      label: strategy.label,
-      state:
-        strategy.id === activeStrategy
-          ? "active"
-          : run?.status === "completed"
-            ? "done"
-            : "pending",
-    })),
-    {
-      label: "Evaluation",
-      state: run?.status === "completed" ? "done" : "pending",
-    },
-  ];
 }
 
 function formatStrategy(strategyId?: StrategyId) {

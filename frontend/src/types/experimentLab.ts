@@ -127,6 +127,39 @@ export type ExperimentRun = {
   paperAggregates?: PaperAggregateResult[];
   queryResults: QueryExperimentResult[];
   errorMessage?: string | null;
+  name?: string;
+  description?: string | null;
+  datasetName?: string | null;
+  model?: string | null;
+  runCount?: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string | null;
+  statistics?: ExperimentStatistic[];
+  timeline?: ExperimentTimelineEvent[];
+};
+
+export type ExperimentStatistic = {
+  strategy: StrategyId;
+  metric: string;
+  sampleCount: number;
+  mean: number | null;
+  median: number | null;
+  variance: number | null;
+  stddev: number | null;
+  min: number | null;
+  max: number | null;
+  confidenceLevel: number | null;
+  confidenceLow: number | null;
+  confidenceHigh: number | null;
+};
+
+export type ExperimentTimelineEvent = {
+  type: string;
+  status?: string | null;
+  message?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt?: string | null;
 };
 
 export type CampaignExperimentSummary = {

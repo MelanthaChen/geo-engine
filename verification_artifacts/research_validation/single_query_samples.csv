@@ -1,0 +1,11 @@
+query,strategy,sample_index,target_rank,pawc,word_score,position_score,citation_count,response_length,latency_ms
+mention the names of any 3 famous folklore sports in karnataka state,original,0,4,0.0,0.0,0.0,0,1254,5457
+mention the names of any 3 famous folklore sports in karnataka state,original,1,4,0.0,0.0,0.0,0,39,1962
+mention the names of any 3 famous folklore sports in karnataka state,original,2,4,0.2,0.2,0.2,0,30,1864
+mention the names of any 3 famous folklore sports in karnataka state,original,3,4,0.0,0.0,0.0,0,34,2688
+mention the names of any 3 famous folklore sports in karnataka state,original,4,4,0.0,0.0,0.0,0,49,1614
+mention the names of any 3 famous folklore sports in karnataka state,statistics,0,4,0.0,0.0,0.0,0,50,1159
+mention the names of any 3 famous folklore sports in karnataka state,statistics,1,4,0.0,0.0,0.0,0,36,1491
+mention the names of any 3 famous folklore sports in karnataka state,statistics,2,4,0.0,0.0,0.0,0,526,2455
+mention the names of any 3 famous folklore sports in karnataka state,statistics,3,4,0.2,0.2,0.2,0,302,2869
+mention the names of any 3 famous folklore sports in karnataka state,statistics,4,4,0.2,0.2,0.2,0,918,2712

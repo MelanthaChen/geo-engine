@@ -221,6 +221,7 @@ class GeoRewriter:
                     temperature=OFFICIAL_REWRITE_TEMPERATURE,
                     top_p=OFFICIAL_REWRITE_TOP_P,
                     max_tokens=OFFICIAL_REWRITE_MAX_TOKENS,
+                    purpose="strategy_rewrite",
                 )
             except Exception as exc:
                 if "maximum context length" in str(exc):

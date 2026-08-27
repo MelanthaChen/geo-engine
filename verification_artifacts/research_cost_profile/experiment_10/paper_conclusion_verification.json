@@ -1,0 +1,276 @@
+{
+  "claims": [
+    {
+      "id": "headline_methods_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "all_greater_than",
+      "strategies": [
+        "quotation",
+        "statistics",
+        "citation"
+      ],
+      "right": "original",
+      "paper_evidence": "Table 1; Section 4",
+      "claim": "Quotation Addition, Statistics Addition, and Cite Sources all outperform baseline on PAWC.",
+      "status": "PASS",
+      "evidence": {
+        "baseline": 0.020979199999999996,
+        "observed": {
+          "quotation": 0.0727628,
+          "statistics": 0.027231066666666668,
+          "citation": 0.09823113333333335
+        }
+      }
+    },
+    {
+      "id": "table1_pawc_order",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "rank_concordance",
+      "strategies": [
+        "quotation",
+        "statistics",
+        "fluency",
+        "citation",
+        "technical_terms",
+        "easy_to_understand",
+        "authoritative",
+        "unique_words",
+        "original",
+        "keyword_stuffing"
+      ],
+      "minimum": 0.8,
+      "paper_evidence": "Table 1 PAWC Overall column",
+      "claim": "The qualitative PAWC strategy ordering agrees with Table 1.",
+      "status": "FAIL",
+      "evidence": {
+        "pairwise_concordance": 0.6,
+        "required": 0.8
+      }
+    },
+    {
+      "id": "quotation_beats_baseline_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "greater_than",
+      "left": "quotation",
+      "right": "original",
+      "paper_evidence": "Table 1: 27.2 > 19.3",
+      "claim": "Quotation Addition outperforms the baseline on PAWC.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.0727628,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 2.4683305369127524
+      }
+    },
+    {
+      "id": "statistics_beats_baseline_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "greater_than",
+      "left": "statistics",
+      "right": "original",
+      "paper_evidence": "Table 1: 25.2 > 19.3",
+      "claim": "Statistics Addition outperforms the baseline on PAWC.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.027231066666666668,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 0.29800310148464537
+      }
+    },
+    {
+      "id": "citation_beats_baseline_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "greater_than",
+      "left": "citation",
+      "right": "original",
+      "paper_evidence": "Table 1: 24.6 > 19.3",
+      "claim": "Cite Sources outperforms the baseline on PAWC.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.09823113333333335,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 3.682310733170634
+      }
+    },
+    {
+      "id": "fluency_beats_baseline_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "greater_than",
+      "left": "fluency",
+      "right": "original",
+      "paper_evidence": "Table 1: 24.7 > 19.3; Section 4",
+      "claim": "Fluency Optimization improves PAWC over baseline.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.34519286666666665,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 15.454052903193007
+      }
+    },
+    {
+      "id": "easy_beats_baseline_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "greater_than",
+      "left": "easy_to_understand",
+      "right": "original",
+      "paper_evidence": "Table 1: 22.0 > 19.3; Section 4",
+      "claim": "Easy-to-Understand improves PAWC over baseline.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.06792066666666667,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 2.237524150905024
+      }
+    },
+    {
+      "id": "authoritative_limited_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "relative_band",
+      "left": "authoritative",
+      "right": "original",
+      "minimum": -0.05,
+      "maximum": 0.15,
+      "paper_evidence": "Section 4: no significant improvement; Table 1",
+      "claim": "Authoritative produces limited PAWC improvement.",
+      "status": "FAIL",
+      "evidence": {
+        "left_mean": 0.06619946666666666,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 2.1554809843400453
+      }
+    },
+    {
+      "id": "keyword_not_improve_pawc",
+      "scope": "main",
+      "metric": "pawc",
+      "type": "less_or_equal",
+      "left": "keyword_stuffing",
+      "right": "original",
+      "paper_evidence": "Table 1: 17.7 < 19.3; Section 4",
+      "claim": "Keyword Stuffing provides little or no PAWC improvement.",
+      "status": "FAIL",
+      "evidence": {
+        "left_mean": 0.0799534,
+        "right_mean": 0.020979199999999996,
+        "relative_change": 2.811079545454546
+      }
+    },
+    {
+      "id": "quotation_beats_baseline_subjective",
+      "scope": "main",
+      "metric": "subjective_impression_calibrated",
+      "type": "greater_than",
+      "left": "quotation",
+      "right": "original",
+      "paper_evidence": "Table 1: 24.7 > 19.3",
+      "claim": "Quotation Addition improves Subjective Impression.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.14107765940044448,
+        "right_mean": -0.0004442353706618866,
+        "relative_change": -318.5741256042859
+      }
+    },
+    {
+      "id": "statistics_beats_baseline_subjective",
+      "scope": "main",
+      "metric": "subjective_impression_calibrated",
+      "type": "greater_than",
+      "left": "statistics",
+      "right": "original",
+      "paper_evidence": "Table 1: 23.7 > 19.3",
+      "claim": "Statistics Addition improves Subjective Impression.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.023427932158483107,
+        "right_mean": -0.0004442353706618866,
+        "relative_change": -53.73765599433642
+      }
+    },
+    {
+      "id": "citation_beats_baseline_subjective",
+      "scope": "main",
+      "metric": "subjective_impression_calibrated",
+      "type": "greater_than",
+      "left": "citation",
+      "right": "original",
+      "paper_evidence": "Table 1: 21.9 > 19.3",
+      "claim": "Cite Sources improves Subjective Impression.",
+      "status": "PASS",
+      "evidence": {
+        "left_mean": 0.09656244887101224,
+        "right_mean": -0.0004442353706618866,
+        "relative_change": -218.36776323582572
+      }
+    },
+    {
+      "id": "lower_rank_benefit",
+      "scope": "rank_analysis",
+      "metric": "pawc",
+      "type": "unsupported",
+      "paper_evidence": "Table 2; Section 5.2",
+      "claim": "Lower-ranked sources benefit more from GEO.",
+      "status": "NOT_TESTED",
+      "evidence": {},
+      "reason": "Requires separate rank_analysis experiment."
+    },
+    {
+      "id": "domain_specificity",
+      "scope": "tag_analysis",
+      "metric": "pawc",
+      "type": "unsupported",
+      "paper_evidence": "Table 3; Section 5.1",
+      "claim": "The most effective GEO method varies by domain and query type.",
+      "status": "NOT_TESTED",
+      "evidence": {},
+      "reason": "Requires separate tag_analysis experiment."
+    },
+    {
+      "id": "combination_best",
+      "scope": "pairwise",
+      "metric": "pawc",
+      "type": "unsupported",
+      "paper_evidence": "Figure 4; Section 5.3",
+      "claim": "Fluency plus Statistics is the strongest tested pair.",
+      "status": "NOT_TESTED",
+      "evidence": {},
+      "reason": "Requires separate pairwise experiment."
+    },
+    {
+      "id": "perplexity_generalization",
+      "scope": "perplexity",
+      "metric": "pawc",
+      "type": "unsupported",
+      "paper_evidence": "Table 5; Section 6",
+      "claim": "High-performing GEO methods generalize to Perplexity.ai.",
+      "status": "NOT_TESTED",
+      "evidence": {},
+      "reason": "Requires separate perplexity experiment."
+    }
+  ],
+  "testable_claims": 12,
+  "trend_similarity": 0.75,
+  "fidelity": {
+    "method_fidelity": 0.98,
+    "implementation_fidelity": 0.96,
+    "dataset_fidelity": 0.997,
+    "evaluation_fidelity": 0.96,
+    "trend_fidelity": 0.75,
+    "model_fidelity": null,
+    "model_fidelity_note": "Unknown: the historical GPT-3.5 checkpoint is unavailable."
+  },
+  "stage": "full",
+  "stage_decision": {
+    "decision": "STOP",
+    "reason": "Trend similarity is below the cost gate; investigate before continuing.",
+    "threshold": 0.9
+  }
+}

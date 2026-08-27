@@ -47,14 +47,11 @@ export type PropertyMetrics = {
       } | null;
     } | null;
     latest_metrics?: {
-      citation_rate?: number;
-      recommendation_rate?: number;
-      average_rank?: number | null;
+      brand_mention_rate?: number;
+      average_position?: number | null;
       coverage?: number;
-      visibility_score?: number;
       latency?: number;
       response_length?: number;
-      citation_count?: number;
     };
   };
 };

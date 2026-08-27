@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
@@ -90,6 +91,74 @@ def get_experiment_run(
         raise HTTPException(status_code=404, detail="Experiment not found")
 
     return repository.serialize(experiment)
+
+
+@router.get("/experiments")
+def list_experiments(
+    property_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    return {"experiments": [
+        repository.serialize(experiment)
+        for experiment in repository.list_experiments(property_id=property_id)
+    ]}
+
+
+@router.post("/experiments/{experiment_id}/duplicate")
+def duplicate_experiment(
+    experiment_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    repository = ExperimentRepository(db)
+    source = repository.get_run(experiment_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    duplicate = repository.create_run(
+        property_id=source.property_id,
+        name=f"{source.name} (copy)",
+        description=source.description,
+        llm_model=source.llm_model,
+        provider=source.provider,
+        dataset_name=source.dataset_name,
+        benchmark_queries=json.loads(source.benchmark_queries_json or "[]"),
+        strategies=json.loads(source.strategies_json or "[]"),
+        metrics=json.loads(source.metrics_json or "[]"),
+        number_of_queries=source.number_of_queries,
+        random_seed=source.random_seed,
+        temperature=source.temperature,
+    )
+    background_tasks.add_task(execute_experiment_background, duplicate.id)
+    return repository.serialize(duplicate)
+
+
+@router.get("/experiments/{experiment_id}/export.json")
+def export_experiment_json(experiment_id: int, db: Session = Depends(get_db)):
+    repository = ExperimentRepository(db)
+    experiment = repository.get_run(experiment_id)
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    return repository.serialize(experiment)
+
+
+@router.get("/experiments/{experiment_id}/export.csv")
+def export_experiment_csv(experiment_id: int, db: Session = Depends(get_db)):
+    repository = ExperimentRepository(db)
+    experiment = repository.get_run(experiment_id)
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    rows = repository.experiment_csv_rows(experiment)
+    output = io.StringIO()
+    fieldnames = list(rows[0].keys()) if rows else ["experiment_id"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="experiment_{experiment_id}.csv"'},
+    )
 
 
 @router.post("/campaigns")
