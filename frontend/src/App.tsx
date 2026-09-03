@@ -7,6 +7,7 @@ import { ContentGeneration } from "@/pages/ContentGeneration";
 import { ContentHistory } from "@/pages/ContentHistory";
 import { Dashboard } from "@/pages/Dashboard";
 import { ExperimentLab } from "@/pages/ExperimentLab";
+import { GeoPredictor } from "@/pages/GeoPredictor";
 import { PublishingQueue } from "@/pages/PublishingQueue";
 import { Settings } from "@/pages/Settings";
 import { WebsiteAudit } from "@/pages/WebsiteAudit";
@@ -20,6 +21,7 @@ function App() {
             <Route element={<Dashboard />} path="/" />
             <Route element={<WebsiteAudit />} path="/audit" />
             <Route element={<ExperimentLab />} path="/experiments" />
+            <Route element={<GeoPredictor />} path="/predictor" />
             <Route element={<ContentGeneration />} path="/content" />
             <Route element={<PublishingQueue />} path="/publishing" />
             <Route element={<CitationTests />} path="/citations" />

@@ -45,6 +45,7 @@ from app.api.v1.benchmark_routes import (
 from app.api.v1.provider_routes import (
     router as provider_router
 )
+from app.predictor.router import router as predictor_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -124,3 +125,4 @@ app.include_router(audit_router)
 app.include_router(experiment_lab_router)
 app.include_router(benchmark_router)
 app.include_router(provider_router)
+app.include_router(predictor_router)

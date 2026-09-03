@@ -1,5 +1,6 @@
 import {
   FileSearch,
+  BrainCircuit,
   FlaskConical,
   FlaskRound,
   History,
@@ -19,6 +20,7 @@ const navigationItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Website Audit", href: "/audit", icon: FileSearch },
   { label: "Experiment Lab", href: "/experiments", icon: FlaskRound },
+  { label: "GEO Predictor", href: "/predictor", icon: BrainCircuit },
   { label: "Social Media Track", href: "/content", icon: PenLine },
   { label: "Publishing Queue", href: "/publishing", icon: Send },
   { label: "Citation Tests", href: "/citations", icon: FlaskConical },

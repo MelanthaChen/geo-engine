@@ -1,4 +1,5 @@
 import json
+import logging
 import statistics
 import hashlib
 from datetime import datetime, timezone
@@ -24,6 +25,9 @@ from app.models.experiment import (
 )
 from app.evaluation.experiment_pipeline import METRIC_UNITS, descriptive_statistics
 from app.ge.prompt_builder import GE_SYSTEM_PROMPT
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentRepository:
@@ -214,6 +218,34 @@ class ExperimentRepository:
         self.add_event(experiment, "execution_started", "running", "Generation started", commit=False)
         self.db.commit()
         self.db.refresh(experiment)
+
+    def _collect_predictor_training_samples(self, experiment: Experiment) -> None:
+        """Collect predictor rows after scientific results are durably complete.
+
+        Dataset collection is deliberately best-effort after the experiment
+        transaction commits, so a data-engineering failure cannot change an
+        otherwise successful scientific experiment into a failed run.
+        """
+        try:
+            from app.predictor.dataset_builder import DatasetBuilder
+            from app.predictor.training_sample_repository import TrainingSampleRepository
+
+            collected = DatasetBuilder(
+                TrainingSampleRepository(self.db)
+            ).collect_completed_experiment(experiment.id)
+            self.add_event(
+                experiment,
+                "training_samples_collected",
+                "completed",
+                f"Collected {collected} GEO Predictor training samples",
+                metadata={"sample_count": collected},
+            )
+        except Exception:
+            self.db.rollback()
+            logger.exception(
+                "GEO Predictor sample collection failed for experiment %s",
+                experiment.id,
+            )
 
     def get_run(self, experiment_id: int) -> Experiment | None:
         return (
@@ -619,6 +651,7 @@ class ExperimentRepository:
 
         self.db.commit()
         self.db.refresh(experiment)
+        self._collect_predictor_training_samples(experiment)
 
     def store_calibrated_subjective_metrics(
         self,
