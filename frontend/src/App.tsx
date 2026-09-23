@@ -11,6 +11,7 @@ import { GeoPredictor } from "@/pages/GeoPredictor";
 import { PublishingQueue } from "@/pages/PublishingQueue";
 import { Settings } from "@/pages/Settings";
 import { WebsiteAudit } from "@/pages/WebsiteAudit";
+import { TeacherPipelinePage } from "@/pages/TeacherPipeline";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Routes>
             <Route element={<Dashboard />} path="/" />
             <Route element={<WebsiteAudit />} path="/audit" />
+            <Route element={<TeacherPipelinePage />} path="/teacher-pipeline" />
             <Route element={<ExperimentLab />} path="/experiments" />
             <Route element={<GeoPredictor />} path="/predictor" />
             <Route element={<ContentGeneration />} path="/content" />

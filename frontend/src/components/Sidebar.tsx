@@ -8,6 +8,7 @@ import {
   PenLine,
   Send,
   Settings,
+  GraduationCap,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
@@ -19,6 +20,7 @@ import { useProperty } from "@/contexts/PropertyContext";
 const navigationItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Website Audit", href: "/audit", icon: FileSearch },
+  { label: "Teacher Pipeline", href: "/teacher-pipeline", icon: GraduationCap },
   { label: "Experiment Lab", href: "/experiments", icon: FlaskRound },
   { label: "GEO Predictor", href: "/predictor", icon: BrainCircuit },
   { label: "Social Media Track", href: "/content", icon: PenLine },

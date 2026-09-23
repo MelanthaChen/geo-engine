@@ -5,6 +5,47 @@ export type AuditSection = {
   items?: string[];
 };
 
+export type AuditFinding = {
+  label: string;
+  evidence: string;
+  feature_key: string;
+};
+
+export type WebsiteFeature = {
+  label: string;
+  value: number | string | boolean | null;
+  unit: string | null;
+  availability: "available" | "unavailable";
+  evidence: string;
+};
+
+export type OptimizationOpportunity = {
+  id: number;
+  category: string;
+  title: string;
+  direction: string;
+  priority: string;
+  evidence: string;
+  evidence_url: string | null;
+  basis: "objective_audit_finding";
+  validation_status: "not_validated";
+  predicted_gain: null;
+};
+
+export type WebsiteProfile = {
+  website_health_score: number | null;
+  content_quality_score: number | null;
+  technical_quality_score: number | null;
+  authority_score: number | null;
+  readability_score: number | null;
+  pages_crawled: number;
+  successful_pages: number;
+  total_word_count: number;
+  internal_references: number;
+  external_references: number;
+  measurement_notes: Record<string, string>;
+};
+
 export type AuditResult = {
   id: number;
   property_id: number;
@@ -22,6 +63,11 @@ export type AuditResult = {
     trust_signals: number | null;
   };
   brand_understanding: AuditSection;
+  website_profile?: WebsiteProfile;
+  strengths?: AuditFinding[];
+  weaknesses?: AuditFinding[];
+  website_features?: Record<string, WebsiteFeature>;
+  optimization_opportunities?: OptimizationOpportunity[];
   pages?: WebsitePageAudit[];
   missing_pages: string[];
   missing_geo_topics: string[];

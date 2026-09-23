@@ -1,31 +1,23 @@
 import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileSearch } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
-
 import {
   fetchLatestWebsiteAudit,
   runWebsiteAudit,
+  type AuditFinding,
   type AuditResult,
+  type OptimizationOpportunity,
+  type WebsiteFeature,
   type WebsitePageAudit,
 } from "@/api/audit";
+import { EmptyState, Page, PageHeader, SectionHeader, SummaryCard, SummaryGrid } from "@/components/layout/PageLayout";
 import { useProperty } from "@/contexts/PropertyContext";
-import {
-  EmptyState,
-  Page,
-  PageHeader,
-  SectionHeader,
-  SummaryCard,
-  SummaryGrid,
-} from "@/components/layout/PageLayout";
-
-type AuditCardProps = {
-  title: string;
-  items: string[];
-  emptyText: string;
-};
 
 export function WebsiteAudit() {
+  const navigate = useNavigate();
   const { activeProperty, activePropertyId } = useProperty();
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,29 +25,20 @@ export function WebsiteAudit() {
 
   useEffect(() => {
     let isMounted = true;
-
     async function loadLatestAudit() {
       if (!activePropertyId) {
         setAudit(null);
         return;
       }
-
       try {
         const result = await fetchLatestWebsiteAudit(activePropertyId);
-
-        if (isMounted) {
-          setAudit(result);
-        }
+        if (isMounted) setAudit(result);
       } catch (error) {
         console.error(error);
       }
     }
-
     void loadLatestAudit();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [activePropertyId]);
 
   async function handleAnalyzeWebsite() {
@@ -63,13 +46,10 @@ export function WebsiteAudit() {
       setMessage("Select a Property before running an audit.");
       return;
     }
-
     try {
       setLoading(true);
       setMessage("");
-      const result = await runWebsiteAudit(activePropertyId);
-
-      setAudit(result);
+      setAudit(await runWebsiteAudit(activePropertyId));
     } catch (error) {
       console.error(error);
       setMessage("Website audit failed.");
@@ -78,194 +58,145 @@ export function WebsiteAudit() {
     }
   }
 
+  const profile = audit?.website_profile;
+  const features = Object.entries(audit?.website_features || {});
+  const opportunities = audit?.optimization_opportunities || [];
+
+  function continueToOptimization() {
+    if (!audit) return;
+    navigate(`/predictor?website_id=${audit.property_id}&audit_id=${audit.id}`, {
+      state: {
+        audit: {
+          website_id: audit.property_id,
+          audit_id: audit.id,
+          property_name: audit.property_name,
+          website_url: audit.website_url,
+          website_features: audit.website_features || {},
+          optimization_opportunities: audit.optimization_opportunities || [],
+        },
+      },
+    });
+  }
+
   return (
     <Page>
       <PageHeader
-        eyebrow="Analysis"
+        eyebrow="Objective analysis"
         title="Website Audit"
-        description="Analyze the active Property for GEO readiness, missing topics, and future citation opportunities."
-        meta={activeProperty && (
-          <p>
-            Current Property:{" "}
-            <span className="text-zinc-100">{activeProperty.name}</span>
-            {" • "}
-            Website URL:{" "}
-            <span className="text-zinc-100">{activeProperty.domain}</span>
-          </p>
-        )}
+        description="Inspect measurable website characteristics and source evidence. Audit findings describe the current website; they are not predictions or validated optimization advice."
+        meta={activeProperty && <p>Current Property: <span className="text-zinc-100">{activeProperty.name}</span>{" • "}Website URL: <span className="text-zinc-100">{activeProperty.domain}</span></p>}
       />
 
-      <SummaryGrid>
-        <SummaryCard
-          label="GEO Score"
-          value={audit?.overall_geo_score == null ? "Not recorded" : `${audit.overall_geo_score}/100`}
-          detail="Overall audit result"
-        />
-        <SummaryCard
-          label="Pages Crawled"
-          value={String(audit?.pages?.length || 0)}
-          detail="Stored in the latest audit"
-        />
-        <SummaryCard
-          label="Missing Topics"
-          value={String(audit?.missing_geo_topics?.length || 0)}
-          detail="GEO content opportunities"
-        />
-        <SummaryCard
-          label="Last Audit"
-          value={audit?.last_audit ? new Date(audit.last_audit).toLocaleDateString() : "Not recorded"}
-          detail={audit?.last_audit ? new Date(audit.last_audit).toLocaleTimeString() : "Run an audit to establish a baseline"}
-        />
-      </SummaryGrid>
-
       <Card className="border-zinc-800 bg-zinc-950">
-        <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-zinc-50">Audit controls</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Analyze the selected property and replace the current stored audit result.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-              <span className="text-zinc-500">Property <strong className="ml-1 font-medium text-zinc-200">{activeProperty?.name || "Not selected"}</strong></span>
-              <span className="text-zinc-500">Website <strong className="ml-1 font-medium text-zinc-200">{activeProperty?.domain || "Not selected"}</strong></span>
+        <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-zinc-300"><FileSearch className="h-5 w-5" /></div>
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-50">Analyze current website</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Crawl the selected property and record observable structure, content, links, and coverage. Running an audit creates a new stored result.</p>
+              <p className="mt-2 text-xs text-zinc-600">No predicted gains, PAWC estimates, or visibility estimates are produced.</p>
             </div>
           </div>
-
-          <Button
-            disabled={!activePropertyId || loading}
-            onClick={handleAnalyzeWebsite}
-          >
-            {loading ? "Analyzing..." : "Analyze Website"}
-          </Button>
+          <Button disabled={!activePropertyId || loading} onClick={handleAnalyzeWebsite}>{loading ? "Analyzing…" : "Analyze Website"}</Button>
         </CardContent>
       </Card>
 
-      {message && (
-        <div className="rounded-lg border border-amber-800 bg-amber-950/50 px-5 py-4 text-sm text-amber-200">
-          {message}
-        </div>
-      )}
+      {message && <div className="rounded-lg border border-amber-800 bg-amber-950/50 px-5 py-4 text-sm text-amber-200">{message}</div>}
+
+      {audit?.status === "completed" && <Card className="border-blue-900 bg-blue-950/20">
+        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 className="text-lg font-semibold text-zinc-50">Audit complete</h2><p className="mt-1 text-sm text-zinc-400">Website #{audit.property_id}, audit #{audit.id}, {features.length} features, and {opportunities.length} opportunities are ready for the optimization step.</p></div>
+          <Button onClick={continueToOptimization}>Continue to Optimization</Button>
+        </CardContent>
+      </Card>}
 
       <section>
-        <SectionHeader
-          title="Audit findings"
-          description="Score components, content gaps, and structural recommendations from the latest stored audit."
-        />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <AuditCard
-          title="Score Components"
-          items={formatSubscores(audit)}
-          emptyText="No component scores yet."
-        />
+        <SectionHeader title="Website Overview" description="High-level scores already produced by the current audit methodology. Unmeasured dimensions remain explicitly unavailable." />
+        <SummaryGrid className="xl:grid-cols-5">
+          <SummaryCard label="Website Health" value={formatScore(profile?.website_health_score ?? audit?.overall_geo_score)} detail="Existing overall audit score" />
+          <SummaryCard label="Content Quality" value={formatScore(profile?.content_quality_score ?? audit?.subscores?.content_coverage)} detail="Existing content coverage score" />
+          <SummaryCard label="Technical Quality" value={formatScore(profile?.technical_quality_score ?? audit?.subscores?.website_structure)} detail="Existing structure score" />
+          <SummaryCard label="Authority" value={formatScore(profile?.authority_score ?? audit?.subscores?.trust_signals)} detail="Existing trust signals score" />
+          <SummaryCard label="Readability" value={formatScore(profile?.readability_score)} detail="Not measured by this audit" />
+        </SummaryGrid>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <EvidenceMetric label="Pages crawled" value={profile?.pages_crawled ?? audit?.pages?.length ?? 0} />
+          <EvidenceMetric label="Successful pages" value={profile?.successful_pages ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label="Total words" value={profile?.total_word_count ?? totalWords(audit)} />
+          <EvidenceMetric label="Last analyzed" value={audit?.last_audit ? new Date(audit.last_audit).toLocaleString() : "Not recorded"} />
+        </div>
+      </section>
 
-        <AuditCard
-          title="Brand Understanding"
-          items={audit?.brand_understanding.items || []}
-          emptyText="No brand understanding audit yet."
-        />
-        <AuditCard
-          title="Missing Pages"
-          items={audit?.missing_pages || []}
-          emptyText="No missing pages detected yet."
-        />
-        <AuditCard
-          title="Missing GEO Topics"
-          items={audit?.missing_geo_topics || []}
-          emptyText="No missing GEO topics detected yet."
-        />
-        <AuditCard
-          title="Internal Linking Suggestions"
-          items={audit?.internal_linking_suggestions || []}
-          emptyText="No internal linking suggestions yet."
-        />
-        <AuditCard
-          title="FAQ Opportunities"
-          items={audit?.faq_opportunities || []}
-          emptyText="No FAQ opportunities yet."
-        />
-        <AuditCard
-          title="Content Recommendations"
-          items={audit?.content_recommendations || []}
-          emptyText="No content recommendations yet."
-        />
-      </div>
+      <section className="grid gap-4 xl:grid-cols-2">
+        <FindingPanel title="Strengths" description="Positive characteristics directly supported by crawled evidence." findings={audit?.strengths || []} tone="positive" emptyText="No objective strengths are available yet." />
+        <FindingPanel title="Weaknesses" description="Observed gaps or missing evidence; no impact is implied." findings={audit?.weaknesses || []} tone="negative" emptyText="No objective weaknesses are available yet." />
       </section>
 
       <section>
-        <SectionHeader
-          title="Crawled pages"
-          description="Page-level evidence retained by the latest website audit."
-        />
-        <Card className="border-zinc-800 bg-zinc-950">
-          <CardContent className="p-6">
-          <div className="mt-4 space-y-2">
-            {(audit?.pages || []).map((page) => (
-              <PageAuditRow key={page.id} page={page} />
-            ))}
-            {(!audit?.pages || audit.pages.length === 0) && (
-              <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>
-            )}
-          </div>
-          </CardContent>
-        </Card>
+        <SectionHeader title="Website Features" description="Structured characteristics suitable for downstream analysis. Values come from existing audit measurements; unsupported features are marked unavailable." />
+        {features.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{features.map(([key, feature]) => <FeatureCard key={key} feature={feature} />)}</div>
+        ) : <EmptyState>Run a new audit to populate the structured website feature profile.</EmptyState>}
+      </section>
+
+      <section>
+        <SectionHeader title="Optimization Opportunities" description="Candidate directions derived from audit findings. These opportunities are not validated improvements and contain no predicted gain." />
+        <div className="space-y-3">
+          {opportunities.map((opportunity) => <OpportunityRow key={opportunity.id} opportunity={opportunity} />)}
+          {!opportunities.length && <EmptyState>No candidate optimization directions are available for this audit.</EmptyState>}
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader title="Crawled Page Evidence" description="Page-level observations retained by the latest audit." />
+        <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6"><div className="space-y-2">
+          {(audit?.pages || []).map((page) => <PageAuditRow key={page.id} page={page} />)}
+          {(!audit?.pages || !audit.pages.length) && <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>}
+        </div></CardContent></Card>
       </section>
     </Page>
   );
 }
 
-function AuditCard({ title, items, emptyText }: AuditCardProps) {
-  return (
-    <Card className="border-zinc-800 bg-zinc-950">
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold text-zinc-50">{title}</h2>
-        <div className="mt-4 space-y-2">
-          {items.map((item) => (
-            <div
-              key={item}
-              className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-300"
-            >
-              {item}
-            </div>
-          ))}
-          {items.length === 0 && (
-            <EmptyState className="min-h-24">{emptyText}</EmptyState>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+function FindingPanel({ title, description, findings, tone, emptyText }: { title: string; description: string; findings: AuditFinding[]; tone: "positive" | "negative"; emptyText: string }) {
+  const Icon = tone === "positive" ? CheckCircle2 : AlertCircle;
+  return <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
+    <h2 className="text-lg font-semibold text-zinc-50">{title}</h2><p className="mt-1 text-sm leading-6 text-zinc-500">{description}</p>
+    <div className="mt-5 space-y-3">{findings.map((finding) => <div key={`${finding.feature_key}-${finding.label}`} className="flex gap-3 rounded-lg border border-zinc-800 bg-black p-4">
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone === "positive" ? "text-emerald-400" : "text-amber-400"}`} />
+      <div><p className="text-sm font-medium text-zinc-100">{finding.label}</p><p className="mt-1 text-xs leading-5 text-zinc-500">{finding.evidence}</p></div>
+    </div>)}{!findings.length && <EmptyState className="min-h-24">{emptyText}</EmptyState>}</div>
+  </CardContent></Card>;
 }
 
-function PageAuditRow({ page }: { page: WebsitePageAudit }) {
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-black p-4">
-      <p className="truncate text-sm font-medium text-zinc-100">{page.url}</p>
-      <p className="mt-1 text-sm text-zinc-400">
-        {page.page_title || page.h1 || "Untitled page"}
-      </p>
-      <p className="mt-2 text-xs text-zinc-500">
-        Status: {page.status_code || "N/A"} • Words: {page.word_count} •
-        Internal links: {page.internal_link_count}
-      </p>
+function FeatureCard({ feature }: { feature: WebsiteFeature }) {
+  const available = feature.availability === "available";
+  return <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-5">
+    <div className="flex items-start justify-between gap-3"><p className="text-sm font-medium text-zinc-200">{feature.label}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${available ? "border-emerald-900 bg-emerald-950/50 text-emerald-400" : "border-zinc-800 bg-zinc-900 text-zinc-500"}`}>{feature.availability}</span></div>
+    <p className={`mt-4 text-2xl font-semibold ${available ? "text-zinc-50" : "text-zinc-600"}`}>{available ? `${feature.value ?? "No data"}${feature.unit === "score" && typeof feature.value === "number" ? "/100" : ""}` : "Unavailable"}</p>
+    {available && feature.unit && feature.unit !== "score" && <p className="mt-1 text-xs text-zinc-500">{feature.unit}</p>}
+    <p className="mt-3 text-xs leading-5 text-zinc-500">{feature.evidence}</p>
+  </CardContent></Card>;
+}
+
+function OpportunityRow({ opportunity }: { opportunity: OptimizationOpportunity }) {
+  return <details className="group rounded-xl border border-zinc-800 bg-zinc-950 open:border-zinc-700">
+    <summary className="flex cursor-pointer list-none items-center gap-4 p-5 [&::-webkit-details-marker]:hidden">
+      <div className="rounded-lg border border-zinc-800 bg-black p-2 text-zinc-400"><CircleDashed className="h-4 w-4" /></div>
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-zinc-100">{opportunity.title}</h3><Tag>{formatCategory(opportunity.category)}</Tag><Tag>Not validated</Tag></div><p className="mt-1 truncate text-sm text-zinc-500">{opportunity.direction}</p></div>
+      <ChevronDown className="h-4 w-4 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="border-t border-zinc-800 px-5 py-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Evidence</p><p className="mt-2 text-sm leading-6 text-zinc-300">{opportunity.evidence}</p>
+      {opportunity.evidence_url && <a className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300" href={opportunity.evidence_url} target="_blank" rel="noreferrer">View observed page <ExternalLink className="h-3 w-3" /></a>}
+      <div className="mt-4 rounded-lg border border-zinc-800 bg-black/60 px-4 py-3 text-xs leading-5 text-zinc-500">Generated from objective audit findings, not from a prediction model. No impact or visibility gain has been estimated.</div>
     </div>
-  );
+  </details>;
 }
 
-function formatSubscores(audit: AuditResult | null) {
-  if (!audit?.subscores) {
-    return [];
-  }
-
-  return [
-    `Content Coverage: ${formatScore(audit.subscores.content_coverage)}`,
-    `FAQ Coverage: ${formatScore(audit.subscores.faq_coverage)}`,
-    `Internal Linking: ${formatScore(audit.subscores.internal_linking)}`,
-    `Website Structure: ${formatScore(audit.subscores.website_structure)}`,
-    `Brand Clarity: ${formatScore(audit.subscores.brand_clarity)}`,
-    `Trust Signals: ${formatScore(audit.subscores.trust_signals)}`,
-  ];
-}
-
-function formatScore(score?: number | null) {
-  return score === null || score === undefined ? "No data" : `${score}/100`;
-}
+function Tag({ children }: { children: string }) { return <span className="rounded-full border border-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">{children}</span>; }
+function EvidenceMetric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 truncate text-sm font-medium text-zinc-200">{value}</p></div>; }
+function PageAuditRow({ page }: { page: WebsitePageAudit }) { return <div className="rounded-lg border border-zinc-800 bg-black p-4"><div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 truncate text-sm font-medium text-zinc-100">{page.url}</p><span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">HTTP {page.status_code || "N/A"}</span></div><p className="mt-1 text-sm text-zinc-400">{page.page_title || page.h1 || "Untitled page"}</p><p className="mt-3 text-xs text-zinc-500">{page.word_count} words • {page.internal_link_count} internal references • {page.external_link_count} external references • {page.h1 ? "H1 detected" : "No H1 detected"}</p></div>; }
+function formatScore(score?: number | null) { return score === null || score === undefined ? "Unavailable" : `${score}/100`; }
+function formatCategory(category: string) { return category.replaceAll("_", " "); }
+function countSuccessfulPages(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200).length; }
+function totalWords(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200).reduce((sum, page) => sum + page.word_count, 0); }

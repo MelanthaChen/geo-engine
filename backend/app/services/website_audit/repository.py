@@ -81,12 +81,12 @@ def create_audit_record(
         website_audit_id=audit.id,
         status="finished",
         summary=(
-            f"Website audit completed with GEO score "
+            f"Website audit completed with health score "
             f"{scores.overall_geo_score}"
         ),
         details=(
-            f"Crawled {len(pages)} pages and created "
-            f"{len(recommendations)} recommendations."
+            f"Crawled {len(pages)} pages and identified "
+            f"{len(recommendations)} candidate opportunities."
         ),
     )
 

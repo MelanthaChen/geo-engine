@@ -4,6 +4,7 @@ import type {
   ExperimentCampaignRun,
   ExperimentRun,
   OfficialReplicationRun,
+  StrategyId,
 } from "@/types/experimentLab";
 
 function experimentPayload(configuration: ExperimentConfigurationValues) {
@@ -65,6 +66,37 @@ export async function getExperimentLabRun(experimentId: number) {
     `/api/v1/experiment-lab/runs/${experimentId}`,
   );
 
+  return response.data;
+}
+
+export async function startAuditValidation(values: {
+  websiteId: number;
+  auditId: number;
+  propertyName: string;
+  websiteUrl: string;
+  opportunityTitle: string;
+  opportunityDirection: string;
+  strategy: StrategyId;
+}) {
+  const query = `What information does ${values.propertyName} provide about ${values.opportunityTitle}?`;
+  const response = await apiClient.post<ExperimentRun>(
+    "/api/v1/experiment-lab/run",
+    {
+      property_id: values.websiteId,
+      experiment_name: `Audit #${values.auditId} teacher validation`,
+      description: `${values.opportunityDirection} Source website: ${values.websiteUrl}`,
+      provider: "chatgpt",
+      llm: "gpt-3.5-turbo",
+      dataset: "custom",
+      queries: [query],
+      dataset_documents: null,
+      strategies: ["original", values.strategy],
+      number_of_queries: 1,
+      random_seed: 42,
+      temperature: 0.7,
+      evaluation_metrics: ["pawc", "citation_count", "visibility_score"],
+    },
+  );
   return response.data;
 }
 

@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 
 from app.models.experiment import Experiment, ExperimentRun
 from app.models.training_sample import TrainingSample
@@ -79,10 +79,10 @@ class DatasetBuilder:
         experiment = (
             self.db.query(Experiment)
             .options(
-                joinedload(Experiment.queries),
-                joinedload(Experiment.prompt_version),
-                joinedload(Experiment.runs).joinedload(ExperimentRun.strategy_result),
-                joinedload(Experiment.runs).joinedload(ExperimentRun.metrics),
+                selectinload(Experiment.queries),
+                selectinload(Experiment.prompt_version),
+                selectinload(Experiment.runs).selectinload(ExperimentRun.strategy_result),
+                selectinload(Experiment.runs).selectinload(ExperimentRun.metrics),
             )
             .filter(Experiment.id == experiment_id)
             .first()

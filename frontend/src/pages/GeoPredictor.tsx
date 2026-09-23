@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
   CircleDashed,
@@ -21,6 +22,9 @@ import {
   type PredictorDataset,
   type PredictorStatus,
 } from "@/api/predictor";
+import { fetchLatestWebsiteAudit, type AuditResult, type OptimizationOpportunity } from "@/api/audit";
+import { getExperimentLabRun, startAuditValidation } from "@/api/experimentLab";
+import type { ExperimentRun, StrategyId } from "@/types/experimentLab";
 import {
   EmptyState,
   Page,
@@ -58,6 +62,9 @@ const initialTrainingConfiguration = {
 };
 
 export function GeoPredictor() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState<PredictorStatus | null>(null);
   const [dataset, setDataset] = useState<PredictorDataset | null>(null);
   const [configuration, setConfiguration] = useState(initialTrainingConfiguration);
@@ -71,6 +78,15 @@ export function GeoPredictor() {
     original_document: "",
     modified_document: "",
   });
+  const [audit, setAudit] = useState<AuditResult | null>(null);
+  const [auditError, setAuditError] = useState("");
+  const [validation, setValidation] = useState<ExperimentRun | null>(null);
+  const [validationError, setValidationError] = useState("");
+  const [startingValidation, setStartingValidation] = useState(false);
+
+  const websiteId = Number(searchParams.get("website_id") || 0);
+  const requestedAuditId = Number(searchParams.get("audit_id") || 0);
+  const experimentId = Number(searchParams.get("experiment_id") || 0);
 
   useEffect(() => {
     let mounted = true;
@@ -97,6 +113,93 @@ export function GeoPredictor() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const stateAudit = (location.state as { audit?: {
+      website_id: number;
+      audit_id: number;
+    } } | null)?.audit;
+    const propertyId = stateAudit?.website_id || websiteId;
+    if (!propertyId) return;
+    let mounted = true;
+    fetchLatestWebsiteAudit(propertyId)
+      .then((result) => {
+        if (!mounted || !result) return;
+        if (requestedAuditId && result.id !== requestedAuditId) {
+          setAuditError(`Audit #${requestedAuditId} is no longer the latest audit for this website.`);
+          return;
+        }
+        setAudit(result);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (mounted) setAuditError("The audit context could not be loaded.");
+      });
+    return () => { mounted = false; };
+  }, [location.state, requestedAuditId, websiteId]);
+
+  useEffect(() => {
+    if (!experimentId) return;
+    let mounted = true;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const result = await getExperimentLabRun(experimentId);
+        if (!mounted) return;
+        setValidation(result);
+        if (result.status === "queued" || result.status === "running") {
+          timer = window.setTimeout(poll, 2000);
+        }
+      } catch (error) {
+        console.error(error);
+        if (mounted) setValidationError("Teacher Validation status could not be loaded.");
+      }
+    };
+    void poll();
+    return () => { mounted = false; if (timer) window.clearTimeout(timer); };
+  }, [experimentId]);
+
+  useEffect(() => {
+    if (validation?.status !== "completed" || !experimentId) return;
+    const timer = window.setTimeout(
+      () => navigate(`/teacher-pipeline?experiment_id=${experimentId}`),
+      1500,
+    );
+    return () => window.clearTimeout(timer);
+  }, [experimentId, navigate, validation?.status]);
+
+  async function handleValidateAudit() {
+    if (!audit) return;
+    const opportunity = audit.optimization_opportunities?.[0];
+    if (!opportunity) {
+      setValidationError("This audit has no optimization opportunity to validate.");
+      return;
+    }
+    try {
+      setStartingValidation(true);
+      setValidationError("");
+      const result = await startAuditValidation({
+        websiteId: audit.property_id,
+        auditId: audit.id,
+        propertyName: audit.property_name,
+        websiteUrl: audit.website_url,
+        opportunityTitle: opportunity.title,
+        opportunityDirection: opportunity.direction,
+        strategy: strategyForOpportunity(opportunity),
+      });
+      setValidation(result);
+      const next = new URLSearchParams(searchParams);
+      next.set("website_id", String(audit.property_id));
+      next.set("audit_id", String(audit.id));
+      if (result.id) next.set("experiment_id", String(result.id));
+      setSearchParams(next, { replace: true });
+    } catch (error) {
+      console.error(error);
+      setValidationError("Teacher Validation could not be started.");
+    } finally {
+      setStartingValidation(false);
+    }
+  }
 
   async function handleTrain() {
     try {
@@ -131,6 +234,39 @@ export function GeoPredictor() {
         title="GEO Predictor"
         description="Prepare experiment-derived datasets and configuration for a future GEO prediction system. No training or prediction model is active yet."
       />
+
+      {(websiteId > 0 || audit) && <section>
+        <SectionHeader title="Optimization Context" description="Audit evidence was passed automatically. Predictor remains a transparent placeholder; Validate launches the existing Princeton baseline/treatment experiment." />
+        <Card className="border-blue-900 bg-blue-950/20"><CardContent className="p-6">
+          {audit ? <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <InfoRow label="Website" value={`#${audit.property_id} ${audit.property_name}`} />
+              <InfoRow label="Audit" value={`#${audit.id}`} />
+              <InfoRow label="Features received" value={String(Object.keys(audit.website_features || {}).length)} />
+              <InfoRow label="Opportunities received" value={String(audit.optimization_opportunities?.length || 0)} />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <FieldList title="Website features" fields={Object.values(audit.website_features || {}).map((feature) => feature.label)} />
+              <FieldList title="Optimization opportunities" fields={(audit.optimization_opportunities || []).map((opportunity) => opportunity.title)} />
+            </div>
+            {!experimentId && <div className="flex justify-end"><Button onClick={handleValidateAudit} disabled={startingValidation || !audit.optimization_opportunities?.length}><FlaskConical />{startingValidation ? "Starting…" : "Validate"}</Button></div>}
+          </div> : <p className="text-sm text-zinc-400">Loading audit #{requestedAuditId || ""}…</p>}
+          {auditError && <p className="mt-4 text-sm text-red-300">{auditError}</p>}
+        </CardContent></Card>
+      </section>}
+
+      {experimentId > 0 && <section>
+        <SectionHeader title="Teacher Validation" description="The existing Princeton experiment is running in the background. No Experiment Lab interaction or worker command is required." />
+        <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Experiment #{experimentId}</p><p className={`mt-2 text-xl font-semibold ${validation?.status === "completed" ? "text-emerald-300" : validation?.status === "failed" ? "text-red-300" : "text-blue-300"}`}>{validation ? validation.status[0].toUpperCase() + validation.status.slice(1) : "Loading"}</p><p className="mt-2 text-sm text-zinc-500">{validation?.currentStrategy ? `${validation.currentStrategy} • sample ${validation.currentSample}/${validation.totalSamples}` : "Waiting for progress"}</p></div>
+            {validation?.status === "completed" && <Button onClick={() => navigate(`/teacher-pipeline?experiment_id=${experimentId}`)}>View Training Dataset</Button>}
+          </div>
+          {(validation?.status === "queued" || validation?.status === "running") && <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-900"><div className="h-full bg-blue-500 transition-all" style={{ width: `${validationProgress(validation)}%` }} /></div>}
+          {validation?.status === "failed" && <p className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{validation.errorMessage || "The Princeton experiment failed."}</p>}
+          {validationError && <p className="mt-4 text-sm text-red-300">{validationError}</p>}
+        </CardContent></Card>
+      </section>}
 
       <SummaryGrid>
         <SummaryCard
@@ -449,6 +585,23 @@ function sumValues(values?: Record<string, number>) {
 function formatSampleTime(value?: string | null) {
   if (!value) return "No samples";
   return new Date(value).toLocaleDateString();
+}
+
+function strategyForOpportunity(opportunity: OptimizationOpportunity): StrategyId {
+  const strategies: Record<string, StrategyId> = {
+    faq_opportunities: "easy_to_understand",
+    internal_linking_suggestions: "citation",
+    missing_geo_topics: "authoritative",
+    missing_pages: "fluency",
+    content_recommendations: "authoritative",
+  };
+  return strategies[opportunity.category] || "fluency";
+}
+
+function validationProgress(run: ExperimentRun) {
+  if (run.status === "completed") return 100;
+  if (!run.totalSamples) return run.status === "running" ? 10 : 2;
+  return Math.max(2, Math.min(95, (run.currentSample / run.totalSamples) * 100));
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

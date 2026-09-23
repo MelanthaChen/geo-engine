@@ -247,6 +247,35 @@ class ExperimentRepository:
                 experiment.id,
             )
 
+    def _collect_teacher_training_samples(self, experiment: Experiment) -> None:
+        """Build immutable teacher samples after experiment completion.
+
+        Like Predictor dataset collection, this runs only after the experiment
+        transaction commits and remains best-effort so dataset processing cannot
+        change the scientific result of an otherwise completed experiment.
+        """
+        try:
+            from app.teacher_pipeline.teacher_pipeline import TeacherPipeline
+
+            result = TeacherPipeline(self.db).process_completed_experiments()
+            self.add_event(
+                experiment,
+                "teacher_samples_collected",
+                "completed",
+                f"Collected {result['generated_samples']} Teacher Pipeline samples",
+                metadata={
+                    "sample_count": result["generated_samples"],
+                    "dataset_version": result["dataset_version"],
+                    "skipped_count": len(result["skipped"]),
+                },
+            )
+        except Exception:
+            self.db.rollback()
+            logger.exception(
+                "Teacher Pipeline sample collection failed for experiment %s",
+                experiment.id,
+            )
+
     def get_run(self, experiment_id: int) -> Experiment | None:
         return (
             self.db.query(Experiment)
@@ -652,6 +681,7 @@ class ExperimentRepository:
         self.db.commit()
         self.db.refresh(experiment)
         self._collect_predictor_training_samples(experiment)
+        self._collect_teacher_training_samples(experiment)
 
     def store_calibrated_subjective_metrics(
         self,

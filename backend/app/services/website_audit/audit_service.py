@@ -11,6 +11,12 @@ from app.services.website_audit.repository import (
     get_latest_audit,
 )
 from app.services.website_audit.scoring import score_website
+from app.services.website_audit.profile import (
+    build_findings,
+    build_optimization_opportunities,
+    build_website_features,
+    build_website_profile,
+)
 
 
 def run_website_audit(
@@ -52,6 +58,10 @@ def latest_website_audit(
 
 
 def serialize_audit(audit: WebsiteAudit, property_record: Property):
+    strengths, weaknesses = build_findings(audit)
+    website_profile = build_website_profile(audit)
+    website_profile.pop("_evidence", None)
+
     return {
         "id": audit.id,
         "property_id": property_record.id,
@@ -82,6 +92,11 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
                 f"Value proposition: {audit.core_value_proposition}",
             ],
         },
+        "website_profile": website_profile,
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+        "website_features": build_website_features(audit),
+        "optimization_opportunities": build_optimization_opportunities(audit),
         "pages": [
             {
                 "id": page.id,

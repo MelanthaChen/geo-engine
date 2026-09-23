@@ -68,9 +68,8 @@ def detect_missing_pages(search_text: str) -> list[AuditRecommendation]:
                 category=category,
                 title=f"Create a {title.lower()} page",
                 description=(
-                    f"The crawl did not find clear {title.lower()} coverage. "
-                    "AI answer systems often rely on dedicated pages for "
-                    "entity understanding and comparison-style retrieval."
+                    f"The crawl did not find clear {title.lower()} coverage "
+                    "in the detected URLs or page text."
                 ),
                 priority="high" if title in {"FAQ", "Comparison pages"} else "medium",
             )
@@ -94,9 +93,8 @@ def detect_missing_geo_topics(
                 category=category,
                 title=title,
                 description=(
-                    f"Add content about {title.lower()} for {category_hint}. "
-                    "This improves information gain for AI systems answering "
-                    "category-level questions."
+                    f"The crawl did not detect {title.lower()} coverage for "
+                    f"the configured category: {category_hint}."
                 ),
                 priority="medium",
             )
@@ -124,9 +122,8 @@ def build_internal_linking_suggestions(
                 category="internal_linking_suggestions",
                 title="Add contextual internal links",
                 description=(
-                    "This page has useful text but few internal links. Add "
-                    "links to related FAQs, comparison pages, pricing, or "
-                    "examples so crawlers can connect the topic graph."
+                    f"This page contains {page.word_count} words and "
+                    f"{page.internal_link_count} detected internal links."
                 ),
                 priority="medium",
                 evidence_url=page.url,
@@ -139,9 +136,7 @@ def build_internal_linking_suggestions(
                 category="internal_linking_suggestions",
                 title="Strengthen the site's internal topic graph",
                 description=(
-                    "The crawl found limited internal linking. Link core "
-                    "landing pages to FAQ, examples, guides, and comparison "
-                    "content using descriptive anchor text."
+                    "The existing internal linking score is below 55/100."
                 ),
                 priority="high",
             )
@@ -162,8 +157,8 @@ def build_faq_opportunities(search_text: str) -> list[AuditRecommendation]:
                 category="faq_opportunities",
                 title=question,
                 description=(
-                    "Add a concise answer backed by website-specific evidence. "
-                    "This creates extractable information for AI answer engines."
+                    "The crawl did not detect the associated question terms "
+                    "in the analyzed page text."
                 ),
                 priority="medium",
             )
@@ -179,25 +174,25 @@ def build_content_recommendations(
     base_recommendations = [
         (
             "Comparison page",
-            f"Create a comparison page for common {category_hint} alternatives.",
+            f"No comparison or alternative coverage was detected for {category_hint}.",
             ["compare", "alternative"],
             "high",
         ),
         (
             "Buying guide",
-            f"Create a practical buying guide for evaluating {category_hint}.",
+            f"No buying-guide or how-to-choose coverage was detected for {category_hint}.",
             ["buying guide", "how to choose"],
             "medium",
         ),
         (
             "Educational article",
-            f"Create an educational article explaining common {category_hint} workflows.",
+            f"No guide or workflow coverage was detected for {category_hint}.",
             ["guide", "workflow"],
             "medium",
         ),
         (
             "Evidence page",
-            "Create a page with examples, screenshots, methodology, or proof points.",
+            "No example, case study, or testimonial coverage was detected.",
             ["example", "case study", "testimonial"],
             "medium",
         ),

@@ -31,6 +31,11 @@ from app.models.website_page import WebsitePage
 from app.models.website_audit_recommendation import WebsiteAuditRecommendation
 from app.models.retrieval_task import RetrievalTask
 from app.models.training_sample import TrainingSample
+from app.teacher_pipeline.models import (
+    TeacherDatasetMember,
+    TeacherDatasetVersion,
+    TeacherTrainingSample,
+)
 from app.models.benchmark import (
     Benchmark,
     BenchmarkDataset,
