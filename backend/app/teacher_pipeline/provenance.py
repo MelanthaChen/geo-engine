@@ -13,7 +13,7 @@ def provenance_hash(value: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
-def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, selected_document) -> dict[str, Any]:
+def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, selected_document, aggregate_metrics) -> dict[str, Any]:
     return {
         "schema_version": "teacher-provenance-v1",
         "website_id": experiment.property_id,
@@ -36,13 +36,34 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
             "text": query.query,
             "seed_value": query.seed_value,
             "selected_document_rank": query.selected_document_rank,
+            "query_policy_version": query.query_policy_version,
+            "source_audit_id": query.source_audit_id,
+            "supporting_audit_evidence": json.loads(query.supporting_evidence_json or "{}"),
+            "retrieval_provider": query.retrieval_provider,
+            "retrieval_timestamp": query.retrieval_timestamp.isoformat() if query.retrieval_timestamp else None,
         },
         "selected_document": {
             "url": selected_document.url,
             "title": selected_document.title,
             "rank": selected_document.rank,
             "content_sha256": hashlib.sha256(selected_document.plain_text.encode("utf-8")).hexdigest(),
+            "source_role": selected_document.source_role,
         },
+        "source_set": [
+            {
+                "rank": document.rank,
+                "url": document.url,
+                "title": document.title,
+                "source_role": document.source_role,
+                "is_target": document.is_selected,
+                "retrieval_provider": document.retrieval_provider,
+                "retrieval_timestamp": document.retrieval_timestamp.isoformat() if document.retrieval_timestamp else None,
+                "content_sha256": document.content_sha256 or hashlib.sha256(document.plain_text.encode("utf-8")).hexdigest(),
+                "snapshot_text": document.plain_text,
+            }
+            for document in sorted(query.documents, key=lambda item: item.rank)
+        ],
+        "aggregate_metrics": aggregate_metrics,
         "baseline_run": run_provenance(baseline_run),
         "optimized_run": run_provenance(optimized_run),
     }

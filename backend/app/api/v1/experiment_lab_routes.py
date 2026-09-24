@@ -12,6 +12,11 @@ from app.core.database import SessionLocal
 from app.experiment.campaign_service import ExperimentCampaignService
 from app.experiment.experiment_service import ExperimentService
 from app.experiment.official_replication_service import OfficialReplicationService
+from app.experiment.new_website_validation import (
+    NewWebsiteValidationBuilder,
+    NewWebsiteValidationError,
+)
+from app.ge.google_search_provider import GoogleRetrievalError
 from app.storage.experiment_repository import ExperimentRepository
 
 
@@ -49,6 +54,17 @@ class OfficialReplicationRequest(BaseModel):
     stage: str = Field(pattern="^(stage1|stage2|stage3|full)$")
     subjective: bool = False
     experiment_name: str | None = Field(default=None, max_length=255)
+
+
+class NewWebsiteTeacherValidationRequest(BaseModel):
+    property_id: int
+    audit_id: int
+    opportunity_id: int
+    strategy: str
+    provider: str = "chatgpt"
+    llm: str = "gpt-3.5-turbo"
+    random_seed: int = 42
+    temperature: float = Field(default=0.7, ge=0, le=2)
 
 
 @router.post("/official-replications")
@@ -132,6 +148,52 @@ def run_experiment(
     )
     background_tasks.add_task(execute_experiment_background, experiment.id)
 
+    return repository.serialize(experiment)
+
+
+@router.post("/teacher-validation")
+def start_new_website_teacher_validation(
+    request: NewWebsiteTeacherValidationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Create a frozen target-plus-four-reference controlled experiment."""
+    try:
+        frozen = NewWebsiteValidationBuilder(db).build(
+            property_id=request.property_id,
+            audit_id=request.audit_id,
+            opportunity_id=request.opportunity_id,
+        )
+    except GoogleRetrievalError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except NewWebsiteValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    dataset_documents = [
+        {"query": frozen["query"], **document}
+        for document in frozen["documents"]
+    ]
+    repository = ExperimentRepository(db)
+    service = ExperimentService(repository=repository)
+    experiment = service.create_experiment(
+        property_id=request.property_id,
+        name=f"Audit #{request.audit_id} Princeton-style website validation",
+        description=(
+            "Controlled new-website extension: audited target at source rank 1 "
+            "plus four frozen external references."
+        ),
+        provider=request.provider,
+        llm_model=request.llm,
+        dataset_name="new_website_teacher_validation",
+        queries=[frozen["query"]],
+        dataset_documents=dataset_documents,
+        strategies=["original", request.strategy],
+        metrics=["pawc", "citation_count", "visibility_score"],
+        number_of_queries=1,
+        random_seed=request.random_seed,
+        temperature=request.temperature,
+    )
+    background_tasks.add_task(execute_experiment_background, experiment.id)
     return repository.serialize(experiment)
 
 

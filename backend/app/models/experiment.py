@@ -246,6 +246,12 @@ class ExperimentQuery(Base):
 
     selected_document_rank = Column(Integer, nullable=True)
 
+    query_policy_version = Column(String(100), nullable=True)
+    source_audit_id = Column(Integer, ForeignKey("website_audits.id", ondelete="SET NULL"), nullable=True)
+    supporting_evidence_json = Column(Text, nullable=True)
+    retrieval_provider = Column(String(100), nullable=True)
+    retrieval_timestamp = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -286,6 +292,11 @@ class ExperimentDocument(Base):
     plain_text = Column(Text, nullable=False)
 
     is_selected = Column(Boolean, default=False, nullable=False)
+
+    source_role = Column(String(30), nullable=True)
+    retrieval_provider = Column(String(100), nullable=True)
+    retrieval_timestamp = Column(DateTime(timezone=True), nullable=True)
+    content_sha256 = Column(String(64), nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),

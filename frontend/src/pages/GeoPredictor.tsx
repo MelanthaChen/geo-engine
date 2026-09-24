@@ -185,6 +185,7 @@ export function GeoPredictor() {
         websiteUrl: audit.website_url,
         opportunityTitle: opportunity.title,
         opportunityDirection: opportunity.direction,
+        opportunityId: opportunity.id,
         strategy: strategyForOpportunity(opportunity),
       });
       setValidation(result);
@@ -195,7 +196,9 @@ export function GeoPredictor() {
       setSearchParams(next, { replace: true });
     } catch (error) {
       console.error(error);
-      setValidationError("Teacher Validation could not be started.");
+      const detail = (error as { response?: { data?: { detail?: string } } })
+        .response?.data?.detail;
+      setValidationError(detail || "Teacher Validation could not be started.");
     } finally {
       setStartingValidation(false);
     }
@@ -236,7 +239,7 @@ export function GeoPredictor() {
       />
 
       {(websiteId > 0 || audit) && <section>
-        <SectionHeader title="Optimization Context" description="Audit evidence was passed automatically. Predictor remains a transparent placeholder; Validate launches the existing Princeton baseline/treatment experiment." />
+        <SectionHeader title="Optimization Context" description="Audit evidence was passed automatically. Validate launches a Princeton-style new-website controlled experiment." />
         <Card className="border-blue-900 bg-blue-950/20"><CardContent className="p-6">
           {audit ? <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -252,6 +255,7 @@ export function GeoPredictor() {
             {!experimentId && <div className="flex justify-end"><Button onClick={handleValidateAudit} disabled={startingValidation || !audit.optimization_opportunities?.length}><FlaskConical />{startingValidation ? "Starting…" : "Validate"}</Button></div>}
           </div> : <p className="text-sm text-zinc-400">Loading audit #{requestedAuditId || ""}…</p>}
           {auditError && <p className="mt-4 text-sm text-red-300">{auditError}</p>}
+          {!experimentId && validationError && <p className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{validationError}</p>}
         </CardContent></Card>
       </section>}
 

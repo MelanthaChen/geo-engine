@@ -329,6 +329,11 @@ class ExperimentRepository:
             query=query,
             seed_value=seed_value,
             selected_document_rank=selected_document_rank,
+            query_policy_version=next((d.query_policy_version for d in documents if d.query_policy_version), None),
+            source_audit_id=next((d.source_audit_id for d in documents if d.source_audit_id), None),
+            supporting_evidence_json=json.dumps(next((d.supporting_evidence for d in documents if d.supporting_evidence), {})),
+            retrieval_provider=next((d.retrieval_provider for d in documents if d.retrieval_provider), None),
+            retrieval_timestamp=next((d.retrieved_at for d in documents if d.retrieved_at), None),
         )
         self.db.add(experiment_query)
         self.db.flush()
@@ -342,6 +347,10 @@ class ExperimentRepository:
                     url=document.url,
                     plain_text=document.plain_text,
                     is_selected=document.rank == selected_document_rank,
+                    source_role=document.source_role,
+                    retrieval_provider=document.retrieval_provider,
+                    retrieval_timestamp=document.retrieved_at,
+                    content_sha256=document.content_sha256,
                 )
             )
 

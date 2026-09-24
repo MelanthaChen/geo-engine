@@ -1,5 +1,171 @@
 # GEO Platform End-to-End Workflow Review
 
+## Professor demo verification — 2026-09-23 15:43 EDT
+
+This is the latest review and supersedes all earlier verdicts below.
+
+### Required answer
+
+**Can a professor successfully complete the frozen GeoAIResume demo today without terminal intervention?**
+
+**YES.** The complete workflow succeeded twice. The second run was performed through the browser from property selection and a fresh Audit through automatic Teacher Pipeline navigation. Both exports contain the resulting real Teacher samples.
+
+### Stable demo scope
+
+- Property 1: `GeoAIResume`.
+- The originally stored `geoairesume-web-six.vercel.app` deployment is deleted.
+- The real source repository is `https://github.com/MelanthaChen/geoairesume-web`.
+- The stable local demo target at `http://127.0.0.1:8000/` serves the repository's real `Resume Gap Explanation Guide` text and enforces its frozen hash.
+- Frozen query: `how to explain gaps in employment on your resume`.
+- Four real reference snapshots are loaded from the existing official GEO-Bench cache and verified by URL and SHA-256.
+- This workflow is labeled `princeton-style-frozen-new-website-demo-validation-v1`, not GEO-Bench replication.
+- Only property 1 with the exact configured demo domain can use this pack. All other websites retain the separate live-retrieval architecture.
+
+### Two-run results
+
+| Check | Run 1 | Run 2 |
+|---|---|---|
+| Fresh audit | Audit 2 completed | Audit 3 completed through UI |
+| Experiment | 1 completed | 2 completed through UI |
+| Source count | 1 target + 4 references | 1 target + 4 references |
+| Selected target | Rank 1 GeoAIResume | Rank 1 GeoAIResume |
+| Baseline answers | 5 completed | 5 completed |
+| Treatment answers | 5 completed | 5 completed |
+| Baseline target equals snapshot | Yes | Yes |
+| Reference hashes unchanged | Yes | Yes |
+| Aggregate visibility delta | `+0.3181716` | `+0.1439574` |
+| Teacher samples added | 5 | 5 |
+| Dataset version | `teacher-dataset-v000001` | `teacher-dataset-v000002` |
+
+Run 2 per-answer visibility deltas were `+0.169453`, `+0.062198`, `+0.149194`, `+0.170378`, and `+0.168564`. These are evaluated OpenAI Teacher outputs, not fabricated scores.
+
+### Browser behavior verified
+
+1. Property selector changed from Python to GeoAIResume.
+2. Website Audit displayed property 1 and the local stable URL.
+3. Analyze Website created audit 3 and displayed 15 features and 18 opportunities.
+4. Continue to Optimization navigated to `/predictor?website_id=1&audit_id=3`.
+5. Predictor displayed the correct website/audit IDs and received evidence counts.
+6. Validate created experiment 2 and displayed Running/sample progress.
+7. No Experiment Lab or worker interaction occurred.
+8. On completion, the browser automatically navigated to `/teacher-pipeline?experiment_id=2`.
+9. Teacher Pipeline displayed Ready, 10 samples, two experiments, dataset `teacher-dataset-v000002`, last experiment 2, and zero pending experiments.
+10. JSONL and CSV export links were visible.
+
+### Persistence and export verification
+
+- Both experiment queries persisted policy version, audit ID, target rank, retrieval provider, frozen timestamp, and audit evidence.
+- All five document snapshots and hashes were persisted on both experiments.
+- Each experiment persisted 10 completed runs and per-answer metrics.
+- Teacher samples explicitly identify the audited rank-1 target and the ordered four references.
+- JSONL export returned HTTP 200 with dataset metadata plus 10 training samples; five have experiment ID 2.
+- CSV export returned HTTP 200 with 10 data rows; five have experiment ID 2.
+- Latest dataset version is `teacher-dataset-v000002` with 10 samples across two experiments.
+
+### Verification suite
+
+- All 22 backend tests pass.
+- Frontend TypeScript and production build pass.
+- Database migration remains at `20260923_0020` head.
+- Frozen target and four reference integrity checks pass.
+
+---
+
+## Controlled new-website validation rerun — 2026-09-23 14:45 EDT
+
+This is the latest review and supersedes all earlier verdicts below.
+
+### Required answer
+
+**Can a professor successfully complete a full demo of the GEO platform today?**
+
+**NO.** The corrected controlled-intervention workflow is deployed and its database migrations are applied, but the local runtime lacks both required Google Custom Search settings. The live backend now stops with a clear HTTP 503 configuration error instead of silently using Google HTML parsing. Consequently no real four-reference set, experiment, Teacher sample, dataset version, or non-empty export could be generated in this environment.
+
+### Live test identity
+
+| Item | Value |
+|---|---|
+| Public website | `https://www.python.org/` |
+| Property | ID 2, `Python` |
+| Audit | ID 1, completed during this rerun |
+| Audit result | Score 81; 20 pages; 7 evidence-backed opportunities |
+| Frontend | `http://127.0.0.1:5173`, HTTP 200 |
+| Backend | `http://127.0.0.1:8000`, updated process |
+| Database migration | `20260923_0020` applied |
+
+No mock responses, fabricated documents, backdated audits, or manually created experiment/sample records were used.
+
+### Stage results
+
+| Stage | Result | Evidence |
+|---|---|---|
+| Website | Pass | Public Python website responded and was audited |
+| Audit | Pass | `POST /api/v1/audit/run` HTTP 200; audit 1 persisted with 20 pages and 7 opportunities |
+| Continue to Optimization | Pass by implementation/build verification | Existing route and audit handoff retained; frontend production build passes |
+| Predictor placeholder | Pass by implementation/build verification | Existing audit context/Validate UI retained; no inference added |
+| Teacher Validation request | **Blocked** | `POST /api/v1/experiment-lab/teacher-validation` returned HTTP 503 |
+| Five-source freeze | Not reached | Provider credentials are validated before retrieval; no HTML fallback used |
+| Baseline/treatment | Not reached | No source set was fabricated |
+| Teacher Pipeline | Not reached | Correctly remains empty for property 2 |
+| Dataset version | Not generated | No valid completed experiment exists |
+| JSONL/CSV sample export | Not verifiable | No real Teacher sample exists |
+
+### Exact live failure
+
+**Endpoint:** `POST /api/v1/experiment-lab/teacher-validation`
+
+**HTTP status:** 503
+**Backend response:**
+
+> Google Custom Search is not configured. Set both GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID. Teacher Validation does not use the Google HTML fallback.
+
+**Frontend behavior:** the existing Predictor validation handler displays the backend `detail` message in its Teacher Validation error area. It does not create an experiment, navigate forward, or claim a dataset was generated.
+
+**Classification:** external runtime configuration blocker. Both Google settings are absent from the local backend environment. This is intentionally fail-closed behavior required by the corrected methodology.
+
+### Corrected implementation verified
+
+- Audit validation now uses a dedicated `/teacher-validation` API instead of submitting a document-less generic custom experiment.
+- Query generation is deterministic and versioned as `audit-evidence-query-v1`.
+- The backend snapshots an audited page and fixes it at rank 1 with role `audited_target`.
+- Retrieval is restricted to four distinct external references and uses the existing provider abstraction.
+- Google API credentials are mandatory for this workflow; brittle HTML parsing is disabled.
+- Query, source ordering, target index, provider/timestamp, audit evidence, full snapshots, and SHA-256 hashes have persistence fields.
+- The existing baseline path returns the original target unchanged; treatment rewrites only the selected rank-1 target.
+- The existing evaluator measures each answer against the selected audited target.
+- Teacher provenance includes the ordered five-source set, and the sample records per-answer deltas plus repeated-answer aggregate deltas.
+- Teacher Pipeline rejects new-website experiments unless rank 1 is the audited target and exactly four references exist.
+- The exact source audit is used for sample construction.
+- Successful completion still triggers Teacher Pipeline automatically, and dataset/export APIs remain connected.
+
+### Verification performed
+
+- Alembic upgraded the live PostgreSQL database through `20260923_0020`.
+- Updated backend restarted successfully and serves the new endpoint.
+- All 22 backend tests pass.
+- Frontend TypeScript and production Vite build pass.
+- Live property creation and a real Python.org audit succeeded.
+- Live Teacher Validation produced the expected fail-closed HTTP 503.
+- Teacher Pipeline status for property 2 remained empty; no invalid sample was admitted.
+
+### Remaining blocker
+
+1. Configure valid `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` values in the backend runtime, restart it, and rerun Validate. This single external prerequisite blocks all remaining live assertions: four-reference freezing, baseline/treatment execution, measured deltas, automatic sample creation, dataset versioning, and non-empty JSONL/CSV exports.
+
+### Nine requested determinations
+
+1. **Was the audited website definitely the optimized target?** Not in a completed live experiment; execution stopped before retrieval. The corrected path enforces the audited page at rank 1 and rejects any resulting sample that violates it.
+2. **Were exactly four external references frozen?** No live set was frozen because the configured provider is unavailable.
+3. **Was only the audited target changed between baseline and treatment?** Not exercised live; the implemented prompt path changes only the selected rank-1 target and keeps the four frozen references unchanged.
+4. **Was a real delta measured for the audited target?** No.
+5. **Was a Teacher training sample generated?** No.
+6. **Was a dataset version generated?** No.
+7. **Did JSONL export contain the sample?** No sample exists to export.
+8. **Did CSV export contain the sample?** No sample exists to export.
+9. **Can the professor successfully complete the demo today?** **No**, not until the required Google Custom Search credentials are configured.
+
+---
+
 ## Live end-to-end rerun — 2026-09-23 14:09 EDT
 
 This is the latest review and supersedes all earlier verdicts below.

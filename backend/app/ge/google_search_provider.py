@@ -17,8 +17,14 @@ class GoogleRetrievalError(RuntimeError):
 
 
 class GoogleSearchProvider:
-    def __init__(self, cleaner: DocumentCleaner | None = None):
+    def __init__(
+        self,
+        cleaner: DocumentCleaner | None = None,
+        *,
+        require_api_credentials: bool = False,
+    ):
         self.cleaner = cleaner or DocumentCleaner()
+        self.require_api_credentials = require_api_credentials
 
     def search(self, query: str, top_k: int = 5) -> list[RetrievedDocument]:
         logger.info(
@@ -30,6 +36,13 @@ class GoogleSearchProvider:
         if settings.GOOGLE_SEARCH_API_KEY and settings.GOOGLE_SEARCH_ENGINE_ID:
             logger.info("[GOOGLE RETRIEVAL] Backend=Google Custom Search API")
             return self._search_custom_api(query=query, top_k=top_k)
+
+        if self.require_api_credentials:
+            raise GoogleRetrievalError(
+                "Google Custom Search is not configured. Set both "
+                "GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID. "
+                "Teacher Validation does not use the Google HTML fallback."
+            )
 
         logger.warning(
             "[GOOGLE RETRIEVAL] Google API credentials missing; "

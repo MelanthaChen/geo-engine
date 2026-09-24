@@ -5,18 +5,26 @@ from app.models.property import Property
 
 DEFAULT_PROPERTY = {
     "name": "GeoAIResume",
-    "domain": "geoairesume-web-six.vercel.app",
+    "domain": "http://127.0.0.1:8000",
     "brand_name": "GeoAIResume",
     "description": "Default GEO Engine property.",
 }
 
 LEGACY_DEFAULT_DOMAINS = {
     "geoairesume.com",
+    "geoairesume-web-six.vercel.app",
+    "resumeforge-web-six.vercel.app",
+    "http://geoairesume.localhost:8000",
 }
 
 
 def normalize_property_domain(domain: str):
     normalized = domain.strip()
+
+    if normalized.startswith("http://") and (
+        "localhost" in normalized or "127.0.0.1" in normalized
+    ):
+        return normalized.rstrip("/")
 
     if normalized.startswith("https://"):
         normalized = normalized.removeprefix("https://")

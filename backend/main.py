@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -80,16 +81,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+GEO_AI_RESUME_DEMO_HTML = """<!doctype html>
+<html><head><title>Resume Gap Explanation Guide | GeoAIResume</title>
+<meta name="description" content="How to address resume gaps with clarity, professionalism, and role-relevant evidence."></head>
+<body><main><h1>Resume Gap Explanation Guide</h1>
+<p>How to address resume gaps with clarity, professionalism, and role-relevant evidence.</p>
+<p>Resume gaps can feel difficult to explain, but they do not have to dominate the application. The goal is to provide enough context without overexplaining personal details.</p>
+<p>Candidates can address gaps through concise date formatting, summaries, recent projects, volunteer work, coursework, or contract experience when relevant. The resume should quickly return attention to current readiness. Career changers and caregivers may benefit from emphasizing refreshed skills and recent evidence. RRI improves when the document is complete and readable rather than evasive.</p>
+<p>Explain gaps briefly when needed, then lead the reader back to role-relevant evidence. Clarity is better than avoidance.</p>
+</main></body></html>"""
+
+
 #
 # Root route
 #
 
 @app.get("/")
 async def root():
-
-    return {
-        "message": "GEO Engine API running"
-    }
+    return HTMLResponse(GEO_AI_RESUME_DEMO_HTML)
 
 #
 # Health check

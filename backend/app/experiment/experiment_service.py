@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Any
 
 from app.experiment.geo_bench_loader import GeoBenchLoader
@@ -356,6 +357,14 @@ class ExperimentService:
                     "title": str(row.get("title") or "").strip(),
                     "url": str(row.get("url") or "").strip(),
                     "content": content,
+                    "is_optimization_target": bool(row.get("is_optimization_target")),
+                    "source_role": row.get("source_role"),
+                    "retrieval_provider": row.get("retrieval_provider"),
+                    "retrieved_at": row.get("retrieved_at"),
+                    "content_sha256": row.get("content_sha256"),
+                    "query_policy_version": row.get("query_policy_version"),
+                    "source_audit_id": row.get("source_audit_id"),
+                    "supporting_evidence": row.get("supporting_evidence"),
                 }
             )
 
@@ -404,6 +413,16 @@ class ExperimentService:
                     is_optimization_target=bool(
                         document.get("is_optimization_target")
                     ),
+                    source_role=document.get("source_role"),
+                    retrieval_provider=document.get("retrieval_provider"),
+                    retrieved_at=(
+                        datetime.fromisoformat(document["retrieved_at"])
+                        if document.get("retrieved_at") else None
+                    ),
+                    content_sha256=document.get("content_sha256"),
+                    query_policy_version=document.get("query_policy_version"),
+                    source_audit_id=document.get("source_audit_id"),
+                    supporting_evidence=document.get("supporting_evidence"),
                 )
             )
 

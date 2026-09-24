@@ -1,6 +1,7 @@
 """Build immutable baseline/treatment samples from completed experiments."""
 
 import uuid
+import statistics
 
 from app.services.website_audit.profile import build_website_features, build_website_profile
 from app.teacher_pipeline.models import TeacherTrainingSample
@@ -34,6 +35,7 @@ class TrainingSampleBuilder:
             name: self._delta(original_metrics.get(name), optimized_metrics.get(name))
             for name in metric_names
         }
+        aggregate_metrics = self._aggregate_metrics(query, optimized_run.strategy)
         evaluation_version = self._evaluation_version(optimized_run)
         provenance = build_provenance(
             experiment=experiment,
@@ -42,9 +44,14 @@ class TrainingSampleBuilder:
             optimized_run=optimized_run,
             audit=audit,
             selected_document=selected_document,
+            aggregate_metrics=aggregate_metrics,
         )
         provenance["feature_vector_schema"] = feature_vector["schema_version"]
         provenance["metric_schema_version"] = self.metric_schema_version
+        provenance["primary_training_label"] = {
+            "name": "aggregate_delta_visibility_score",
+            "value": aggregate_metrics["delta"].get("visibility_score"),
+        }
 
         return TeacherTrainingSample(
             sample_id=str(uuid.uuid4()),
@@ -89,6 +96,52 @@ class TrainingSampleBuilder:
             raise IncompleteTeacherExperiment("Baseline and optimized sample indices do not match")
         if baseline_run.provider != optimized_run.provider or baseline_run.model != optimized_run.model:
             raise IncompleteTeacherExperiment("Baseline and optimized teacher contexts do not match")
+        if experiment.dataset_name == "new_website_teacher_validation":
+            target = next((document for document in query.documents if document.is_selected), None)
+            if target is None or target.rank != 1 or target.source_role != "audited_target":
+                raise IncompleteTeacherExperiment(
+                    "New-website validation target must be the audited page at source rank 1"
+                )
+            references = [d for d in query.documents if d.source_role == "reference"]
+            if len(query.documents) != 5 or len(references) != 4:
+                raise IncompleteTeacherExperiment(
+                    "New-website validation requires one audited target and four references"
+                )
+
+    @staticmethod
+    def _aggregate_metrics(query, optimized_strategy):
+        grouped = {"original": {}, "optimized": {}}
+        for run in query.strategy_results:
+            role = "original" if run.strategy == "original" else (
+                "optimized" if run.strategy == optimized_strategy else None
+            )
+            if role is None:
+                continue
+            values = {
+                "word_count": run.word_count,
+                "position": run.position,
+                "pawc": run.pawc,
+                "citation_count": run.citation_count,
+                "visibility_score": run.visibility_score,
+            }
+            for name, value in values.items():
+                if value is not None:
+                    grouped[role].setdefault(name, []).append(float(value))
+        original = {name: statistics.fmean(values) for name, values in grouped["original"].items()}
+        optimized = {name: statistics.fmean(values) for name, values in grouped["optimized"].items()}
+        delta = {
+            name: optimized[name] - original[name]
+            for name in sorted(set(original) & set(optimized))
+        }
+        return {
+            "sample_count": {
+                "original": len(next(iter(grouped["original"].values()), [])),
+                "optimized": len(next(iter(grouped["optimized"].values()), [])),
+            },
+            "original": original,
+            "optimized": optimized,
+            "delta": delta,
+        }
 
     @staticmethod
     def _metrics(run):

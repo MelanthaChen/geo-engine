@@ -31,8 +31,8 @@ class TeacherPipeline:
         skipped = []
 
         for experiment in experiments:
-            audit = self._audit_for(experiment)
             for query in experiment.queries:
+                audit = self._audit_for(experiment, query=query)
                 baseline_by_index = {
                     run.sample_index: run
                     for run in experiment.runs
@@ -140,9 +140,15 @@ class TeacherPipeline:
             .all()
         )
 
-    def _audit_for(self, experiment):
+    def _audit_for(self, experiment, *, query=None):
         if not experiment.property_id:
             return None
+        if query is not None and query.source_audit_id:
+            return self.db.query(WebsiteAudit).filter(
+                WebsiteAudit.id == query.source_audit_id,
+                WebsiteAudit.property_id == experiment.property_id,
+                WebsiteAudit.status == "completed",
+            ).first()
         query = self.db.query(WebsiteAudit).filter(
             WebsiteAudit.property_id == experiment.property_id,
             WebsiteAudit.status == "completed",

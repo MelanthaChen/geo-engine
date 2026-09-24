@@ -77,24 +77,19 @@ export async function startAuditValidation(values: {
   opportunityTitle: string;
   opportunityDirection: string;
   strategy: StrategyId;
+  opportunityId: number;
 }) {
-  const query = `What information does ${values.propertyName} provide about ${values.opportunityTitle}?`;
   const response = await apiClient.post<ExperimentRun>(
-    "/api/v1/experiment-lab/run",
+    "/api/v1/experiment-lab/teacher-validation",
     {
       property_id: values.websiteId,
-      experiment_name: `Audit #${values.auditId} teacher validation`,
-      description: `${values.opportunityDirection} Source website: ${values.websiteUrl}`,
+      audit_id: values.auditId,
+      opportunity_id: values.opportunityId,
       provider: "chatgpt",
       llm: "gpt-3.5-turbo",
-      dataset: "custom",
-      queries: [query],
-      dataset_documents: null,
-      strategies: ["original", values.strategy],
-      number_of_queries: 1,
+      strategy: values.strategy,
       random_seed: 42,
       temperature: 0.7,
-      evaluation_metrics: ["pawc", "citation_count", "visibility_score"],
     },
   );
   return response.data;
