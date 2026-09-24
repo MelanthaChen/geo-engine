@@ -1,14 +1,8 @@
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.property import Property
 
-
-DEFAULT_PROPERTY = {
-    "name": "GeoAIResume",
-    "domain": "http://127.0.0.1:8000",
-    "brand_name": "GeoAIResume",
-    "description": "Default GEO Engine property.",
-}
 
 LEGACY_DEFAULT_DOMAINS = {
     "geoairesume.com",
@@ -16,6 +10,15 @@ LEGACY_DEFAULT_DOMAINS = {
     "resumeforge-web-six.vercel.app",
     "http://geoairesume.localhost:8000",
 }
+
+
+def default_property():
+    return {
+        "name": "GeoAIResume",
+        "domain": settings.DEMO_TARGET_URL.rstrip("/"),
+        "brand_name": "GeoAIResume",
+        "description": "Default GEO Engine property.",
+    }
 
 
 def normalize_property_domain(domain: str):
@@ -36,9 +39,10 @@ def normalize_property_domain(domain: str):
 
 
 def seed_default_property(db: Session):
+    configured_property = default_property()
     property_record = (
         db.query(Property)
-        .filter(Property.domain == DEFAULT_PROPERTY["domain"])
+        .filter(Property.domain == configured_property["domain"])
         .first()
     )
 
@@ -52,20 +56,20 @@ def seed_default_property(db: Session):
     )
 
     if legacy_property:
-        legacy_property.domain = DEFAULT_PROPERTY["domain"]
+        legacy_property.domain = configured_property["domain"]
 
         if not legacy_property.name:
-            legacy_property.name = DEFAULT_PROPERTY["name"]
+            legacy_property.name = configured_property["name"]
 
         if not legacy_property.brand_name:
-            legacy_property.brand_name = DEFAULT_PROPERTY["brand_name"]
+            legacy_property.brand_name = configured_property["brand_name"]
 
         db.commit()
         db.refresh(legacy_property)
 
         return legacy_property
 
-    property_record = Property(**DEFAULT_PROPERTY)
+    property_record = Property(**configured_property)
     db.add(property_record)
     db.commit()
     db.refresh(property_record)

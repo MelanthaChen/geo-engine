@@ -16,6 +16,12 @@ depends_on = None
 
 
 def upgrade():
+    columns = {
+        column["name"]
+        for column in sa.inspect(op.get_bind()).get_columns("training_samples")
+    }
+    if "generated_answer" in columns:
+        return
     op.alter_column("training_samples", "answer", new_column_name="generated_answer")
     op.add_column("training_samples", sa.Column("experiment_run_id", sa.Integer(), nullable=True))
     op.add_column("training_samples", sa.Column("experiment_query_id", sa.Integer(), nullable=True))

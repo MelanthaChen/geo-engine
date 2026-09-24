@@ -16,6 +16,11 @@ depends_on = None
 
 
 def upgrade():
+    # Revision 0001 historically creates the current ORM metadata on a clean
+    # database. Preserve upgrades from older databases while avoiding a
+    # duplicate create on a brand-new database.
+    if "training_samples" in sa.inspect(op.get_bind()).get_table_names():
+        return
     op.create_table(
         "training_samples",
         sa.Column("id", sa.Integer(), nullable=False),

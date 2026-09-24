@@ -1,4 +1,5 @@
 import apiClient from "@/api/client";
+import { API_BASE_URL } from "@/api/config";
 import type {
   ExperimentConfigurationValues,
   ExperimentCampaignRun,
@@ -137,8 +138,7 @@ export function officialReplicationArtifactUrl(
   experimentId: number,
   artifactPath: string,
 ) {
-  const base = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-  return `${base}/api/v1/experiment-lab/official-replications/${experimentId}/artifacts/${artifactPath
+  return `${API_BASE_URL}/api/v1/experiment-lab/official-replications/${experimentId}/artifacts/${artifactPath
     .split("/")
     .map(encodeURIComponent)
     .join("/")}`;

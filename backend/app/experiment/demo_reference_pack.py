@@ -5,8 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from app.core.config import settings
 
-DEMO_PROPERTY_DOMAIN = "http://127.0.0.1:8000"
 DEMO_WORKFLOW = "princeton-style-frozen-new-website-demo-validation-v1"
 DEMO_QUERY_POLICY_VERSION = "geoairesume-resume-gap-query-v1"
 DEMO_QUERY = "how to explain gaps in employment on your resume"
@@ -34,22 +34,14 @@ class DemoReferencePackError(RuntimeError):
 def is_demo_property(property_record) -> bool:
     return (
         property_record.name == "GeoAIResume"
-        and property_record.domain.rstrip("/") == DEMO_PROPERTY_DOMAIN
+        and property_record.domain.rstrip("/") == settings.DEMO_TARGET_URL.rstrip("/")
     )
 
 
 def load_demo_reference_documents() -> list[dict]:
-    dataset_path = (
-        Path(__file__).resolve().parents[2]
-        / "experiment_dataset" / "geo_bench" / "test.jsonl"
-    )
+    dataset_path = Path(__file__).with_name("data") / "geoairesume_reference_pack.json"
     with dataset_path.open("r", encoding="utf-8") as handle:
-        for index, line in enumerate(handle):
-            if index == GEO_BENCH_ROW_INDEX:
-                row = json.loads(line)
-                break
-        else:
-            raise DemoReferencePackError("Frozen GEO-Bench reference row is missing")
+        row = json.load(handle)
 
     if row.get("query") != DEMO_QUERY:
         raise DemoReferencePackError("Frozen demo query no longer matches its source row")
@@ -57,7 +49,7 @@ def load_demo_reference_documents() -> list[dict]:
     for rank, ((expected_url, expected_hash), source) in enumerate(
         zip(REFERENCE_MANIFEST, row.get("sources", [])[:4]), start=2
     ):
-        content = str(source.get("cleaned_text") or source.get("raw_text") or "").strip()
+        content = str(source.get("content") or "").strip()
         actual_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         if source.get("url") != expected_url or actual_hash != expected_hash:
             raise DemoReferencePackError(

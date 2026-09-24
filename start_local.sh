@@ -6,14 +6,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 RUNTIME_DIR="$ROOT_DIR/.local"
-ENV_FILE="$BACKEND_DIR/.env.local"
+ENV_FILE="$BACKEND_DIR/.env"
 PYTHON_BIN="$BACKEND_DIR/venv/bin/python"
 
 mkdir -p "$RUNTIME_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$BACKEND_DIR/.env.local.example" "$ENV_FILE"
-  echo "Created $ENV_FILE from the local example."
+  echo "Missing $ENV_FILE. Copy backend/.env.local.example to backend/.env and configure it."
+  exit 1
 fi
 
 set -a
@@ -77,7 +77,7 @@ echo "  Backend:  http://127.0.0.1:8000"
 echo "  API docs: http://127.0.0.1:8000/docs"
 echo
 echo "Run local agents in separate terminals:"
-echo "  cd '$BACKEND_DIR' && source venv/bin/activate && set -a && source .env.local && set +a && python -u publisher_agent.py"
-echo "  cd '$BACKEND_DIR' && source venv/bin/activate && set -a && source .env.local && set +a && python -u retriever_agent.py"
+echo "  cd '$BACKEND_DIR' && source venv/bin/activate && set -a && source .env && set +a && python -u publisher_agent.py"
+echo "  cd '$BACKEND_DIR' && source venv/bin/activate && set -a && source .env && set +a && python -u retriever_agent.py"
 echo
 echo "Stop backend/frontend with: ./stop_local.sh"

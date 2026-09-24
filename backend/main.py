@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.models import *
 from app.services.property_service import seed_default_property
@@ -63,11 +64,7 @@ app = FastAPI(
 # Allowed frontend origins
 #
 
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://geo-engine-phi.vercel.app",
-]
+origins = settings.frontend_origins
 
 #
 # Enable CORS

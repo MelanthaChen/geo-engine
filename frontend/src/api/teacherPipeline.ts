@@ -1,4 +1,5 @@
 import apiClient from "./client";
+import { API_BASE_URL } from "./config";
 
 export type TeacherSample = {
   sample_id: string;
@@ -53,6 +54,5 @@ export async function fetchTeacherPipelineStatus() {
 }
 
 export function teacherDatasetExportUrl(format: "jsonl" | "csv") {
-  const base = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-  return `${base}/api/v1/teacher-pipeline/dataset/export?format=${format}`;
+  return `${API_BASE_URL}/api/v1/teacher-pipeline/dataset/export?format=${format}`;
 }

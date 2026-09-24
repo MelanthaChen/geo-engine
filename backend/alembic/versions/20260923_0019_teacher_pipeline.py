@@ -16,6 +16,13 @@ depends_on = None
 
 
 def upgrade():
+    tables = set(sa.inspect(op.get_bind()).get_table_names())
+    if {
+        "teacher_training_samples",
+        "teacher_dataset_versions",
+        "teacher_dataset_members",
+    }.issubset(tables):
+        return
     op.create_table(
         "teacher_training_samples",
         sa.Column("sample_id", sa.String(length=36), nullable=False),

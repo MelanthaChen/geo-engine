@@ -31,6 +31,7 @@ import {
   startExperimentCampaign,
   startExperimentLab,
 } from "@/api/experimentLab";
+import { API_BASE_URL } from "@/api/config";
 import {
   defaultExperimentConfiguration,
   strategyOptions,
@@ -693,8 +694,7 @@ function CampaignResults({
   const ranking = [...campaign.paperAggregates].sort(
     (a, b) => b.visibilityImprovementMean - a.visibilityImprovementMean,
   );
-  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-  const exportBase = `${apiBase}/api/v1/experiment-lab/campaigns/${campaign.id}`;
+  const exportBase = `${API_BASE_URL}/api/v1/experiment-lab/campaigns/${campaign.id}`;
 
   return (
     <div className="space-y-6">
