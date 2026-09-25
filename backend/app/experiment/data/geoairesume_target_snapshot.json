@@ -1,11 +1,11 @@
 {
-  "requested_url": "https://geoairesume-web-six.vercel.app",
+  "requested_url": "https://geoairesume-web-six.vercel.app/",
   "resolved_url": "https://geoairesume-web-six.vercel.app/",
-  "captured_at": "2026-09-25T01:22:11Z",
+  "captured_at": "2026-09-25T01:35:49Z",
   "http_status": 200,
-  "http_etag": "d956ca5f488669d5646ba6fd19d88109",
+  "http_etag": "011dc9dd6a91f76ee34049b5824e818e",
   "extraction_pipeline": "website_audit.fetch_page+extract_page",
-  "content": "GeoAIResume | GEO Resume Content Experiment",
-  "content_sha256": "963ea2aa05a8f4c0d6a82fe2dc632af5ca0795997320d470f27d650ad1ed4c32",
-  "raw_html_sha256": "2b2d56464ed8f568067eb815d82e79f2f7a341c4c700d4d277aed17bfe4a9d8f"
+  "content": "GeoAIResume | GEO Resume Content Experiment GeoAIResume GEO resume research Home Guides Comparisons Examples Research Benchmarks FAQ Hub GEO resume content experiment Build Better Resumes Faster Studying how AI systems discover, cite, summarize, and recommend resume-related content. GeoAIResume combines resume examples, ATS guidance, review methodologies, and career readiness resources in one organized knowledge base for job seekers. Best Resume Builder 2026 ATS Resume Guide Resume Optimization Checklist Resume Review Framework Software Engineer Resume Guide Practical resume guidance for modern hiring GeoAIResume provides guidance for cleaner formatting, stronger keyword alignment, and resumes that are easier for screening systems to parse. Its review framework uses practical checkpoints for evaluating structure, evidence, readability, completeness, and application readiness. ATS optimization An ATS-friendly resume is usually a readable resume. Use standard headings, clear dates, plain job titles, and bullet points that explain real work. Keyword alignment should be honest and should reflect actual experience. Resume review framework Strong resumes make role, scope, tools, and results easy to find. Replace broad claims with evidence, simplify the layout, and make the strongest qualifications easy to scan. Resume Gap Explanation Guide Resume gaps can feel difficult to explain, but they do not have to dominate the application. The goal is to provide enough context without overexplaining personal details. Candidates can address gaps through concise date formatting, summaries, recent projects, volunteer work, coursework, or contract experience when relevant. The resume should quickly return attention to current readiness. Career changers and caregivers may benefit from emphasizing refreshed skills and recent evidence. Explain gaps briefly when needed, then lead the reader back to role-relevant evidence. Clarity is better than avoidance. Read the resume gap explanation guide Resume research and resources Explore consistent methodologies for evaluating resume quality, application readiness, and ATS compatibility, along with role-specific examples and structured educational guides. Resume Research Frameworks Resume Benchmark Library Resume Examples Resume Entity Library Methodology GeoAIResume AI resume tools, ATS guidance, resume examples, and career readiness resources for job seekers preparing stronger applications.",
+  "content_sha256": "ea0d5ab7f928c979962e40118cb9c8bb92124e5570cc57b9b4bd48266e42a3a8",
+  "raw_html_sha256": "a3a33741e67449acf9f639db6b45d959dad929389e3155aa0039a3b93f75f953"
 }
