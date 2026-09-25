@@ -54,7 +54,6 @@ export function WebsiteAudit() {
       setMessage("");
       const result = await runWebsiteAudit(activePropertyId);
       setAudit(result);
-      setPreviousAudit(null);
     } catch (error) {
       console.error(error);
       setMessage("Website audit failed.");
@@ -63,10 +62,8 @@ export function WebsiteAudit() {
     }
   }
 
-  const displayedAudit = audit ?? previousAudit;
-  const profile = displayedAudit?.website_profile;
-  const features = Object.entries(displayedAudit?.website_features || {});
-  const opportunities = displayedAudit?.optimization_opportunities || [];
+  const features = Object.entries(audit?.website_features || {});
+  const opportunities = audit?.optimization_opportunities || [];
 
   function continueToOptimization() {
     if (!audit) return;
@@ -98,8 +95,8 @@ export function WebsiteAudit() {
           <div className="flex min-w-0 items-start gap-4">
             <div className="rounded-lg border border-zinc-800 bg-black p-3 text-zinc-300"><FileSearch className="h-5 w-5" /></div>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-50">Analyze current website</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Crawl the selected property and record observable structure, content, links, and coverage. Running an audit creates a new stored result.</p>
+              <h2 className="text-lg font-semibold text-zinc-50">{audit ? "Analyze current website again" : `Ready to analyze ${activeProperty?.name || "the selected website"}`}</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">{audit ? "Run another live crawl to create a new stored audit result." : "No audit has been run in this session. Start a live crawl to measure structure, content, links, and coverage."}</p>
               <p className="mt-2 text-xs text-zinc-600">No predicted gains, PAWC estimates, or visibility estimates are produced.</p>
             </div>
           </div>
@@ -109,12 +106,7 @@ export function WebsiteAudit() {
 
       {message && <div className="rounded-lg border border-amber-800 bg-amber-950/50 px-5 py-4 text-sm text-amber-200">{message}</div>}
 
-      {previousAudit && !audit && <Card className="border-zinc-700 bg-zinc-950">
-        <CardContent className="flex flex-col gap-3 p-6">
-          <div><h2 className="text-lg font-semibold text-zinc-50">Previous audit</h2><p className="mt-1 text-sm text-zinc-400">Audit #{previousAudit.id} was loaded from this property's stored history. It is shown for reference only and is not the current demo run.</p></div>
-          <p className="text-sm text-zinc-500">Click <span className="font-medium text-zinc-300">Analyze Website</span> to run a live crawl and create the audit that will continue to Optimization.</p>
-        </CardContent>
-      </Card>}
+      {loading && <div className="rounded-lg border border-blue-900 bg-blue-950/30 px-5 py-4 text-sm text-blue-200">Live website crawl in progress. A new audit record will be created when analysis completes.</div>}
 
       {audit?.status === "completed" && <Card className="border-blue-900 bg-blue-950/20">
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -123,26 +115,48 @@ export function WebsiteAudit() {
         </CardContent>
       </Card>}
 
+      {audit && <AuditResults audit={audit} />}
+
+      {previousAudit && <details className="group rounded-xl border border-zinc-800 bg-zinc-950">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 [&::-webkit-details-marker]:hidden">
+          <div><h2 className="text-lg font-semibold text-zinc-50">Previous audits</h2><p className="mt-1 text-sm text-zinc-500">Stored history is available for reference and is never treated as the current demo run.</p></div>
+          <ChevronDown className="h-5 w-5 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-8 border-t border-zinc-800 p-5">
+          <div className="rounded-lg border border-zinc-800 bg-black px-4 py-3"><p className="text-sm font-medium text-zinc-200">Audit #{previousAudit.id}</p><p className="mt-1 text-xs text-zinc-500">Completed {new Date(previousAudit.last_audit).toLocaleString()}. Historical results cannot continue to Optimization.</p></div>
+          <AuditResults audit={previousAudit} />
+        </div>
+      </details>}
+    </Page>
+  );
+}
+
+function AuditResults({ audit }: { audit: AuditResult }) {
+  const profile = audit.website_profile;
+  const features = Object.entries(audit.website_features || {});
+  const opportunities = audit.optimization_opportunities || [];
+
+  return <>
       <section>
         <SectionHeader title="Website Overview" description="High-level scores already produced by the current audit methodology. Unmeasured dimensions remain explicitly unavailable." />
         <SummaryGrid className="xl:grid-cols-5">
-          <SummaryCard label="Website Health" value={formatScore(profile?.website_health_score ?? displayedAudit?.overall_geo_score)} detail="Existing overall audit score" />
-          <SummaryCard label="Content Quality" value={formatScore(profile?.content_quality_score ?? displayedAudit?.subscores?.content_coverage)} detail="Existing content coverage score" />
-          <SummaryCard label="Technical Quality" value={formatScore(profile?.technical_quality_score ?? displayedAudit?.subscores?.website_structure)} detail="Existing structure score" />
-          <SummaryCard label="Authority" value={formatScore(profile?.authority_score ?? displayedAudit?.subscores?.trust_signals)} detail="Existing trust signals score" />
+          <SummaryCard label="Website Health" value={formatScore(profile?.website_health_score ?? audit.overall_geo_score)} detail="Existing overall audit score" />
+          <SummaryCard label="Content Quality" value={formatScore(profile?.content_quality_score ?? audit.subscores?.content_coverage)} detail="Existing content coverage score" />
+          <SummaryCard label="Technical Quality" value={formatScore(profile?.technical_quality_score ?? audit.subscores?.website_structure)} detail="Existing structure score" />
+          <SummaryCard label="Authority" value={formatScore(profile?.authority_score ?? audit.subscores?.trust_signals)} detail="Existing trust signals score" />
           <SummaryCard label="Readability" value={formatScore(profile?.readability_score)} detail="Not measured by this audit" />
         </SummaryGrid>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <EvidenceMetric label="Pages crawled" value={profile?.pages_crawled ?? displayedAudit?.pages?.length ?? 0} />
-          <EvidenceMetric label="Successful pages" value={profile?.successful_pages ?? countSuccessfulPages(displayedAudit)} />
-          <EvidenceMetric label="Total words" value={profile?.total_word_count ?? totalWords(displayedAudit)} />
-          <EvidenceMetric label="Last analyzed" value={displayedAudit?.last_audit ? new Date(displayedAudit.last_audit).toLocaleString() : "Not recorded"} />
+          <EvidenceMetric label="Pages crawled" value={profile?.pages_crawled ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label="Successful pages" value={profile?.successful_pages ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label="Total words" value={profile?.total_word_count ?? totalWords(audit)} />
+          <EvidenceMetric label="Last analyzed" value={audit.last_audit ? new Date(audit.last_audit).toLocaleString() : "Not recorded"} />
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        <FindingPanel title="Strengths" description="Positive characteristics directly supported by crawled evidence." findings={displayedAudit?.strengths || []} tone="positive" emptyText="No objective strengths are available yet." />
-        <FindingPanel title="Weaknesses" description="Observed gaps or missing evidence; no impact is implied." findings={displayedAudit?.weaknesses || []} tone="negative" emptyText="No objective weaknesses are available yet." />
+        <FindingPanel title="Strengths" description="Positive characteristics directly supported by crawled evidence." findings={audit.strengths || []} tone="positive" emptyText="No objective strengths are available yet." />
+        <FindingPanel title="Weaknesses" description="Observed gaps or missing evidence; no impact is implied." findings={audit.weaknesses || []} tone="negative" emptyText="No objective weaknesses are available yet." />
       </section>
 
       <section>
@@ -163,12 +177,11 @@ export function WebsiteAudit() {
       <section>
         <SectionHeader title="Crawled Page Evidence" description="Page-level observations retained by the latest audit." />
         <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6"><div className="space-y-2">
-          {(displayedAudit?.pages || []).map((page) => <PageAuditRow key={page.id} page={page} />)}
-          {(!displayedAudit?.pages || !displayedAudit.pages.length) && <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>}
+          {(audit.pages || []).map((page) => <PageAuditRow key={page.id} page={page} />)}
+          {(!audit.pages || !audit.pages.length) && <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>}
         </div></CardContent></Card>
       </section>
-    </Page>
-  );
+    </>;
 }
 
 function FindingPanel({ title, description, findings, tone, emptyText }: { title: string; description: string; findings: AuditFinding[]; tone: "positive" | "negative"; emptyText: string }) {
