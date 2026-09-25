@@ -28,6 +28,14 @@ class WebsiteAuditRecommendation(Base):
 
     evidence_url = Column(Text, nullable=True)
 
+    observed_evidence = Column(Text, nullable=True)
+
+    affected_page_count = Column(Integer, nullable=True)
+
+    evaluated_page_count = Column(Integer, nullable=True)
+
+    why_it_matters = Column(Text, nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

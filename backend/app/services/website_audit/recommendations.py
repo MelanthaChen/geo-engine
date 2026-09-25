@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from app.services.website_audit.extractor import PageExtract
-from app.services.website_audit.scoring import AuditScores
 
 
 @dataclass
@@ -10,225 +9,126 @@ class AuditRecommendation:
     title: str
     description: str
     priority: str
+    observed_evidence: str
+    affected_page_count: int
+    evaluated_page_count: int
+    why_it_matters: str
     evidence_url: str | None = None
-
-
-IMPORTANT_PAGE_RULES = [
-    ("missing_pages", "Pricing", ["pricing", "plans"]),
-    ("missing_pages", "FAQ", ["faq", "questions"]),
-    ("missing_pages", "Comparison pages", ["compare", "comparison", "versus", "vs"]),
-    ("missing_pages", "Examples", ["examples", "showcase"]),
-    ("missing_pages", "Templates", ["templates"]),
-    ("missing_pages", "Documentation", ["docs", "documentation", "help"]),
-]
-
-GEO_TOPIC_RULES = [
-    ("missing_geo_topics", "Category comparison", ["alternative", "compare", "versus"]),
-    ("missing_geo_topics", "Use-case pages", ["use case", "workflow", "for students", "for teams"]),
-    ("missing_geo_topics", "Decision criteria", ["criteria", "checklist", "how to choose"]),
-    ("missing_geo_topics", "Limitations and tradeoffs", ["limitation", "tradeoff", "drawback"]),
-    ("missing_geo_topics", "Trust and privacy", ["privacy", "security", "data"]),
-]
-
-FAQ_RULES = [
-    ("What problem does this product solve?", ["problem", "solve"]),
-    ("Who is this product best suited for?", ["who", "audience"]),
-    ("How does pricing work?", ["pricing", "plan", "cost"]),
-    ("How does it compare with common alternatives?", ["compare", "alternative"]),
-    ("What limitations should buyers understand?", ["limitation", "tradeoff"]),
-]
 
 
 def build_recommendations(
     pages: list[PageExtract],
-    scores: AuditScores,
-    category_hint: str,
+    *,
+    requested_urls: int,
+    accepted_html_responses: int,
 ) -> list[AuditRecommendation]:
+    """Build opportunities only from directly measured page and crawl defects."""
+    if not pages:
+        return []
+
     recommendations: list[AuditRecommendation] = []
-    paths_and_text = build_search_text(pages)
+    analyzed_count = len(pages)
 
-    recommendations.extend(detect_missing_pages(paths_and_text))
-    recommendations.extend(detect_missing_geo_topics(paths_and_text, category_hint))
-    recommendations.extend(build_internal_linking_suggestions(pages, scores))
-    recommendations.extend(build_faq_opportunities(paths_and_text))
-    recommendations.extend(build_content_recommendations(paths_and_text, category_hint))
+    recommendations.extend(build_missing_field_opportunity(
+        pages=pages,
+        field="h1",
+        category="heading_structure",
+        title="Add missing H1 headings",
+        observed_label="have no detected H1",
+        why=(
+            "An H1 identifies the primary page topic for readers and parsers; "
+            "the appropriate wording still depends on each page's purpose."
+        ),
+    ))
+    recommendations.extend(build_missing_field_opportunity(
+        pages=pages,
+        field="meta_description",
+        category="metadata_coverage",
+        title="Add missing meta descriptions",
+        observed_label="have no detected meta description",
+        why=(
+            "A meta description provides an explicit page summary to systems that "
+            "consume metadata, without assuming any particular business model."
+        ),
+    ))
+    recommendations.extend(build_missing_field_opportunity(
+        pages=pages,
+        field="page_title",
+        category="metadata_coverage",
+        title="Add missing page titles",
+        observed_label="have no detected title",
+        why="A title supplies a basic document identifier for browsers, users, and parsers.",
+    ))
 
-    return recommendations
-
-
-def detect_missing_pages(search_text: str) -> list[AuditRecommendation]:
-    recommendations = []
-
-    for category, title, keywords in IMPORTANT_PAGE_RULES:
-        if any(keyword in search_text for keyword in keywords):
-            continue
-
-        recommendations.append(
-            AuditRecommendation(
-                category=category,
-                title=f"Create a {title.lower()} page",
-                description=(
-                    f"The crawl did not find clear {title.lower()} coverage "
-                    "in the detected URLs or page text."
-                ),
-                priority="high" if title in {"FAQ", "Comparison pages"} else "medium",
-            )
+    unsuccessful_html = max(requested_urls - accepted_html_responses, 0)
+    if unsuccessful_html:
+        evidence = (
+            f"{unsuccessful_html} of {requested_urls} requested URLs did not return "
+            "a successful accepted HTML response."
         )
+        recommendations.append(AuditRecommendation(
+            category="http_html_success",
+            title="Review URLs without successful HTML responses",
+            description=evidence,
+            priority="high",
+            observed_evidence=evidence,
+            affected_page_count=unsuccessful_html,
+            evaluated_page_count=requested_urls,
+            why_it_matters=(
+                "Pages without successful HTML responses cannot contribute extracted content "
+                "evidence to this audit and may be inaccessible to plain HTTP clients."
+            ),
+        ))
 
-    return recommendations
-
-
-def detect_missing_geo_topics(
-    search_text: str,
-    category_hint: str,
-) -> list[AuditRecommendation]:
-    recommendations = []
-
-    for category, title, keywords in GEO_TOPIC_RULES:
-        if any(keyword in search_text for keyword in keywords):
-            continue
-
-        recommendations.append(
-            AuditRecommendation(
-                category=category,
-                title=title,
-                description=(
-                    f"The crawl did not detect {title.lower()} coverage for "
-                    f"the configured category: {category_hint}."
-                ),
-                priority="medium",
-            )
-        )
-
-    return recommendations
-
-
-def build_internal_linking_suggestions(
-    pages: list[PageExtract],
-    scores: AuditScores,
-) -> list[AuditRecommendation]:
-    successful_pages = [page for page in pages if page.status_code == 200]
-    recommendations = []
-
-    weak_pages = [
-        page
-        for page in successful_pages
+    low_link_pages = [
+        page for page in pages
         if page.word_count >= 150 and page.internal_link_count < 3
     ]
-
-    for page in weak_pages[:5]:
-        recommendations.append(
-            AuditRecommendation(
-                category="internal_linking_suggestions",
-                title="Add contextual internal links",
-                description=(
-                    f"This page contains {page.word_count} words and "
-                    f"{page.internal_link_count} detected internal links."
-                ),
-                priority="medium",
-                evidence_url=page.url,
-            )
+    if low_link_pages:
+        evidence = (
+            f"{len(low_link_pages)} of {analyzed_count} analyzed pages contain at least "
+            "150 words and fewer than 3 detected internal links."
         )
-
-    if successful_pages and scores.internal_linking_score < 55 and not recommendations:
-        total_links = sum(page.internal_link_count for page in successful_pages)
-        recommendations.append(
-            AuditRecommendation(
-                category="internal_linking_suggestions",
-                title="Strengthen the site's internal topic graph",
-                description=(
-                    f"The crawl found {total_links} internal links across "
-                    f"{len(successful_pages)} analyzed pages."
-                ),
-                priority="high",
-            )
-        )
+        recommendations.append(AuditRecommendation(
+            category="internal_linking_suggestions",
+            title="Review pages with limited internal links",
+            description=evidence,
+            priority="medium",
+            observed_evidence=evidence,
+            affected_page_count=len(low_link_pages),
+            evaluated_page_count=analyzed_count,
+            why_it_matters=(
+                "Relevant internal links can give readers and crawlers explicit paths to "
+                "related content; whether a link belongs must be judged page by page."
+            ),
+            evidence_url=low_link_pages[0].url,
+        ))
 
     return recommendations
 
 
-def build_faq_opportunities(search_text: str) -> list[AuditRecommendation]:
-    recommendations = []
-
-    for question, keywords in FAQ_RULES:
-        if any(keyword in search_text for keyword in keywords):
-            continue
-
-        recommendations.append(
-            AuditRecommendation(
-                category="faq_opportunities",
-                title=question,
-                description=(
-                    "The crawl did not detect the associated question terms "
-                    "in the analyzed page text."
-                ),
-                priority="medium",
-            )
-        )
-
-    return recommendations
-
-
-def build_content_recommendations(
-    search_text: str,
-    category_hint: str,
+def build_missing_field_opportunity(
+    *,
+    pages: list[PageExtract],
+    field: str,
+    category: str,
+    title: str,
+    observed_label: str,
+    why: str,
 ) -> list[AuditRecommendation]:
-    base_recommendations = [
-        (
-            "Comparison page",
-            f"No comparison or alternative coverage was detected for {category_hint}.",
-            ["compare", "alternative"],
-            "high",
-        ),
-        (
-            "Buying guide",
-            f"No buying-guide or how-to-choose coverage was detected for {category_hint}.",
-            ["buying guide", "how to choose"],
-            "medium",
-        ),
-        (
-            "Educational article",
-            f"No guide or workflow coverage was detected for {category_hint}.",
-            ["guide", "workflow"],
-            "medium",
-        ),
-        (
-            "Evidence page",
-            "No example, case study, or testimonial coverage was detected.",
-            ["example", "case study", "testimonial"],
-            "medium",
-        ),
-    ]
+    affected = [page for page in pages if not getattr(page, field)]
+    if not affected:
+        return []
 
-    recommendations = []
-
-    for title, description, keywords, priority in base_recommendations:
-        if any(keyword in search_text for keyword in keywords):
-            continue
-
-        recommendations.append(
-            AuditRecommendation(
-                category="content_recommendations",
-                title=title,
-                description=description,
-                priority=priority,
-            )
-        )
-
-    return recommendations
-
-
-def build_search_text(pages: list[PageExtract]) -> str:
-    return " ".join(
-        " ".join(
-            [
-                page.url,
-                page.page_title or "",
-                page.meta_description or "",
-                page.h1 or "",
-                page.body_text[:3000],
-            ]
-        )
-        for page in pages
-        if page.status_code == 200
-    ).lower()
+    evidence = f"{len(affected)} of {len(pages)} analyzed pages {observed_label}."
+    return [AuditRecommendation(
+        category=category,
+        title=title,
+        description=evidence,
+        priority="high" if len(affected) == len(pages) else "medium",
+        observed_evidence=evidence,
+        affected_page_count=len(affected),
+        evaluated_page_count=len(pages),
+        why_it_matters=why,
+        evidence_url=affected[0].url,
+    )]

@@ -7,6 +7,7 @@ export const PATH_CATEGORIES = {
   Comparison: ["compare", "comparison", "versus", "vs"],
   Research: ["research", "study", "evidence"],
   Pricing: ["pricing", "plans"],
+  Examples: ["example", "examples", "showcase"],
 } as const;
 
 export const TRUST_SIGNALS = {
@@ -63,6 +64,10 @@ export function pageExclusionReason(page: WebsitePageAudit): string | null {
   if (page.status_code < 200 || page.status_code >= 300) return `HTTP ${page.status_code} was not accepted as page evidence.`;
   if (page.word_count === 0) return "No analyzable extracted text was retained from this response.";
   return null;
+}
+
+export function formatAbsentSignal(label: string, scope: string): string {
+  return `${label} — ${scope}`;
 }
 
 type SearchablePage = { page: WebsitePageAudit; text: string };

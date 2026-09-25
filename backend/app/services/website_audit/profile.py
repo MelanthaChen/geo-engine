@@ -41,7 +41,10 @@ UNAVAILABLE_FEATURES = (
 
 def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
     pages = evidence_pages(audit)
-    successful_pages = [page for page in pages if page.status_code == 200]
+    successful_pages = [
+        page for page in pages
+        if page.status_code is not None and 200 <= page.status_code < 300
+    ]
     page_count = len(pages)
     successful_count = len(successful_pages)
     total_words = sum(page.word_count or 0 for page in successful_pages)
@@ -86,11 +89,20 @@ def build_findings(audit: WebsiteAudit) -> tuple[list[dict], list[dict]]:
     strengths: list[dict] = []
     weaknesses: list[dict] = []
 
-    if successful:
+    requested = audit.requested_url_count or len(audit.pages)
+    successful_responses = (
+        audit.successful_response_count
+        if audit.successful_response_count is not None
+        else sum(
+            page.status_code is not None and 200 <= page.status_code < 300
+            for page in audit.pages
+        )
+    )
+    if requested and successful_responses:
         strengths.append(
             finding(
                 "Pages were successfully retrieved",
-                f"{successful} of {len(pages)} crawled pages returned HTTP 200.",
+                f"{successful_responses} of {requested} requested URLs returned successful HTTP responses.",
                 "http_status",
             )
         )
@@ -131,12 +143,15 @@ def build_findings(audit: WebsiteAudit) -> tuple[list[dict], list[dict]]:
             )
         )
 
-    failed = len(pages) - successful
-    if failed:
+    unsuccessful_html = max(
+        requested - audit.accepted_html_response_count,
+        0,
+    ) if audit.accepted_html_response_count is not None else 0
+    if unsuccessful_html:
         weaknesses.append(
             finding(
-                "Some crawled pages were not successfully retrieved",
-                f"{failed} of {len(pages)} crawled pages did not return HTTP 200.",
+                "Some requested URLs did not return successful HTML",
+                f"{unsuccessful_html} of {requested} requested URLs did not return a successful accepted HTML response.",
                 "http_status",
             )
         )
@@ -153,7 +168,7 @@ def build_findings(audit: WebsiteAudit) -> tuple[list[dict], list[dict]]:
         strengths.append(
             finding(
                 "External references are present",
-                f"{profile['external_references']} external links were detected across the crawled pages.",
+                f"{profile['external_references']} external links were detected across {successful} analyzed pages.",
                 "external_references",
             )
         )
@@ -230,6 +245,13 @@ def build_website_features(audit: WebsiteAudit) -> dict[str, dict[str, Any]]:
 def build_optimization_opportunities(audit: WebsiteAudit) -> list[dict[str, Any]]:
     opportunities = []
     for recommendation in audit.recommendations:
+        if (
+            recommendation.observed_evidence is None
+            or recommendation.affected_page_count is None
+            or recommendation.evaluated_page_count is None
+            or recommendation.why_it_matters is None
+        ):
+            continue
         opportunities.append(
             {
                 "id": recommendation.id,
@@ -238,6 +260,10 @@ def build_optimization_opportunities(audit: WebsiteAudit) -> list[dict[str, Any]
                 "direction": neutral_direction(recommendation.category),
                 "priority": recommendation.priority,
                 "evidence": opportunity_evidence(recommendation),
+                "observed_evidence": recommendation.observed_evidence,
+                "affected_page_count": recommendation.affected_page_count,
+                "evaluated_page_count": recommendation.evaluated_page_count,
+                "why_it_matters": recommendation.why_it_matters,
                 "evidence_url": recommendation.evidence_url,
                 "basis": "objective_audit_finding",
                 "validation_status": "not_validated",
@@ -275,29 +301,15 @@ def finding(label: str, evidence: str, feature_key: str) -> dict[str, str]:
 
 
 def neutral_title(category: str, fallback: str) -> str:
-    cleaned = fallback
-    for prefix in ("Create a ", "Create an ", "Add ", "Strengthen "):
-        if cleaned.startswith(prefix):
-            cleaned = cleaned[len(prefix):]
-            break
-    labels = {
-        "missing_pages": "Page coverage",
-        "missing_geo_topics": "Topic coverage",
-        "internal_linking_suggestions": "Internal references",
-        "faq_opportunities": "FAQ coverage",
-        "content_recommendations": "Content coverage",
-    }
-    label = labels.get(category, "Observed area")
-    return f"{label}: {cleaned.rstrip('.')}"
+    return fallback.rstrip(".")
 
 
 def neutral_direction(category: str) -> str:
     directions = {
-        "missing_pages": "Review whether a dedicated page is appropriate for the detected coverage gap.",
-        "missing_geo_topics": "Review whether the absent topic belongs in the website's content scope.",
+        "heading_structure": "Review the affected pages and add a descriptive H1 where appropriate.",
+        "metadata_coverage": "Review the affected pages and add the missing document metadata where appropriate.",
+        "http_html_success": "Investigate the affected URLs and their HTTP or content-type behavior.",
         "internal_linking_suggestions": "Review the internal links associated with the observed page evidence.",
-        "faq_opportunities": "Review whether the detected question gap should be represented as FAQ content.",
-        "content_recommendations": "Review whether additional content is appropriate for the detected coverage gap.",
     }
     return directions.get(category, "Review this observed area as a possible optimization direction.")
 

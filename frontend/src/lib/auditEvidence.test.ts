@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuditResult, WebsitePageAudit } from "@/api/audit";
-import { buildAuditEvidence, pageExclusionReason } from "./auditEvidence";
+import { buildAuditEvidence, formatAbsentSignal, pageExclusionReason } from "./auditEvidence";
 
 function page(overrides: Partial<WebsitePageAudit> = {}): WebsitePageAudit {
   return {
@@ -69,5 +69,10 @@ describe("buildAuditEvidence", () => {
   it("states why duplicate and empty responses are excluded", () => {
     expect(pageExclusionReason(page({ is_duplicate: true, duplicate_of_url: "https://example.com/" }))).toContain("Duplicate content");
     expect(pageExclusionReason(page({ word_count: 0 }))).toContain("No analyzable extracted text");
+  });
+
+  it("qualifies absent signals as limited to analyzed evidence", () => {
+    expect(formatAbsentSignal("Security-related content", "Not detected in analyzed evidence"))
+      .toBe("Security-related content — Not detected in analyzed evidence");
   });
 });

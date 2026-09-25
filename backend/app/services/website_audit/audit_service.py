@@ -48,8 +48,8 @@ def run_website_audit(
     recommendations = (
         build_recommendations(
             pages=evidence_pages,
-            scores=scores,
-            category_hint=property_record.description or property_record.name,
+            requested_urls=crawl_result.coverage.requested_urls,
+            accepted_html_responses=crawl_result.coverage.accepted_html_responses,
         )
         if evidence_pages
         else []

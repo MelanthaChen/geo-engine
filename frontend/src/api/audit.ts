@@ -26,6 +26,10 @@ export type OptimizationOpportunity = {
   direction: string;
   priority: string;
   evidence: string;
+  observed_evidence: string;
+  affected_page_count: number;
+  evaluated_page_count: number;
+  why_it_matters: string;
   evidence_url: string | null;
   basis: "objective_audit_finding";
   validation_status: "not_validated";

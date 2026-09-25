@@ -15,7 +15,7 @@ import {
 } from "@/api/audit";
 import { EmptyState, Page, PageHeader, SectionHeader } from "@/components/layout/PageLayout";
 import { useProperty } from "@/contexts/PropertyContext";
-import { buildAuditEvidence, pageExclusionReason } from "@/lib/auditEvidence";
+import { buildAuditEvidence, formatAbsentSignal, pageExclusionReason } from "@/lib/auditEvidence";
 
 export function WebsiteAudit() {
   const navigate = useNavigate();
@@ -185,10 +185,10 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
               ["Sitemap URLs discovered", coverage?.sitemap_url_count ?? "Not recorded separately"],
               ["Distinct content URLs analyzed", analyzedCount],
             ]} />
-            <SignalList signals={evidence.pathCategories} />
+            <SignalList signals={evidence.pathCategories} absentTitle="Page types not observed" absentSuffix="Not observed in analyzed evidence" />
           </EvidencePanel>
           <EvidencePanel title="Trust / Legal Signals" description="Terms or paths detected in stored URL, title, heading, and metadata evidence. This is not a measurement of authority, reputation, or backlinks.">
-            <SignalList signals={evidence.trustSignals} />
+            <SignalList signals={evidence.trustSignals} absentTitle="Not detected in analyzed evidence" absentSuffix="Not detected in analyzed evidence" />
           </EvidencePanel>
         </section>
       </>}
@@ -224,10 +224,10 @@ function EvidenceRows({ rows }: { rows: Array<[string, string | number]> }) {
   return <div className="divide-y divide-zinc-900 rounded-lg border border-zinc-800 bg-black">{rows.map(([label, value]) => <div className="flex items-center justify-between gap-4 px-4 py-3" key={label}><span className="text-sm text-zinc-500">{label}</span><span className="text-sm font-medium text-zinc-200">{value}</span></div>)}</div>;
 }
 
-function SignalList({ signals }: { signals: Array<{ label: string; detected: boolean }> }) {
+function SignalList({ signals, absentTitle = "Not detected", absentSuffix }: { signals: Array<{ label: string; detected: boolean }>; absentTitle?: string; absentSuffix?: string }) {
   const detected = signals.filter((signal) => signal.detected);
   const absent = signals.filter((signal) => !signal.detected);
-  return <div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-500">Detected terms/signals</p><ul className="mt-2 space-y-2 text-sm text-zinc-300">{detected.map((signal) => <li key={signal.label}>• {signal.label}</li>)}{!detected.length && <li className="text-zinc-600">None detected</li>}</ul></div><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">Not detected</p><ul className="mt-2 space-y-2 text-sm text-zinc-500">{absent.map((signal) => <li key={signal.label}>• {signal.label}</li>)}{!absent.length && <li>None</li>}</ul></div></div>;
+  return <div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-500">Detected terms/signals</p><ul className="mt-2 space-y-2 text-sm text-zinc-300">{detected.map((signal) => <li key={signal.label}>• {signal.label}</li>)}{!detected.length && <li className="text-zinc-600">None detected</li>}</ul></div><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-600">{absentTitle}</p><ul className="mt-2 space-y-2 text-sm text-zinc-500">{absent.map((signal) => <li key={signal.label}>• {absentSuffix ? formatAbsentSignal(signal.label, absentSuffix) : signal.label}</li>)}{!absent.length && <li>None</li>}</ul></div></div>;
 }
 
 function FindingPanel({ title, description, findings, tone, emptyText }: { title: string; description: string; findings: AuditFinding[]; tone: "positive" | "negative"; emptyText: string }) {
@@ -248,7 +248,7 @@ function OpportunityRow({ opportunity }: { opportunity: OptimizationOpportunity 
       <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-zinc-100">{opportunity.title}</h3><Tag>{formatCategory(opportunity.category)}</Tag><Tag>Not validated</Tag></div><p className="mt-1 truncate text-sm text-zinc-500">{opportunity.direction}</p></div>
       <ChevronDown className="h-4 w-4 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
     </summary>
-    <div className="border-t border-zinc-800 px-5 py-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Evidence</p><p className="mt-2 text-sm leading-6 text-zinc-300">{opportunity.evidence}</p>
+    <div className="border-t border-zinc-800 px-5 py-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Observed evidence</p><p className="mt-2 text-sm leading-6 text-zinc-300">{opportunity.observed_evidence || opportunity.evidence}</p><p className="mt-3 text-xs text-zinc-500">Affected pages or URLs: {opportunity.affected_page_count} of {opportunity.evaluated_page_count}</p><p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Why it may matter</p><p className="mt-2 text-sm leading-6 text-zinc-300">{opportunity.why_it_matters}</p>
       {opportunity.evidence_url && <a className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300" href={opportunity.evidence_url} target="_blank" rel="noreferrer">View observed page <ExternalLink className="h-3 w-3" /></a>}
       <div className="mt-4 rounded-lg border border-zinc-800 bg-black/60 px-4 py-3 text-xs leading-5 text-zinc-500">Generated from objective audit findings, not from a prediction model. No impact or visibility gain has been estimated.</div>
     </div>

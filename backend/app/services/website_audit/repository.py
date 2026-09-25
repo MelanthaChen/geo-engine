@@ -100,6 +100,10 @@ def create_audit_record(
                 description=recommendation.description,
                 priority=recommendation.priority,
                 evidence_url=recommendation.evidence_url,
+                observed_evidence=recommendation.observed_evidence,
+                affected_page_count=recommendation.affected_page_count,
+                evaluated_page_count=recommendation.evaluated_page_count,
+                why_it_matters=recommendation.why_it_matters,
             )
         )
 
