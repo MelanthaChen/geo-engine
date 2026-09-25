@@ -133,6 +133,7 @@ export function WebsiteAudit() {
 
 function AuditResults({ audit }: { audit: AuditResult }) {
   const profile = audit.website_profile;
+  const coverage = audit.crawl_coverage;
   const features = Object.entries(audit.website_features || {});
   const opportunities = audit.optimization_opportunities || [];
 
@@ -147,11 +148,16 @@ function AuditResults({ audit }: { audit: AuditResult }) {
           <SummaryCard label="Readability" value={formatScore(profile?.readability_score)} detail="Not measured by this audit" />
         </SummaryGrid>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <EvidenceMetric label="Pages crawled" value={profile?.pages_crawled ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label="Successful pages" value={profile?.successful_pages ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label="URLs discovered" value={coverage?.discovered_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label="URLs requested" value={coverage?.requested_urls ?? profile?.pages_crawled ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label="Successful responses" value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label="Unique analyzed pages" value={coverage?.unique_content_pages ?? profile?.successful_pages ?? countUniquePages(audit)} />
+          <EvidenceMetric label="Duplicate/fallback responses" value={coverage?.duplicate_fallback_responses ?? countDuplicatePages(audit)} />
+          <EvidenceMetric label="Skipped due to limit" value={coverage?.skipped_due_to_limit ?? 0} />
           <EvidenceMetric label="Total words" value={profile?.total_word_count ?? totalWords(audit)} />
           <EvidenceMetric label="Last analyzed" value={audit.last_audit ? new Date(audit.last_audit).toLocaleString() : "Not recorded"} />
         </div>
+        {coverage && <div className={`mt-3 rounded-lg border px-4 py-3 text-sm ${coverage.truncated ? "border-amber-900 bg-amber-950/30 text-amber-200" : "border-emerald-900 bg-emerald-950/30 text-emerald-200"}`}>{coverage.truncated ? `Capped crawl: ${coverage.skipped_due_to_limit} discovered URLs were not requested because the configured limit is ${coverage.crawl_limit}.` : `Complete discovered inventory: all ${coverage.discovered_urls} URLs were requested using ${coverage.inventory_source === "sitemap" ? "the site sitemap" : "recursive internal-link discovery"}.`}</div>}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -221,8 +227,10 @@ function OpportunityRow({ opportunity }: { opportunity: OptimizationOpportunity 
 
 function Tag({ children }: { children: string }) { return <span className="rounded-full border border-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">{children}</span>; }
 function EvidenceMetric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 truncate text-sm font-medium text-zinc-200">{value}</p></div>; }
-function PageAuditRow({ page }: { page: WebsitePageAudit }) { return <div className="rounded-lg border border-zinc-800 bg-black p-4"><div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 truncate text-sm font-medium text-zinc-100">{page.url}</p><span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">HTTP {page.status_code || "N/A"}</span></div><p className="mt-1 text-sm text-zinc-400">{page.page_title || page.h1 || "Untitled page"}</p><p className="mt-3 text-xs text-zinc-500">{page.word_count} words • {page.internal_link_count} internal references • {page.external_link_count} external references • {page.h1 ? "H1 detected" : "No H1 detected"}</p></div>; }
+function PageAuditRow({ page }: { page: WebsitePageAudit }) { return <div className={`rounded-lg border bg-black p-4 ${page.is_duplicate ? "border-amber-950/80 opacity-75" : "border-zinc-800"}`}><div className="flex flex-wrap items-start justify-between gap-2"><p className="min-w-0 truncate text-sm font-medium text-zinc-100">{page.url}</p><div className="flex gap-2">{page.is_duplicate && <span className="rounded border border-amber-900 px-2 py-0.5 text-xs text-amber-400">Duplicate excluded</span>}<span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">HTTP {page.status_code || "N/A"}</span></div></div><p className="mt-1 text-sm text-zinc-400">{page.page_title || page.h1 || "Untitled page"}</p><p className="mt-3 text-xs text-zinc-500">{page.word_count} words • {page.internal_link_count} internal references • {page.external_link_count} external references • {page.h1 ? "H1 detected" : "No H1 detected"}</p>{page.is_duplicate && page.duplicate_of_url && <p className="mt-2 text-xs text-amber-500">Identical extracted content to {page.duplicate_of_url}; retained as crawl provenance but excluded from scoring.</p>}</div>; }
 function formatScore(score?: number | null) { return score === null || score === undefined ? "Unavailable" : `${score}/100`; }
 function formatCategory(category: string) { return category.replaceAll("_", " "); }
 function countSuccessfulPages(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200).length; }
-function totalWords(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200).reduce((sum, page) => sum + page.word_count, 0); }
+function countUniquePages(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200 && !page.is_duplicate).length; }
+function countDuplicatePages(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.is_duplicate).length; }
+function totalWords(audit: AuditResult | null) { return (audit?.pages || []).filter((page) => page.status_code === 200 && !page.is_duplicate).reduce((sum, page) => sum + page.word_count, 0); }

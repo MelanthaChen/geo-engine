@@ -7,6 +7,7 @@ from app.models.website_audit_recommendation import WebsiteAuditRecommendation
 from app.models.website_page import WebsitePage
 from app.repositories.history_repository import create_history_event
 from app.services.website_audit.analyzer import BrandUnderstanding
+from app.services.website_audit.crawler import CrawlCoverage
 from app.services.website_audit.extractor import PageExtract
 from app.services.website_audit.recommendations import AuditRecommendation
 from app.services.website_audit.scoring import AuditScores
@@ -20,8 +21,17 @@ def create_audit_record(
     scores: AuditScores,
     pages: list[PageExtract],
     recommendations: list[AuditRecommendation],
+    crawl_coverage: CrawlCoverage,
 ) -> WebsiteAudit:
     now = datetime.now(timezone.utc)
+    unique_pages = [
+        page for page in pages
+        if not page.is_duplicate
+        and page.status_code is not None
+        and 200 <= page.status_code < 300
+        and page.body_text
+    ]
+    duplicate_count = sum(page.is_duplicate for page in pages)
     audit = WebsiteAudit(
         property_id=property_id,
         base_url=base_url,
@@ -38,6 +48,14 @@ def create_audit_record(
         website_structure_score=scores.website_structure_score,
         brand_clarity_score=scores.brand_clarity_score,
         trust_signals_score=scores.trust_signals_score,
+        crawl_inventory_source=crawl_coverage.inventory_source,
+        crawl_limit=crawl_coverage.crawl_limit,
+        discovered_url_count=crawl_coverage.discovered_urls,
+        requested_url_count=crawl_coverage.requested_urls,
+        successful_response_count=crawl_coverage.successful_responses,
+        unique_content_count=len(unique_pages),
+        duplicate_content_count=duplicate_count,
+        skipped_due_to_limit_count=crawl_coverage.skipped_due_to_limit,
         completed_at=now,
     )
 
@@ -56,6 +74,9 @@ def create_audit_record(
                 word_count=page.word_count,
                 internal_link_count=page.internal_link_count,
                 external_link_count=page.external_link_count,
+                content_sha256=page.content_sha256,
+                is_duplicate=page.is_duplicate,
+                duplicate_of_url=page.duplicate_of_url,
             )
         )
 
@@ -85,7 +106,7 @@ def create_audit_record(
             f"{scores.overall_geo_score}"
         ),
         details=(
-            f"Crawled {len(pages)} pages and identified "
+            f"Requested {len(pages)} URLs, analyzed {len(unique_pages)} unique pages, and identified "
             f"{len(recommendations)} candidate opportunities."
         ),
     )

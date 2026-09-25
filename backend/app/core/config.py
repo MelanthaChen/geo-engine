@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     XIAOHONGSHU_RETRIEVAL_COMMAND: str | None = None
     XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS: int = 180
     XIAOHONGSHU_RETRIEVAL_LIMIT: int = 20
+    WEBSITE_AUDIT_MAX_PAGES: int = 200
 
     @model_validator(mode="after")
     def validate_environment_contract(self):
@@ -44,6 +45,9 @@ class Settings(BaseSettings):
         if environment not in {"development", "test", "production"}:
             raise ValueError("APP_ENV must be development, test, or production")
         self.APP_ENV = environment
+
+        if self.WEBSITE_AUDIT_MAX_PAGES < 1:
+            raise ValueError("WEBSITE_AUDIT_MAX_PAGES must be at least 1")
 
         database_host = (urlparse(self.DATABASE_URL).hostname or "").lower()
         if environment == "production" and database_host in {

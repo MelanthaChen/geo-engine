@@ -48,6 +48,15 @@ class WebsiteAudit(Base):
 
     error_message = Column(Text, nullable=True)
 
+    crawl_inventory_source = Column(String(30), nullable=True)
+    crawl_limit = Column(Integer, nullable=True)
+    discovered_url_count = Column(Integer, nullable=True)
+    requested_url_count = Column(Integer, nullable=True)
+    successful_response_count = Column(Integer, nullable=True)
+    unique_content_count = Column(Integer, nullable=True)
+    duplicate_content_count = Column(Integer, nullable=True)
+    skipped_due_to_limit_count = Column(Integer, nullable=True)
+
     started_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

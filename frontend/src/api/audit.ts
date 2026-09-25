@@ -46,6 +46,18 @@ export type WebsiteProfile = {
   measurement_notes: Record<string, string>;
 };
 
+export type AuditCrawlCoverage = {
+  inventory_source: "sitemap" | "recursive_links" | "legacy";
+  crawl_limit: number | null;
+  discovered_urls: number;
+  requested_urls: number;
+  successful_responses: number;
+  unique_content_pages: number;
+  duplicate_fallback_responses: number;
+  skipped_due_to_limit: number;
+  truncated: boolean;
+};
+
 export type AuditResult = {
   id: number;
   property_id: number;
@@ -64,6 +76,7 @@ export type AuditResult = {
   };
   brand_understanding: AuditSection;
   website_profile?: WebsiteProfile;
+  crawl_coverage?: AuditCrawlCoverage;
   strengths?: AuditFinding[];
   weaknesses?: AuditFinding[];
   website_features?: Record<string, WebsiteFeature>;
@@ -86,6 +99,9 @@ export type WebsitePageAudit = {
   word_count: number;
   internal_link_count: number;
   external_link_count: number;
+  content_sha256?: string | null;
+  is_duplicate?: boolean;
+  duplicate_of_url?: string | null;
 };
 
 export async function runWebsiteAudit(propertyId: number) {

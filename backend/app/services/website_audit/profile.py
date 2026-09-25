@@ -40,7 +40,7 @@ UNAVAILABLE_FEATURES = (
 
 
 def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
-    pages = list(audit.pages)
+    pages = [page for page in audit.pages if not getattr(page, "is_duplicate", False)]
     successful_pages = [page for page in pages if page.status_code == 200]
     page_count = len(pages)
     successful_count = len(successful_pages)
@@ -60,7 +60,7 @@ def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
         "technical_quality_score": audit.website_structure_score,
         "authority_score": audit.trust_signals_score,
         "readability_score": None,
-        "pages_crawled": page_count,
+        "pages_crawled": audit.requested_url_count or len(audit.pages),
         "successful_pages": successful_count,
         "total_word_count": total_words,
         "internal_references": internal_references,
@@ -81,7 +81,7 @@ def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
 
 def build_findings(audit: WebsiteAudit) -> tuple[list[dict], list[dict]]:
     profile = build_website_profile(audit)
-    pages = list(audit.pages)
+    pages = [page for page in audit.pages if not getattr(page, "is_duplicate", False)]
     successful = profile["successful_pages"]
     strengths: list[dict] = []
     weaknesses: list[dict] = []

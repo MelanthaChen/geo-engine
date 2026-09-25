@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -33,6 +33,12 @@ class WebsitePage(Base):
     internal_link_count = Column(Integer, nullable=False, default=0)
 
     external_link_count = Column(Integer, nullable=False, default=0)
+
+    content_sha256 = Column(String(64), nullable=True)
+
+    is_duplicate = Column(Boolean, nullable=False, default=False)
+
+    duplicate_of_url = Column(Text, nullable=True)
 
     discovered_at = Column(
         DateTime(timezone=True),

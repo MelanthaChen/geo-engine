@@ -1,4 +1,6 @@
+import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
@@ -18,10 +20,25 @@ class PageExtract:
     internal_link_count: int
     external_link_count: int
     body_text: str
+    content_sha256: str | None = None
+    is_duplicate: bool = False
+    duplicate_of_url: str | None = None
 
 
 def extract_pages(responses: list[CrawlResponse]) -> list[PageExtract]:
-    return [extract_page(response) for response in responses]
+    pages = [extract_page(response) for response in responses]
+    first_url_by_hash: dict[str, str] = {}
+    for page in pages:
+        if page.status_code is None or not 200 <= page.status_code < 300 or not page.body_text:
+            continue
+        digest = normalized_content_sha256(page.body_text)
+        page.content_sha256 = digest
+        if digest in first_url_by_hash:
+            page.is_duplicate = True
+            page.duplicate_of_url = first_url_by_hash[digest]
+        else:
+            first_url_by_hash[digest] = page.url
+    return pages
 
 
 def extract_page(response: CrawlResponse) -> PageExtract:
@@ -106,3 +123,8 @@ def clean_text(value: str | None) -> str:
         return ""
 
     return re.sub(r"\s+", " ", value).strip()
+
+
+def normalized_content_sha256(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", clean_text(value))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()

@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.property import Property
 from app.models.website_audit import WebsiteAudit
 from app.services.website_audit.analyzer import analyze_brand_understanding
@@ -25,17 +26,27 @@ def run_website_audit(
     property_record: Property,
 ) -> WebsiteAudit:
     base_url = normalize_base_url(property_record.domain)
-    crawl_responses = crawl_website(property_record.domain)
-    pages = extract_pages(crawl_responses)
+    crawl_result = crawl_website(
+        property_record.domain,
+        max_pages=settings.WEBSITE_AUDIT_MAX_PAGES,
+    )
+    pages = extract_pages(crawl_result.responses)
+    evidence_pages = [
+        page for page in pages
+        if not page.is_duplicate
+        and page.status_code is not None
+        and 200 <= page.status_code < 300
+        and page.body_text
+    ]
 
     brand_understanding = analyze_brand_understanding(
-        pages=pages,
+        pages=evidence_pages,
         property_name=property_record.name,
         brand_name=property_record.brand_name,
     )
-    scores = score_website(pages)
+    scores = score_website(evidence_pages)
     recommendations = build_recommendations(
-        pages=pages,
+        pages=evidence_pages,
         scores=scores,
         category_hint=property_record.description or property_record.name,
     )
@@ -48,6 +59,7 @@ def run_website_audit(
         scores=scores,
         pages=pages,
         recommendations=recommendations,
+        crawl_coverage=crawl_result.coverage,
     )
 
 
@@ -102,6 +114,21 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             ],
         },
         "website_profile": website_profile,
+        "crawl_coverage": {
+            "inventory_source": audit.crawl_inventory_source or "legacy",
+            "crawl_limit": audit.crawl_limit,
+            "discovered_urls": audit.discovered_url_count or len(audit.pages),
+            "requested_urls": audit.requested_url_count or len(audit.pages),
+            "successful_responses": audit.successful_response_count
+            if audit.successful_response_count is not None
+            else sum(page.status_code == 200 for page in audit.pages),
+            "unique_content_pages": audit.unique_content_count
+            if audit.unique_content_count is not None
+            else sum(not getattr(page, "is_duplicate", False) for page in audit.pages),
+            "duplicate_fallback_responses": audit.duplicate_content_count or 0,
+            "skipped_due_to_limit": audit.skipped_due_to_limit_count or 0,
+            "truncated": bool(audit.skipped_due_to_limit_count),
+        },
         "strengths": strengths,
         "weaknesses": weaknesses,
         "website_features": build_website_features(audit),
@@ -117,6 +144,9 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
                 "word_count": page.word_count,
                 "internal_link_count": page.internal_link_count,
                 "external_link_count": page.external_link_count,
+                "content_sha256": page.content_sha256,
+                "is_duplicate": page.is_duplicate,
+                "duplicate_of_url": page.duplicate_of_url,
             }
             for page in audit.pages
         ],
