@@ -11,14 +11,23 @@ from app.core.url_identity import canonical_url_identity
 DEMO_WORKFLOW = "princeton-style-frozen-new-website-demo-validation-v1"
 DEMO_QUERY_POLICY_VERSION = "geoairesume-resume-gap-query-v1"
 DEMO_QUERY = "how to explain gaps in employment on your resume"
+TARGET_SNAPSHOT_PATH = Path(__file__).with_name("data") / "geoairesume_target_snapshot.json"
+with TARGET_SNAPSHOT_PATH.open("r", encoding="utf-8") as handle:
+    DEMO_TARGET_SNAPSHOT = json.load(handle)
+
 DEMO_AUDIT_EVIDENCE = {
     "source_repository": "https://github.com/MelanthaChen/geoairesume-web",
     "source_file": "src/data/expandedArticles.ts",
     "source_slug": "resume-gap-explanation-guide",
     "primary_intent": "Explain resume gaps clearly and return attention to current readiness.",
+    "target_snapshot_url": DEMO_TARGET_SNAPSHOT["resolved_url"],
+    "target_snapshot_at": DEMO_TARGET_SNAPSHOT["captured_at"],
+    "target_snapshot_sha256": DEMO_TARGET_SNAPSHOT["content_sha256"],
+    "target_snapshot_raw_html_sha256": DEMO_TARGET_SNAPSHOT["raw_html_sha256"],
+    "target_snapshot_extraction_pipeline": DEMO_TARGET_SNAPSHOT["extraction_pipeline"],
 }
 DEMO_FROZEN_AT = datetime.fromisoformat("2026-09-23T19:45:00+00:00")
-DEMO_TARGET_SHA256 = "83d7f3a6571ff7e8d4bd42e72460a8a687f9acadfd6ffa97ed023d61fb6cffb2"
+DEMO_TARGET_SHA256 = DEMO_TARGET_SNAPSHOT["content_sha256"]
 GEO_BENCH_ROW_INDEX = 547
 REFERENCE_MANIFEST = (
     ("https://hbr.org/2023/06/how-to-explain-a-gap-in-your-resume", "035cb9219440cec20bdd2a29565f0ff77bf5d15c16b9dd5cad80a24e224ba8d8"),

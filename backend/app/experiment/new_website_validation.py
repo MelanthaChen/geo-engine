@@ -13,6 +13,7 @@ from app.experiment.demo_reference_pack import (
     DEMO_QUERY,
     DEMO_QUERY_POLICY_VERSION,
     DEMO_TARGET_SHA256,
+    DEMO_TARGET_SNAPSHOT,
     DEMO_WORKFLOW,
     is_demo_property,
     load_demo_reference_documents,
@@ -180,6 +181,8 @@ class NewWebsiteValidationBuilder:
             "source_role": "audited_target",
             "content_sha256": target_hash,
             **common,
+            "retrieval_provider": "frozen-production-page-snapshot",
+            "retrieved_at": DEMO_TARGET_SNAPSHOT["captured_at"],
         }]
         documents.extend({
             **reference,

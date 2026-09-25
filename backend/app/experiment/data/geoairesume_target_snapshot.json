@@ -1,0 +1,11 @@
+{
+  "requested_url": "https://geoairesume-web-six.vercel.app",
+  "resolved_url": "https://geoairesume-web-six.vercel.app/",
+  "captured_at": "2026-09-25T01:22:11Z",
+  "http_status": 200,
+  "http_etag": "d956ca5f488669d5646ba6fd19d88109",
+  "extraction_pipeline": "website_audit.fetch_page+extract_page",
+  "content": "GeoAIResume | GEO Resume Content Experiment",
+  "content_sha256": "963ea2aa05a8f4c0d6a82fe2dc632af5ca0795997320d470f27d650ad1ed4c32",
+  "raw_html_sha256": "2b2d56464ed8f568067eb815d82e79f2f7a341c4c700d4d277aed17bfe4a9d8f"
+}
