@@ -103,3 +103,18 @@ def get_latest_audit(
         .order_by(WebsiteAudit.created_at.desc())
         .first()
     )
+
+
+def get_audit(
+    db: Session,
+    property_id: int,
+    audit_id: int,
+) -> WebsiteAudit | None:
+    return (
+        db.query(WebsiteAudit)
+        .filter(
+            WebsiteAudit.id == audit_id,
+            WebsiteAudit.property_id == property_id,
+        )
+        .first()
+    )

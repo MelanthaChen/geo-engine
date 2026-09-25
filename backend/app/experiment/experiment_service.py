@@ -416,7 +416,7 @@ class ExperimentService:
                     source_role=document.get("source_role"),
                     retrieval_provider=document.get("retrieval_provider"),
                     retrieved_at=(
-                        datetime.fromisoformat(document["retrieved_at"])
+                        self._parse_iso_datetime(document["retrieved_at"])
                         if document.get("retrieved_at") else None
                     ),
                     content_sha256=document.get("content_sha256"),
@@ -429,6 +429,12 @@ class ExperimentService:
         return sorted(documents, key=lambda document: document.rank)[
             : GenerativeEngineService.PAPER_TOP_K
         ]
+
+    @staticmethod
+    def _parse_iso_datetime(value: str) -> datetime:
+        """Parse ISO 8601 timestamps consistently on supported Python versions."""
+        normalized = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+        return datetime.fromisoformat(normalized)
 
     def _validate_strategies(self, strategies: list[str]):
         unknown = [strategy for strategy in strategies if strategy not in STRATEGY_LABELS]

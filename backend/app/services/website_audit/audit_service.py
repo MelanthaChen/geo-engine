@@ -8,6 +8,7 @@ from app.services.website_audit.extractor import extract_pages
 from app.services.website_audit.recommendations import build_recommendations
 from app.services.website_audit.repository import (
     create_audit_record,
+    get_audit,
     get_latest_audit,
 )
 from app.services.website_audit.scoring import score_website
@@ -55,6 +56,14 @@ def latest_website_audit(
     property_id: int,
 ) -> WebsiteAudit | None:
     return get_latest_audit(db=db, property_id=property_id)
+
+
+def website_audit(
+    db: Session,
+    property_id: int,
+    audit_id: int,
+) -> WebsiteAudit | None:
+    return get_audit(db=db, property_id=property_id, audit_id=audit_id)
 
 
 def serialize_audit(audit: WebsiteAudit, property_record: Property):

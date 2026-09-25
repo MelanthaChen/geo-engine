@@ -12,6 +12,7 @@ from app.experiment.demo_reference_pack import (
 )
 from app.experiment import demo_reference_pack
 from app.experiment import new_website_validation
+from app.experiment.experiment_service import ExperimentService
 from app.experiment.new_website_validation import NewWebsiteValidationBuilder
 
 
@@ -38,6 +39,14 @@ def test_current_demo_target_snapshot_integrity():
         "https://geoairesume-web-six.vercel.app/"
     )
     assert hashlib.sha256(content.encode("utf-8")).hexdigest() == DEMO_TARGET_SHA256
+
+
+def test_frozen_snapshot_utc_timestamp_is_supported_on_python_310():
+    retrieved_at = ExperimentService._parse_iso_datetime(
+        DEMO_TARGET_SNAPSHOT["captured_at"]
+    )
+
+    assert retrieved_at.isoformat() == "2026-09-25T01:35:49+00:00"
 
 
 def test_demo_source_order_and_target_index_are_unchanged(monkeypatch):

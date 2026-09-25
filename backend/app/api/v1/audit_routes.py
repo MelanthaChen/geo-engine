@@ -8,6 +8,7 @@ from app.services.website_audit.audit_service import (
     latest_website_audit,
     run_website_audit,
     serialize_audit,
+    website_audit,
 )
 
 
@@ -59,6 +60,35 @@ def get_latest_audit(
 
     if not audit:
         return None
+
+    return serialize_audit(
+        audit=audit,
+        property_record=property_record,
+    )
+
+
+@router.get("/{audit_id}")
+def get_audit(
+    audit_id: int,
+    property_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    property_record = get_property(db, property_id)
+
+    if not property_record:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    audit = website_audit(
+        db=db,
+        property_id=property_id,
+        audit_id=audit_id,
+    )
+
+    if not audit:
+        raise HTTPException(
+            status_code=404,
+            detail="Audit not found for this property",
+        )
 
     return serialize_audit(
         audit=audit,

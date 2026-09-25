@@ -22,7 +22,7 @@ import {
   type PredictorDataset,
   type PredictorStatus,
 } from "@/api/predictor";
-import { fetchLatestWebsiteAudit, type AuditResult, type OptimizationOpportunity } from "@/api/audit";
+import { fetchLatestWebsiteAudit, fetchWebsiteAudit, type AuditResult, type OptimizationOpportunity } from "@/api/audit";
 import { getExperimentLabRun, startAuditValidation } from "@/api/experimentLab";
 import type { ExperimentRun, StrategyId } from "@/types/experimentLab";
 import {
@@ -122,13 +122,13 @@ export function GeoPredictor() {
     const propertyId = stateAudit?.website_id || websiteId;
     if (!propertyId) return;
     let mounted = true;
-    fetchLatestWebsiteAudit(propertyId)
+    const auditRequest = requestedAuditId
+      ? fetchWebsiteAudit(propertyId, requestedAuditId)
+      : fetchLatestWebsiteAudit(propertyId);
+    auditRequest
       .then((result) => {
         if (!mounted || !result) return;
-        if (requestedAuditId && result.id !== requestedAuditId) {
-          setAuditError(`Audit #${requestedAuditId} is no longer the latest audit for this website.`);
-          return;
-        }
+        setAuditError("");
         setAudit(result);
       })
       .catch((error) => {
