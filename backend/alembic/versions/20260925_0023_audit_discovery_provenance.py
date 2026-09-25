@@ -4,10 +4,6 @@ Revision ID: 20260925_0023
 Revises: 20260925_0022
 """
 
-from alembic import op
-import sqlalchemy as sa
-
-
 revision = "20260925_0023"
 down_revision = "20260925_0022"
 branch_labels = None
@@ -15,10 +11,12 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("website_audits", sa.Column("robots_txt_detected", sa.Boolean(), nullable=True))
-    op.add_column("website_audits", sa.Column("sitemap_url_count", sa.Integer(), nullable=True))
+    # Revision 0001 calls Base.metadata.create_all() with the current models,
+    # so both discovery-provenance columns are already part of a clean schema.
+    pass
 
 
 def downgrade():
-    op.drop_column("website_audits", "sitemap_url_count")
-    op.drop_column("website_audits", "robots_txt_detected")
+    # These columns belong to the schema created by revision 0001. Downgrading
+    # across this marker must not remove schema owned by that earlier revision.
+    pass
