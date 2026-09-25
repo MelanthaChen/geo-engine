@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from app.core.config import settings
+from app.core.url_identity import canonical_url_identity
 
 DEMO_WORKFLOW = "princeton-style-frozen-new-website-demo-validation-v1"
 DEMO_QUERY_POLICY_VERSION = "geoairesume-resume-gap-query-v1"
@@ -34,7 +35,8 @@ class DemoReferencePackError(RuntimeError):
 def is_demo_property(property_record) -> bool:
     return (
         property_record.name == "GeoAIResume"
-        and property_record.domain.rstrip("/") == settings.DEMO_TARGET_URL.rstrip("/")
+        and canonical_url_identity(property_record.domain)
+        == canonical_url_identity(settings.DEMO_TARGET_URL)
     )
 
 
