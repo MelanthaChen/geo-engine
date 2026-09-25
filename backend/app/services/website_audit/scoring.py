@@ -5,13 +5,13 @@ from app.services.website_audit.extractor import PageExtract
 
 @dataclass
 class AuditScores:
-    content_coverage_score: int
-    faq_coverage_score: int
-    internal_linking_score: int
-    website_structure_score: int
-    brand_clarity_score: int
-    trust_signals_score: int
-    overall_geo_score: int
+    content_coverage_score: int | None
+    faq_coverage_score: int | None
+    internal_linking_score: int | None
+    website_structure_score: int | None
+    brand_clarity_score: int | None
+    trust_signals_score: int | None
+    overall_geo_score: int | None
 
 
 def score_website(pages: list[PageExtract]) -> AuditScores:
@@ -19,13 +19,13 @@ def score_website(pages: list[PageExtract]) -> AuditScores:
 
     if not successful_pages:
         return AuditScores(
-            content_coverage_score=0,
-            faq_coverage_score=0,
-            internal_linking_score=0,
-            website_structure_score=0,
-            brand_clarity_score=0,
-            trust_signals_score=0,
-            overall_geo_score=0,
+            content_coverage_score=None,
+            faq_coverage_score=None,
+            internal_linking_score=None,
+            website_structure_score=None,
+            brand_clarity_score=None,
+            trust_signals_score=None,
+            overall_geo_score=None,
         )
 
     total_words = sum(page.word_count for page in successful_pages)

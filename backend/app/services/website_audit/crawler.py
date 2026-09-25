@@ -12,6 +12,8 @@ class CrawlResponse:
     status_code: int | None
     html: str
     error: str | None = None
+    content_type: str | None = None
+    html_accepted: bool = False
 
 
 @dataclass
@@ -21,7 +23,10 @@ class CrawlCoverage:
     discovered_urls: int
     requested_urls: int
     successful_responses: int
+    accepted_html_responses: int
     skipped_due_to_limit: int
+    robots_txt_detected: bool = False
+    sitemap_url_count: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -45,13 +50,15 @@ def crawl_website(
 
     base_url = normalize_base_url(domain)
     host = (urlparse(base_url).hostname or "").lower()
-    sitemap_urls = discover_sitemap_urls(
+    sitemap_discovery = discover_sitemap(
         base_url=base_url,
         host=host,
         timeout_seconds=timeout_seconds,
     )
+    sitemap_urls = sitemap_discovery.urls
     inventory_source = "sitemap" if sitemap_urls else "recursive_links"
-    pending = list(sitemap_urls or [normalize_url(base_url)])
+    audited_url = normalize_url(base_url)
+    pending = deduplicate([audited_url, *sitemap_urls])
     discovered = set(pending)
     seen: set[str] = set()
     responses: list[CrawlResponse] = []
@@ -78,6 +85,7 @@ def crawl_website(
                 pending.append(link)
 
     successful = sum(is_html_success(response.status_code) for response in responses)
+    accepted_html = sum(response.html_accepted for response in responses)
     return CrawlResult(
         responses=responses,
         coverage=CrawlCoverage(
@@ -86,6 +94,9 @@ def crawl_website(
             discovered_urls=len(discovered),
             requested_urls=len(responses),
             successful_responses=successful,
+            accepted_html_responses=accepted_html,
+            robots_txt_detected=sitemap_discovery.robots_txt_detected,
+            sitemap_url_count=len(sitemap_urls),
             skipped_due_to_limit=len(discovered - seen),
         ),
     )
@@ -97,23 +108,86 @@ def discover_sitemap_urls(
     host: str,
     timeout_seconds: int,
 ) -> list[str]:
+    return discover_sitemap(
+        base_url=base_url,
+        host=host,
+        timeout_seconds=timeout_seconds,
+    ).urls
+
+
+@dataclass
+class SitemapDiscovery:
+    urls: list[str]
+    robots_txt_detected: bool
+
+
+def discover_sitemap(
+    *,
+    base_url: str,
+    host: str,
+    timeout_seconds: int,
+) -> SitemapDiscovery:
     sitemap_locations = []
     robots_text = fetch_text(urljoin(base_url, "/robots.txt"), timeout_seconds)
     if robots_text:
         sitemap_locations.extend(parse_robots_sitemaps(robots_text, base_url, host))
     sitemap_locations.append(normalize_url(urljoin(base_url, "/sitemap.xml")))
 
-    urls: list[str] = []
-    seen: set[str] = set()
+    page_urls: list[str] = []
+    seen_pages: set[str] = set()
+    visited_sitemaps: set[str] = set()
     for sitemap_url in deduplicate(sitemap_locations):
-        xml = fetch_text(sitemap_url, timeout_seconds)
-        if not xml:
-            continue
-        for url in parse_sitemap_urlset(xml, base_url, host):
-            if url not in seen:
-                seen.add(url)
-                urls.append(url)
-    return urls
+        resolve_sitemap_document(
+            sitemap_url=sitemap_url,
+            base_url=base_url,
+            host=host,
+            timeout_seconds=timeout_seconds,
+            visited_sitemaps=visited_sitemaps,
+            seen_pages=seen_pages,
+            page_urls=page_urls,
+        )
+    return SitemapDiscovery(
+        urls=page_urls,
+        robots_txt_detected=bool(robots_text.strip()),
+    )
+
+
+def resolve_sitemap_document(
+    *,
+    sitemap_url: str,
+    base_url: str,
+    host: str,
+    timeout_seconds: int,
+    visited_sitemaps: set[str],
+    seen_pages: set[str],
+    page_urls: list[str],
+) -> None:
+    sitemap_url = normalize_url(sitemap_url)
+    if sitemap_url in visited_sitemaps or not same_host(sitemap_url, host):
+        return
+    visited_sitemaps.add(sitemap_url)
+
+    xml = fetch_text(sitemap_url, timeout_seconds)
+    if not xml:
+        return
+    kind, locations = parse_sitemap_document(xml, base_url, host)
+    if kind is None:
+        return
+
+    for location in locations:
+        if kind == "sitemapindex" or looks_like_sitemap(location):
+            resolve_sitemap_document(
+                sitemap_url=location,
+                base_url=base_url,
+                host=host,
+                timeout_seconds=timeout_seconds,
+                visited_sitemaps=visited_sitemaps,
+                seen_pages=seen_pages,
+                page_urls=page_urls,
+            )
+        elif location not in seen_pages:
+            seen_pages.add(location)
+            page_urls.append(location)
 
 
 def fetch_text(url: str, timeout_seconds: int) -> str:
@@ -143,13 +217,18 @@ def parse_robots_sitemaps(text: str, base_url: str, host: str) -> list[str]:
     return locations
 
 
-def parse_sitemap_urlset(xml: str, base_url: str, host: str) -> list[str]:
+def parse_sitemap_document(
+    xml: str,
+    base_url: str,
+    host: str,
+) -> tuple[str | None, list[str]]:
     try:
         root = ElementTree.fromstring(xml)
     except ElementTree.ParseError:
-        return []
-    if local_name(root.tag) != "urlset":
-        return []
+        return None, []
+    kind = local_name(root.tag)
+    if kind not in {"urlset", "sitemapindex"}:
+        return None, []
 
     urls = []
     for element in root.iter():
@@ -158,7 +237,12 @@ def parse_sitemap_urlset(xml: str, base_url: str, host: str) -> list[str]:
         url = normalize_url(urljoin(base_url, element.text.strip()))
         if same_host(url, host):
             urls.append(url)
-    return deduplicate(urls)
+    return kind, deduplicate(urls)
+
+
+def parse_sitemap_urlset(xml: str, base_url: str, host: str) -> list[str]:
+    kind, urls = parse_sitemap_document(xml, base_url, host)
+    return urls if kind == "urlset" else []
 
 
 def fetch_page(url: str, timeout_seconds: int) -> CrawlResponse:
@@ -176,12 +260,15 @@ def fetch_page(url: str, timeout_seconds: int) -> CrawlResponse:
         )
 
         content_type = response.headers.get("content-type", "")
-        html = response.text if "html" in content_type.lower() else ""
+        html_accepted = is_html_success(response.status_code) and "html" in content_type.lower()
+        html = response.text if html_accepted else ""
 
         return CrawlResponse(
             url=normalize_url(response.url),
             status_code=response.status_code,
             html=html,
+            content_type=content_type,
+            html_accepted=html_accepted,
         )
     except requests.RequestException as error:
         return CrawlResponse(
@@ -287,3 +374,7 @@ def looks_like_asset(path: str) -> bool:
             ".js",
         )
     )
+
+
+def looks_like_sitemap(url: str) -> bool:
+    return urlparse(url).path.lower().endswith(".xml")

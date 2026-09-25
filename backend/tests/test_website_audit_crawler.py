@@ -34,6 +34,11 @@ def sitemap(*urls):
     return f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{entries}</urlset>'
 
 
+def sitemap_index(*urls):
+    entries = "".join(f"<sitemap><loc>{url}</loc></sitemap>" for url in urls)
+    return f'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{entries}</sitemapindex>'
+
+
 def test_sitemap_is_primary_inventory_and_filters_external_hosts(monkeypatch):
     base = "https://example.com"
     responses = {
@@ -52,6 +57,8 @@ def test_sitemap_is_primary_inventory_and_filters_external_hosts(monkeypatch):
 
     assert result.coverage.inventory_source == "sitemap"
     assert result.coverage.discovered_urls == 2
+    assert result.coverage.sitemap_url_count == 2
+    assert result.coverage.robots_txt_detected is False
     assert [response.url for response in result.responses] == [f"{base}/", f"{base}/guide"]
 
 
@@ -70,12 +77,65 @@ def test_robots_declared_sitemap_is_discovered(monkeypatch):
 
     assert custom in requested
     assert result.coverage.inventory_source == "sitemap"
-    assert result.responses[0].url == f"{base}/from-robots"
+    assert result.coverage.robots_txt_detected is True
+    assert [response.url for response in result.responses] == [f"{base}/", f"{base}/from-robots"]
+
+
+def test_sitemapindex_is_recursively_resolved(monkeypatch):
+    base = "https://example.com"
+    child = f"{base}/child.xml"
+    responses = {
+        f"{base}/robots.txt": FakeResponse(f"{base}/robots.txt", ""),
+        f"{base}/sitemap.xml": FakeResponse(f"{base}/sitemap.xml", sitemap_index(child), headers={"content-type": "application/xml"}),
+        child: FakeResponse(child, sitemap(f"{base}/page"), headers={"content-type": "application/xml"}),
+        f"{base}/": FakeResponse(f"{base}/", "<html><body>Home</body></html>"),
+        f"{base}/page": FakeResponse(f"{base}/page", "<html><body>Page</body></html>"),
+    }
+    install_responses(monkeypatch, responses)
+
+    result = crawler.crawl_website(base, max_pages=10)
+
+    assert [response.url for response in result.responses] == [f"{base}/", f"{base}/page"]
+    assert child not in [response.url for response in result.responses]
+
+
+def test_nested_xml_locations_in_urlset_are_discovery_only(monkeypatch):
+    base = "https://example.com"
+    nested = f"{base}/nested.xml"
+    responses = {
+        f"{base}/robots.txt": FakeResponse(f"{base}/robots.txt", ""),
+        f"{base}/sitemap.xml": FakeResponse(f"{base}/sitemap.xml", sitemap(nested), headers={"content-type": "application/xml"}),
+        nested: FakeResponse(nested, sitemap(f"{base}/actual-page"), headers={"content-type": "application/xml"}),
+        f"{base}/": FakeResponse(f"{base}/", "<html><body>Home</body></html>"),
+        f"{base}/actual-page": FakeResponse(f"{base}/actual-page", "<html><body>Actual page</body></html>"),
+    }
+    install_responses(monkeypatch, responses)
+
+    result = crawler.crawl_website(base, max_pages=10)
+
+    assert nested not in [response.url for response in result.responses]
+    assert f"{base}/actual-page" in [response.url for response in result.responses]
+
+
+def test_explicit_audited_url_is_included_even_when_absent_from_sitemap(monkeypatch):
+    base = "https://example.com/locale"
+    responses = {
+        "https://example.com/robots.txt": FakeResponse("https://example.com/robots.txt", ""),
+        "https://example.com/sitemap.xml": FakeResponse("https://example.com/sitemap.xml", sitemap("https://example.com/other"), headers={"content-type": "application/xml"}),
+        base: FakeResponse(base, "<html><body>Locale home</body></html>"),
+        "https://example.com/other": FakeResponse("https://example.com/other", "<html><body>Other</body></html>"),
+    }
+    install_responses(monkeypatch, responses)
+
+    result = crawler.crawl_website(base, max_pages=10)
+
+    assert result.responses[0].url == base
+    assert result.coverage.accepted_html_responses == 2
 
 
 def test_crawl_limit_reports_truncation(monkeypatch):
     base = "https://example.com"
-    urls = [f"{base}/{number}" for number in range(5)]
+    urls = [f"{base}/", *[f"{base}/{number}" for number in range(1, 5)]]
     responses = {
         f"{base}/robots.txt": FakeResponse(f"{base}/robots.txt", ""),
         f"{base}/sitemap.xml": FakeResponse(f"{base}/sitemap.xml", sitemap(*urls), headers={"content-type": "application/xml"}),

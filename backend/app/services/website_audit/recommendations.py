@@ -130,13 +130,15 @@ def build_internal_linking_suggestions(
             )
         )
 
-    if scores.internal_linking_score < 55 and not recommendations:
+    if successful_pages and scores.internal_linking_score < 55 and not recommendations:
+        total_links = sum(page.internal_link_count for page in successful_pages)
         recommendations.append(
             AuditRecommendation(
                 category="internal_linking_suggestions",
                 title="Strengthen the site's internal topic graph",
                 description=(
-                    "The existing internal linking score is below 55/100."
+                    f"The crawl found {total_links} internal links across "
+                    f"{len(successful_pages)} analyzed pages."
                 ),
                 priority="high",
             )

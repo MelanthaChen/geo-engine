@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -53,6 +53,10 @@ class WebsiteAudit(Base):
     discovered_url_count = Column(Integer, nullable=True)
     requested_url_count = Column(Integer, nullable=True)
     successful_response_count = Column(Integer, nullable=True)
+    accepted_html_response_count = Column(Integer, nullable=True)
+    robots_txt_detected = Column(Boolean, nullable=True)
+    sitemap_url_count = Column(Integer, nullable=True)
+    extraction_success_count = Column(Integer, nullable=True)
     unique_content_count = Column(Integer, nullable=True)
     duplicate_content_count = Column(Integer, nullable=True)
     skipped_due_to_limit_count = Column(Integer, nullable=True)

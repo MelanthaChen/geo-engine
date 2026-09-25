@@ -52,10 +52,16 @@ export type AuditCrawlCoverage = {
   discovered_urls: number;
   requested_urls: number;
   successful_responses: number;
+  accepted_html_responses: number | null;
+  robots_txt_detected: boolean | null;
+  sitemap_detected: boolean | null;
+  sitemap_url_count: number | null;
+  successful_extractions: number | null;
   unique_content_pages: number;
   duplicate_fallback_responses: number;
   skipped_due_to_limit: number;
   truncated: boolean;
+  analysis_status: string;
 };
 
 export type AuditResult = {

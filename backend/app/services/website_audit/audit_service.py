@@ -45,10 +45,14 @@ def run_website_audit(
         brand_name=property_record.brand_name,
     )
     scores = score_website(evidence_pages)
-    recommendations = build_recommendations(
-        pages=evidence_pages,
-        scores=scores,
-        category_hint=property_record.description or property_record.name,
+    recommendations = (
+        build_recommendations(
+            pages=evidence_pages,
+            scores=scores,
+            category_hint=property_record.description or property_record.name,
+        )
+        if evidence_pages
+        else []
     )
 
     return create_audit_record(
@@ -122,12 +126,26 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             "successful_responses": audit.successful_response_count
             if audit.successful_response_count is not None
             else sum(page.status_code == 200 for page in audit.pages),
+            "accepted_html_responses": audit.accepted_html_response_count,
+            "robots_txt_detected": (
+                bool(audit.robots_txt_detected)
+                if audit.robots_txt_detected is not None
+                else None
+            ),
+            "sitemap_detected": (
+                audit.crawl_inventory_source == "sitemap"
+                if audit.crawl_inventory_source is not None
+                else None
+            ),
+            "sitemap_url_count": audit.sitemap_url_count,
+            "successful_extractions": audit.extraction_success_count,
             "unique_content_pages": audit.unique_content_count
             if audit.unique_content_count is not None
             else sum(not getattr(page, "is_duplicate", False) for page in audit.pages),
             "duplicate_fallback_responses": audit.duplicate_content_count or 0,
             "skipped_due_to_limit": audit.skipped_due_to_limit_count or 0,
             "truncated": bool(audit.skipped_due_to_limit_count),
+            "analysis_status": audit.status,
         },
         "strengths": strengths,
         "weaknesses": weaknesses,

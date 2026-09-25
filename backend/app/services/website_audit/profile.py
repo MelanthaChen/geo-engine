@@ -40,7 +40,7 @@ UNAVAILABLE_FEATURES = (
 
 
 def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
-    pages = [page for page in audit.pages if not getattr(page, "is_duplicate", False)]
+    pages = evidence_pages(audit)
     successful_pages = [page for page in pages if page.status_code == 200]
     page_count = len(pages)
     successful_count = len(successful_pages)
@@ -81,7 +81,7 @@ def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
 
 def build_findings(audit: WebsiteAudit) -> tuple[list[dict], list[dict]]:
     profile = build_website_profile(audit)
-    pages = [page for page in audit.pages if not getattr(page, "is_duplicate", False)]
+    pages = evidence_pages(audit)
     successful = profile["successful_pages"]
     strengths: list[dict] = []
     weaknesses: list[dict] = []
@@ -186,11 +186,11 @@ def build_website_features(audit: WebsiteAudit) -> dict[str, dict[str, Any]]:
 
     features: dict[str, dict[str, Any]] = {
         "authority_score": feature(
-            "Authority Signals", audit.trust_signals_score, "score", "available",
+            "Authority Signals", audit.trust_signals_score, "score", score_availability(audit.trust_signals_score),
             "Existing trust signals score from the current audit.",
         ),
         "faq_presence": feature(
-            "FAQ Coverage", audit.faq_coverage_score, "score", "available",
+            "FAQ Coverage", audit.faq_coverage_score, "score", score_availability(audit.faq_coverage_score),
             "Existing FAQ coverage score based on detected paths and text.",
         ),
         "heading_structure": feature(
@@ -210,15 +210,15 @@ def build_website_features(audit: WebsiteAudit) -> dict[str, dict[str, Any]]:
             "Sum of extracted words across successfully retrieved pages.",
         ),
         "content_coverage": feature(
-            "Content Coverage", audit.content_coverage_score, "score", "available",
+            "Content Coverage", audit.content_coverage_score, "score", score_availability(audit.content_coverage_score),
             "Existing content coverage score from the current audit.",
         ),
         "website_structure": feature(
-            "Website Structure", audit.website_structure_score, "score", "available",
+            "Website Structure", audit.website_structure_score, "score", score_availability(audit.website_structure_score),
             "Existing website structure score from detected site paths.",
         ),
         "brand_clarity": feature(
-            "Brand Clarity", audit.brand_clarity_score, "score", "available",
+            "Brand Clarity", audit.brand_clarity_score, "score", score_availability(audit.brand_clarity_score),
             "Existing brand clarity score based on H1 and meta-description presence.",
         ),
     }
@@ -257,6 +257,19 @@ def feature(label, value, unit, availability, evidence):
     }
 
 
+def evidence_pages(audit: WebsiteAudit) -> list:
+    has_extraction_counts = audit.extraction_success_count is not None
+    return [
+        page for page in audit.pages
+        if not getattr(page, "is_duplicate", False)
+        and (not has_extraction_counts or bool(page.content_sha256))
+    ]
+
+
+def score_availability(value) -> str:
+    return "available" if value is not None else "unavailable"
+
+
 def finding(label: str, evidence: str, feature_key: str) -> dict[str, str]:
     return {"label": label, "evidence": evidence, "feature_key": feature_key}
 
@@ -290,10 +303,7 @@ def neutral_direction(category: str) -> str:
 
 
 def opportunity_evidence(recommendation) -> str:
-    evidence = (
-        f"The audit recorded the finding “{recommendation.title}” "
-        f"in the {recommendation.category.replace('_', ' ')} category."
-    )
+    evidence = recommendation.description
     if recommendation.evidence_url:
         evidence = f"{evidence} Observed page: {recommendation.evidence_url}."
     return evidence

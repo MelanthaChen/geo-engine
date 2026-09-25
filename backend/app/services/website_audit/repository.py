@@ -32,10 +32,17 @@ def create_audit_record(
         and page.body_text
     ]
     duplicate_count = sum(page.is_duplicate for page in pages)
+    extraction_success_count = sum(
+        page.status_code is not None
+        and 200 <= page.status_code < 300
+        and bool(page.body_text)
+        for page in pages
+    )
+    audit_status = "completed" if unique_pages else "insufficient_analyzable_content"
     audit = WebsiteAudit(
         property_id=property_id,
         base_url=base_url,
-        status="completed",
+        status=audit_status,
         brand_summary=brand_understanding.brand_summary,
         product_summary=brand_understanding.product_summary,
         target_audience=brand_understanding.target_audience,
@@ -53,6 +60,10 @@ def create_audit_record(
         discovered_url_count=crawl_coverage.discovered_urls,
         requested_url_count=crawl_coverage.requested_urls,
         successful_response_count=crawl_coverage.successful_responses,
+        accepted_html_response_count=crawl_coverage.accepted_html_responses,
+        robots_txt_detected=crawl_coverage.robots_txt_detected,
+        sitemap_url_count=crawl_coverage.sitemap_url_count,
+        extraction_success_count=extraction_success_count,
         unique_content_count=len(unique_pages),
         duplicate_content_count=duplicate_count,
         skipped_due_to_limit_count=crawl_coverage.skipped_due_to_limit,
@@ -102,8 +113,9 @@ def create_audit_record(
         website_audit_id=audit.id,
         status="finished",
         summary=(
-            f"Website audit completed with health score "
-            f"{scores.overall_geo_score}"
+            "Website audit completed"
+            if unique_pages
+            else "Website crawl completed without analyzable content"
         ),
         details=(
             f"Requested {len(pages)} URLs, analyzed {len(unique_pages)} unique pages, and identified "
