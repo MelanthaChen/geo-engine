@@ -22,9 +22,16 @@ import {
   type PredictorDataset,
   type PredictorStatus,
 } from "@/api/predictor";
-import { fetchLatestWebsiteAudit, fetchWebsiteAudit, type AuditResult, type OptimizationOpportunity } from "@/api/audit";
+import { fetchLatestWebsiteAudit, fetchWebsiteAudit, type AuditResult } from "@/api/audit";
 import { getExperimentLabRun, startAuditValidation } from "@/api/experimentLab";
-import type { ExperimentRun, StrategyId } from "@/types/experimentLab";
+import type { ExperimentRun } from "@/types/experimentLab";
+import {
+  OPTIMIZATION_STRATEGIES,
+  recommendedStrategyForOpportunity,
+  selectedValidationStrategy,
+  STRATEGY_LABELS,
+  type OptimizationStrategy,
+} from "@/lib/predictorStrategies";
 import {
   EmptyState,
   Page,
@@ -83,6 +90,7 @@ export function GeoPredictor() {
   const [validation, setValidation] = useState<ExperimentRun | null>(null);
   const [validationError, setValidationError] = useState("");
   const [startingValidation, setStartingValidation] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<OptimizationStrategy | null>(null);
 
   const websiteId = Number(searchParams.get("website_id") || 0);
   const requestedAuditId = Number(searchParams.get("audit_id") || 0);
@@ -130,6 +138,10 @@ export function GeoPredictor() {
         if (!mounted || !result) return;
         setAuditError("");
         setAudit(result);
+        const firstOpportunity = result.optimization_opportunities?.[0];
+        setSelectedStrategy(
+          firstOpportunity ? recommendedStrategyForOpportunity(firstOpportunity) : null,
+        );
       })
       .catch((error) => {
         console.error(error);
@@ -137,6 +149,11 @@ export function GeoPredictor() {
       });
     return () => { mounted = false; };
   }, [location.state, requestedAuditId, websiteId]);
+
+  const selectedOpportunity = audit?.optimization_opportunities?.[0] || null;
+  const recommendedStrategy = selectedOpportunity
+    ? recommendedStrategyForOpportunity(selectedOpportunity)
+    : null;
 
   useEffect(() => {
     if (!experimentId) return;
@@ -170,9 +187,16 @@ export function GeoPredictor() {
 
   async function handleValidateAudit() {
     if (!audit) return;
-    const opportunity = audit.optimization_opportunities?.[0];
+    const opportunity = selectedOpportunity;
     if (!opportunity) {
       setValidationError("This audit has no optimization opportunity to validate.");
+      return;
+    }
+    let validationStrategy: OptimizationStrategy;
+    try {
+      validationStrategy = selectedValidationStrategy(selectedStrategy || "");
+    } catch {
+      setValidationError("Select a supported Princeton GEO strategy before validation.");
       return;
     }
     try {
@@ -186,7 +210,7 @@ export function GeoPredictor() {
         opportunityTitle: opportunity.title,
         opportunityDirection: opportunity.direction,
         opportunityId: opportunity.id,
-        strategy: strategyForOpportunity(opportunity),
+        strategy: validationStrategy,
       });
       setValidation(result);
       const next = new URLSearchParams(searchParams);
@@ -252,7 +276,38 @@ export function GeoPredictor() {
               <FieldList title="Website features" fields={Object.values(audit.website_features || {}).map((feature) => feature.label)} />
               <FieldList title="Optimization opportunities" fields={(audit.optimization_opportunities || []).map((opportunity) => opportunity.title)} />
             </div>
-            {!experimentId && <div className="flex justify-end"><Button onClick={handleValidateAudit} disabled={startingValidation || !audit.optimization_opportunities?.length}><FlaskConical />{startingValidation ? "Starting…" : "Validate"}</Button></div>}
+            {selectedOpportunity && !experimentId && <div className="grid gap-4 rounded-lg border border-zinc-800 bg-black p-4 lg:grid-cols-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Selected Audit Opportunity</p>
+                <p className="mt-2 text-sm font-medium text-zinc-100">{selectedOpportunity.title}</p>
+                <p className="mt-1 text-xs text-zinc-500">The first optimization opportunity provided by this audit.</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Recommended Strategy</p>
+                <p className="mt-2 text-sm font-medium text-blue-300">{recommendedStrategy ? STRATEGY_LABELS[recommendedStrategy] : "Unavailable"}</p>
+                <p className="mt-1 text-xs text-zinc-500">Suggested from the audit opportunity category.</p>
+              </div>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Validation Strategy</span>
+                <select
+                  aria-label="Validation Strategy"
+                  className={fieldClassName}
+                  value={selectedStrategy || ""}
+                  onChange={(event) => {
+                    try {
+                      setSelectedStrategy(selectedValidationStrategy(event.target.value));
+                      setValidationError("");
+                    } catch { /* The fixed option list prevents unsupported selections. */ }
+                  }}
+                >
+                  {OPTIMIZATION_STRATEGIES.map((strategy) => (
+                    <option key={strategy} value={strategy}>{STRATEGY_LABELS[strategy]}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500">Your selection controls the single treatment arm; Original remains the baseline.</p>
+              </label>
+            </div>}
+            {!experimentId && <div className="flex justify-end"><Button onClick={handleValidateAudit} disabled={startingValidation || !selectedOpportunity || !selectedStrategy}><FlaskConical />{startingValidation ? "Starting…" : "Validate"}</Button></div>}
           </div> : <p className="text-sm text-zinc-400">Loading audit #{requestedAuditId || ""}…</p>}
           {auditError && <p className="mt-4 text-sm text-red-300">{auditError}</p>}
           {!experimentId && validationError && <p className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{validationError}</p>}
@@ -589,17 +644,6 @@ function sumValues(values?: Record<string, number>) {
 function formatSampleTime(value?: string | null) {
   if (!value) return "No samples";
   return new Date(value).toLocaleDateString();
-}
-
-function strategyForOpportunity(opportunity: OptimizationOpportunity): StrategyId {
-  const strategies: Record<string, StrategyId> = {
-    faq_opportunities: "easy_to_understand",
-    internal_linking_suggestions: "citation",
-    missing_geo_topics: "authoritative",
-    missing_pages: "fluency",
-    content_recommendations: "authoritative",
-  };
-  return strategies[opportunity.category] || "fluency";
 }
 
 function validationProgress(run: ExperimentRun) {
