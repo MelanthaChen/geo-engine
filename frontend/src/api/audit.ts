@@ -53,7 +53,10 @@ export type WebsiteProfile = {
 export type AuditCrawlCoverage = {
   inventory_source: "sitemap" | "recursive_links" | "legacy";
   crawl_limit: number | null;
+  sample_page_limit: number | null;
   discovered_urls: number;
+  selected_urls: number;
+  not_selected_due_to_sampling: number;
   requested_urls: number;
   successful_responses: number;
   accepted_html_responses: number | null;
@@ -65,6 +68,7 @@ export type AuditCrawlCoverage = {
   duplicate_fallback_responses: number;
   skipped_due_to_limit: number;
   truncated: boolean;
+  sampling_applied: boolean;
   analysis_status: string;
 };
 

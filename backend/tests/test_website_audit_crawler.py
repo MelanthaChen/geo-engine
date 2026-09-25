@@ -199,3 +199,114 @@ def test_spa_soft_fallback_urls_remain_provenance_but_not_independent_content():
 def test_crawl_limit_must_be_explicit_and_positive():
     with pytest.raises(ValueError, match="max_pages"):
         crawler.crawl_website("https://example.com", max_pages=0)
+
+
+def test_representative_selection_prioritizes_audited_home_and_home_links():
+    selected = crawler.select_representative_urls(
+        urls={
+            "https://example.com/special/page",
+            "https://example.com/",
+            "https://example.com/about",
+            "https://example.com/resume/engineer",
+            "https://example.com/research/study",
+        },
+        audited_url="https://example.com/special/page",
+        homepage_url="https://example.com/",
+        homepage_links={"https://example.com/about"},
+        limit=3,
+    )
+
+    assert selected == [
+        "https://example.com/special/page",
+        "https://example.com/",
+        "https://example.com/about",
+    ]
+
+
+def test_shallow_urls_are_preferred_within_a_path_family():
+    selected = crawler.select_representative_urls(
+        urls={
+            "https://example.com/",
+            "https://example.com/guides/topic/deep",
+            "https://example.com/guides/overview",
+        },
+        audited_url="https://example.com/",
+        homepage_url="https://example.com/",
+        homepage_links=set(),
+        limit=2,
+    )
+
+    assert selected == [
+        "https://example.com/",
+        "https://example.com/guides/overview",
+    ]
+
+
+def test_path_family_round_robin_prevents_one_family_from_dominating():
+    inventory = {
+        "https://example.com/",
+        *{f"https://example.com/resume/role-{index}" for index in range(20)},
+        "https://example.com/research/study",
+        "https://example.com/compare/options",
+        "https://example.com/examples/sample",
+        "https://example.com/guides/start",
+    }
+
+    selected = crawler.select_representative_urls(
+        urls=inventory,
+        audited_url="https://example.com/",
+        homepage_url="https://example.com/",
+        homepage_links=set(),
+        limit=6,
+    )
+
+    assert {crawler.path_family(url) for url in selected} == {
+        "/", "/resume", "/research", "/compare", "/examples", "/guides",
+    }
+
+
+def test_representative_selection_is_deterministic_and_keeps_small_inventory():
+    inventory = {
+        "https://example.com/",
+        "https://example.com/b",
+        "https://example.com/a",
+    }
+    arguments = {
+        "urls": inventory,
+        "audited_url": "https://example.com/",
+        "homepage_url": "https://example.com/",
+        "homepage_links": set(),
+        "limit": 30,
+    }
+
+    first = crawler.select_representative_urls(**arguments)
+    second = crawler.select_representative_urls(**arguments)
+
+    assert first == second
+    assert set(first) == inventory
+
+
+def test_large_sitemap_is_reported_as_sampled(monkeypatch):
+    base = "https://example.com"
+    urls = [f"{base}/", *[f"{base}/family/page-{index}" for index in range(50)]]
+    responses = {
+        f"{base}/robots.txt": FakeResponse(f"{base}/robots.txt", ""),
+        f"{base}/sitemap.xml": FakeResponse(
+            f"{base}/sitemap.xml",
+            sitemap(*urls),
+            headers={"content-type": "application/xml"},
+        ),
+        **{
+            url: FakeResponse(url, f"<html><body>Page {index}</body></html>")
+            for index, url in enumerate(urls)
+        },
+    }
+    install_responses(monkeypatch, responses)
+
+    result = crawler.crawl_website(base, max_pages=200, sample_pages=30)
+
+    assert result.coverage.discovered_urls == 51
+    assert result.coverage.selected_urls == 30
+    assert result.coverage.requested_urls == 30
+    assert result.coverage.not_selected_due_to_sampling == 21
+    assert result.coverage.skipped_due_to_limit == 0

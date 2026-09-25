@@ -29,6 +29,7 @@ def run_website_audit(
     crawl_result = crawl_website(
         property_record.domain,
         max_pages=settings.WEBSITE_AUDIT_MAX_PAGES,
+        sample_pages=settings.WEBSITE_AUDIT_SAMPLE_PAGES,
     )
     pages = extract_pages(crawl_result.responses)
     evidence_pages = [
@@ -121,7 +122,15 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
         "crawl_coverage": {
             "inventory_source": audit.crawl_inventory_source or "legacy",
             "crawl_limit": audit.crawl_limit,
+            "sample_page_limit": settings.WEBSITE_AUDIT_SAMPLE_PAGES,
             "discovered_urls": audit.discovered_url_count or len(audit.pages),
+            "selected_urls": audit.requested_url_count or len(audit.pages),
+            "not_selected_due_to_sampling": max(
+                (audit.discovered_url_count or len(audit.pages))
+                - (audit.requested_url_count or len(audit.pages))
+                - (audit.skipped_due_to_limit_count or 0),
+                0,
+            ),
             "requested_urls": audit.requested_url_count or len(audit.pages),
             "successful_responses": audit.successful_response_count
             if audit.successful_response_count is not None
@@ -145,6 +154,11 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             "duplicate_fallback_responses": audit.duplicate_content_count or 0,
             "skipped_due_to_limit": audit.skipped_due_to_limit_count or 0,
             "truncated": bool(audit.skipped_due_to_limit_count),
+            "sampling_applied": (
+                (audit.discovered_url_count or len(audit.pages))
+                > (audit.requested_url_count or len(audit.pages))
+                + (audit.skipped_due_to_limit_count or 0)
+            ),
             "analysis_status": audit.status,
         },
         "strengths": strengths,

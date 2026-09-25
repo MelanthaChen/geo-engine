@@ -122,7 +122,9 @@ def create_audit_record(
             else "Website crawl completed without analyzable content"
         ),
         details=(
-            f"Requested {len(pages)} URLs, analyzed {len(unique_pages)} unique pages, and identified "
+            f"Discovered {crawl_coverage.discovered_urls} URLs, selected "
+            f"{crawl_coverage.selected_urls} representative pages, analyzed "
+            f"{len(unique_pages)} unique pages, and identified "
             f"{len(recommendations)} candidate opportunities."
         ),
     )

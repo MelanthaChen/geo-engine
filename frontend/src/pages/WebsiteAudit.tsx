@@ -145,17 +145,19 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
         <SectionHeader title="Crawl & Evidence Summary" description="Observed crawl outcomes. HTTP responses, extracted pages, and independent content evidence are reported separately." />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <EvidenceMetric label="URLs discovered" value={coverage?.discovered_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label="Representative pages selected" value={coverage?.selected_urls ?? audit.pages?.length ?? 0} />
           <EvidenceMetric label="URLs requested" value={coverage?.requested_urls ?? audit.pages?.length ?? 0} />
           <EvidenceMetric label="Successful HTTP responses" value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
           <EvidenceMetric label="Successful HTML responses" value={coverage?.accepted_html_responses ?? "Not recorded"} />
           <EvidenceMetric label="Pages with extracted text" value={coverage?.successful_extractions ?? "Not recorded"} />
           <EvidenceMetric label="Unique pages analyzed" value={coverage?.unique_content_pages ?? analyzedCount} />
           <EvidenceMetric label="Duplicate/fallback responses" value={coverage?.duplicate_fallback_responses ?? countDuplicatePages(audit)} />
-          <EvidenceMetric label="Skipped due to limit" value={coverage?.skipped_due_to_limit ?? 0} />
+          <EvidenceMetric label="Not selected for standard audit" value={coverage?.not_selected_due_to_sampling ?? 0} />
+          <EvidenceMetric label="Skipped by hard safety limit" value={coverage?.skipped_due_to_limit ?? 0} />
           <EvidenceMetric label="Total unique extracted words" value={evidence.totalWords} />
           <EvidenceMetric label="Inventory source" value={formatInventorySource(coverage?.inventory_source)} />
         </div>
-        {coverage && <div className={`mt-3 rounded-lg border px-4 py-3 text-sm ${coverage.truncated ? "border-amber-900 bg-amber-950/30 text-amber-200" : "border-emerald-900 bg-emerald-950/30 text-emerald-200"}`}>{coverage.truncated ? `Capped crawl: ${coverage.skipped_due_to_limit} discovered URLs were not requested because the configured limit is ${coverage.crawl_limit}.` : `Complete discovered inventory: all ${coverage.discovered_urls} URLs were requested using ${coverage.inventory_source === "sitemap" ? "the site sitemap" : "recursive internal-link discovery"}.`}</div>}
+        {coverage && <CoverageNotice coverage={coverage} />}
       </section>
 
       {analyzedCount > 0 && <>
@@ -214,6 +216,16 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
         </div></CardContent></Card>
       </section>
     </>;
+}
+
+function CoverageNotice({ coverage }: { coverage: NonNullable<AuditResult["crawl_coverage"]> }) {
+  if (coverage.sampling_applied) {
+    return <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-200">Representative website audit: {coverage.selected_urls} pages selected from {coverage.discovered_urls} discovered URLs. {coverage.not_selected_due_to_sampling} URLs were not selected for the standard audit sample.{coverage.truncated ? ` A further ${coverage.skipped_due_to_limit} eligible pages were blocked by the ${coverage.crawl_limit}-page hard safety limit.` : ""}</div>;
+  }
+  if (coverage.truncated) {
+    return <div className="mt-3 rounded-lg border border-amber-900 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">Safety-capped audit: {coverage.skipped_due_to_limit} eligible URLs were not requested because the hard limit is {coverage.crawl_limit}.</div>;
+  }
+  return <div className="mt-3 rounded-lg border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">Complete discovered inventory coverage: all {coverage.discovered_urls} discovered URLs fit within the {coverage.sample_page_limit ?? coverage.crawl_limit}-page standard audit size.</div>;
 }
 
 function EvidencePanel({ title, description, children }: { title: string; description: string; children: ReactNode }) {

@@ -27,7 +27,10 @@ def coverage(*, accepted_html=0, successful=1):
     return CrawlCoverage(
         inventory_source="sitemap",
         crawl_limit=20,
+        sample_page_limit=10,
         discovered_urls=1,
+        selected_urls=1,
+        not_selected_due_to_sampling=0,
         requested_urls=1,
         successful_responses=successful,
         accepted_html_responses=accepted_html,
