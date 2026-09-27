@@ -5,7 +5,7 @@ from app.models.property import Property
 from app.models.website_audit import WebsiteAudit
 from app.services.website_audit.analyzer import analyze_brand_understanding
 from app.services.website_audit.crawler import crawl_website, normalize_base_url
-from app.services.website_audit.extractor import extract_pages
+from app.services.website_audit.rendering import extract_audit_pages
 from app.services.website_audit.recommendations import build_recommendations
 from app.services.website_audit.repository import (
     create_audit_record,
@@ -31,7 +31,13 @@ def run_website_audit(
         max_pages=settings.WEBSITE_AUDIT_MAX_PAGES,
         sample_pages=settings.WEBSITE_AUDIT_SAMPLE_PAGES,
     )
-    pages = extract_pages(crawl_result.responses)
+    pages = extract_audit_pages(
+        crawl_result.responses,
+        browser_enabled=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED,
+        browser_timeout_ms=settings.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS,
+        browser_concurrency=settings.WEBSITE_AUDIT_BROWSER_CONCURRENCY,
+        browser_fallback_limit=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT,
+    )
     evidence_pages = [
         page for page in pages
         if not page.is_duplicate
@@ -87,6 +93,9 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
     strengths, weaknesses = build_findings(audit)
     website_profile = build_website_profile(audit)
     website_profile.pop("_evidence", None)
+    has_render_provenance = any(
+        page.extraction_method is not None for page in audit.pages
+    )
 
     return {
         "id": audit.id,
@@ -148,6 +157,15 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             ),
             "sitemap_url_count": audit.sitemap_url_count,
             "successful_extractions": audit.extraction_success_count,
+            "http_extracted_pages": sum(
+                page.extraction_method == "http" for page in audit.pages
+            ) if has_render_provenance else None,
+            "browser_extracted_pages": sum(
+                page.extraction_method == "browser" for page in audit.pages
+            ) if has_render_provenance else None,
+            "extraction_failures": sum(
+                page.extraction_method == "failed" for page in audit.pages
+            ) if has_render_provenance else None,
             "unique_content_pages": audit.unique_content_count
             if audit.unique_content_count is not None
             else sum(not getattr(page, "is_duplicate", False) for page in audit.pages),
@@ -179,6 +197,18 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
                 "content_sha256": page.content_sha256,
                 "is_duplicate": page.is_duplicate,
                 "duplicate_of_url": page.duplicate_of_url,
+                "h2_count": page.h2_count,
+                "h3_count": page.h3_count,
+                "canonical_url": page.canonical_url,
+                "schema_types": page.schema_types or [],
+                "question_heading_count": page.question_heading_count,
+                "detected_qa_pair_count": page.detected_qa_pair_count,
+                "faq_like_heading_count": page.faq_like_heading_count,
+                "faq_page_schema_detected": page.faq_page_schema_detected,
+                "extraction_method": page.extraction_method,
+                "extraction_failure_reason": page.extraction_failure_reason,
+                "http_word_count": page.http_word_count,
+                "browser_word_count": page.browser_word_count,
             }
             for page in audit.pages
         ],

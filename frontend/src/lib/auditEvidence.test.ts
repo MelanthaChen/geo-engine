@@ -71,6 +71,14 @@ describe("buildAuditEvidence", () => {
     expect(pageExclusionReason(page({ word_count: 0 }))).toContain("No analyzable extracted text");
   });
 
+  it("prioritizes the persisted browser-fallback failure reason", () => {
+    expect(pageExclusionReason(page({
+      extraction_method: "failed",
+      extraction_failure_reason: "Browser rendering timed out.",
+      word_count: 0,
+    }))).toBe("Browser rendering timed out.");
+  });
+
   it("qualifies absent signals as limited to analyzed evidence", () => {
     expect(formatAbsentSignal("Security-related content", "Not detected in analyzed evidence"))
       .toBe("Security-related content — Not detected in analyzed evidence");

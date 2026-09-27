@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     XIAOHONGSHU_RETRIEVAL_LIMIT: int = 20
     WEBSITE_AUDIT_MAX_PAGES: int = 200
     WEBSITE_AUDIT_SAMPLE_PAGES: int = 30
+    WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED: bool = True
+    WEBSITE_AUDIT_BROWSER_CONCURRENCY: int = 2
+    WEBSITE_AUDIT_BROWSER_TIMEOUT_MS: int = 10_000
+    WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT: int = 10
 
     @model_validator(mode="after")
     def validate_environment_contract(self):
@@ -51,6 +55,12 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_AUDIT_MAX_PAGES must be at least 1")
         if self.WEBSITE_AUDIT_SAMPLE_PAGES < 1:
             raise ValueError("WEBSITE_AUDIT_SAMPLE_PAGES must be at least 1")
+        if self.WEBSITE_AUDIT_BROWSER_CONCURRENCY < 1:
+            raise ValueError("WEBSITE_AUDIT_BROWSER_CONCURRENCY must be at least 1")
+        if self.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS < 250:
+            raise ValueError("WEBSITE_AUDIT_BROWSER_TIMEOUT_MS must be at least 250")
+        if self.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT < 1:
+            raise ValueError("WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT must be at least 1")
 
         database_host = (urlparse(self.DATABASE_URL).hostname or "").lower()
         if environment == "production" and database_host in {

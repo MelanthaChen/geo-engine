@@ -59,6 +59,7 @@ export function buildAuditEvidence(audit: AuditResult) {
 }
 
 export function pageExclusionReason(page: WebsitePageAudit): string | null {
+  if (page.extraction_method === "failed") return page.extraction_failure_reason || "Page extraction failed.";
   if (page.is_duplicate) return `Duplicate content; canonical evidence is ${page.duplicate_of_url || "another crawled URL"}.`;
   if (page.status_code === null) return "No HTTP response was recorded.";
   if (page.status_code < 200 || page.status_code >= 300) return `HTTP ${page.status_code} was not accepted as page evidence.`;

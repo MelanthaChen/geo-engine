@@ -46,6 +46,26 @@ def upgrade():
     bind = op.get_bind()
     Base.metadata.create_all(bind=bind)
 
+    # create_all() uses today's model metadata. Remove fields owned by later
+    # revision 0025 so a clean historical replay reaches the same schema in
+    # the same revision as an existing database upgraded from 0024.
+    for column_name in (
+        "browser_word_count",
+        "http_word_count",
+        "extraction_failure_reason",
+        "extraction_method",
+        "faq_page_schema_detected",
+        "faq_like_heading_count",
+        "detected_qa_pair_count",
+        "question_heading_count",
+        "schema_types",
+        "canonical_url",
+        "h3_count",
+        "h2_count",
+    ):
+        if _column_exists("website_pages", column_name):
+            op.drop_column("website_pages", column_name)
+
     if not _table_exists("properties"):
         op.create_table(
             "properties",

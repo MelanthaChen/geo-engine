@@ -88,6 +88,18 @@ def create_audit_record(
                 content_sha256=page.content_sha256,
                 is_duplicate=page.is_duplicate,
                 duplicate_of_url=page.duplicate_of_url,
+                h2_count=page.h2_count,
+                h3_count=page.h3_count,
+                canonical_url=page.canonical_url,
+                schema_types=list(page.schema_types),
+                question_heading_count=page.question_heading_count,
+                detected_qa_pair_count=page.detected_qa_pair_count,
+                faq_like_heading_count=page.faq_like_heading_count,
+                faq_page_schema_detected=page.faq_page_schema_detected,
+                extraction_method=page.extraction_method,
+                extraction_failure_reason=page.extraction_failure_reason,
+                http_word_count=page.http_word_count,
+                browser_word_count=page.browser_word_count,
             )
         )
 

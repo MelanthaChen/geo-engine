@@ -64,6 +64,9 @@ export type AuditCrawlCoverage = {
   sitemap_detected: boolean | null;
   sitemap_url_count: number | null;
   successful_extractions: number | null;
+  http_extracted_pages: number | null;
+  browser_extracted_pages: number | null;
+  extraction_failures: number | null;
   unique_content_pages: number;
   duplicate_fallback_responses: number;
   skipped_due_to_limit: number;
@@ -116,6 +119,18 @@ export type WebsitePageAudit = {
   content_sha256?: string | null;
   is_duplicate?: boolean;
   duplicate_of_url?: string | null;
+  h2_count?: number;
+  h3_count?: number;
+  canonical_url?: string | null;
+  schema_types?: string[];
+  question_heading_count?: number;
+  detected_qa_pair_count?: number;
+  faq_like_heading_count?: number;
+  faq_page_schema_detected?: boolean;
+  extraction_method?: "http" | "browser" | "failed" | null;
+  extraction_failure_reason?: string | null;
+  http_word_count?: number | null;
+  browser_word_count?: number | null;
 };
 
 export async function runWebsiteAudit(propertyId: number) {
