@@ -9,6 +9,7 @@ export type TeacherExperimentGroup = {
   auditId: number;
   teacherModel: string;
   createdAt: string;
+  trainingEligibleCount: number;
   samples: TeacherSample[];
   originalMetrics: MetricSet;
   optimizedMetrics: MetricSet;
@@ -30,7 +31,10 @@ export function groupTeacherSamples(samples: TeacherSample[]): TeacherExperiment
 
   return Array.from(groups, ([key, groupedSamples]) => {
     const first = groupedSamples[0];
-    const stored = readStoredAggregates(first.provenance);
+    const uniqueContexts = new Set(groupedSamples.map((sample) => (
+      sample.context_fingerprint || `${sample.query || "historical"}:${sample.target_snapshot_hash || "unknown"}`
+    )));
+    const stored = uniqueContexts.size === 1 ? readStoredAggregates(first.provenance) : null;
     return {
       key,
       experimentId: first.experiment_id,
@@ -38,6 +42,7 @@ export function groupTeacherSamples(samples: TeacherSample[]): TeacherExperiment
       auditId: first.audit_id,
       teacherModel: first.teacher_model,
       createdAt: first.created_at,
+      trainingEligibleCount: groupedSamples.filter((sample) => sample.training_eligible).length,
       samples: groupedSamples,
       originalMetrics: stored?.original || averageMetrics(groupedSamples, "original_metrics"),
       optimizedMetrics: stored?.optimized || averageMetrics(groupedSamples, "optimized_metrics"),

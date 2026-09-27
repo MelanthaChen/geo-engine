@@ -89,3 +89,52 @@ def test_historical_generic_absence_is_not_exposed_as_an_opportunity():
     )])
 
     assert build_optimization_opportunities(audit) == []
+
+
+def test_faq_recommendation_depends_on_explanatory_content_not_url_absence():
+    recommendations = build_recommendations(
+        [page(
+            url="https://example.com/guide",
+            body_text="This guide explains how the service works and helps readers understand each step.",
+            word_count=350,
+        )],
+        requested_urls=1,
+        accepted_html_responses=1,
+    )
+
+    faq = next(item for item in recommendations if item.category == "faq_opportunities")
+    assert faq.affected_page_count == 1
+    assert "no detected FAQPage schema" in faq.observed_evidence
+    assert "/faq" not in faq.observed_evidence
+
+
+def test_url_named_faq_does_not_create_a_recommendation_without_content_evidence():
+    recommendations = build_recommendations(
+        [page(
+            url="https://example.com/faq",
+            body_text="Short contact details.",
+            word_count=40,
+        )],
+        requested_urls=1,
+        accepted_html_responses=1,
+    )
+
+    assert not any(item.category == "faq_opportunities" for item in recommendations)
+
+
+def test_strong_existing_faq_structure_is_not_prioritized():
+    recommendations = build_recommendations(
+        [page(
+            url="https://example.com/support",
+            body_text="How does the service work? It explains each step in detail.",
+            word_count=350,
+            question_heading_count=3,
+            detected_qa_pair_count=3,
+            faq_like_heading_count=1,
+            faq_page_schema_detected=True,
+        )],
+        requested_urls=1,
+        accepted_html_responses=1,
+    )
+
+    assert not any(item.category == "faq_opportunities" for item in recommendations)

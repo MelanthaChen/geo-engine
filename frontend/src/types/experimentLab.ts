@@ -10,7 +10,8 @@ export type StrategyId =
   | "easy_to_understand"
   | "unique_words"
   | "technical_terms"
-  | "keyword_stuffing";
+  | "keyword_stuffing"
+  | "faq";
 
 export type EvaluationMetricId = "pawc" | "citation_count" | "visibility_score";
 export type BenchmarkSource = "manual" | "csv" | "geo_bench";

@@ -23,6 +23,10 @@ class PageExtract:
     content_sha256: str | None = None
     is_duplicate: bool = False
     duplicate_of_url: str | None = None
+    question_heading_count: int = 0
+    detected_qa_pair_count: int = 0
+    faq_like_heading_count: int = 0
+    faq_page_schema_detected: bool = False
 
 
 def extract_pages(responses: list[CrawlResponse]) -> list[PageExtract]:
@@ -57,6 +61,11 @@ def extract_page(response: CrawlResponse) -> PageExtract:
 
     soup = BeautifulSoup(response.html, "html.parser")
 
+    faq_page_schema_detected = detect_faq_page_schema(soup)
+    question_heading_count, detected_qa_pair_count, faq_like_heading_count = (
+        extract_faq_structure(soup)
+    )
+
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
 
@@ -77,7 +86,41 @@ def extract_page(response: CrawlResponse) -> PageExtract:
         internal_link_count=internal_links,
         external_link_count=external_links,
         body_text=body_text,
+        question_heading_count=question_heading_count,
+        detected_qa_pair_count=detected_qa_pair_count,
+        faq_like_heading_count=faq_like_heading_count,
+        faq_page_schema_detected=faq_page_schema_detected,
     )
+
+
+def detect_faq_page_schema(soup: BeautifulSoup) -> bool:
+    return any(
+        '"FAQPage"' in (script.string or script.get_text(" "))
+        for script in soup.find_all("script", attrs={"type": "application/ld+json"})
+    )
+
+
+def extract_faq_structure(soup: BeautifulSoup) -> tuple[int, int, int]:
+    headings = soup.find_all(re.compile(r"^h[1-6]$"))
+    question_headings = []
+    faq_like_headings = 0
+    for heading in headings:
+        text = clean_text(heading.get_text(" "))
+        normalized = text.lower().rstrip(":")
+        if text.endswith("?"):
+            question_headings.append(heading)
+        if normalized in {"faq", "faqs", "frequently asked questions", "questions and answers", "q&a"}:
+            faq_like_headings += 1
+
+    qa_pairs = 0
+    for heading in question_headings:
+        sibling = heading.find_next_sibling(True)
+        while sibling is not None and sibling.name in {"script", "style", "noscript", "svg"}:
+            sibling = sibling.find_next_sibling(True)
+        if sibling is not None and not re.match(r"^h[1-6]$", sibling.name or ""):
+            if clean_text(sibling.get_text(" ")):
+                qa_pairs += 1
+    return len(question_headings), qa_pairs, faq_like_headings
 
 
 def extract_meta_description(soup: BeautifulSoup) -> str | None:

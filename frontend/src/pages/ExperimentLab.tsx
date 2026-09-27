@@ -35,6 +35,7 @@ import { API_BASE_URL } from "@/api/config";
 import {
   defaultExperimentConfiguration,
   strategyOptions,
+  treatmentStrategyOptions,
 } from "@/data/experimentLabConfig";
 import type {
   BenchmarkSource,
@@ -418,7 +419,7 @@ export function ExperimentLab() {
                       Strategies
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
-                      All Princeton GEO strategies are selected by default.
+                      All available treatment strategies are selected by default. Original is added automatically as the baseline.
                     </p>
                   </div>
                   <button
@@ -433,7 +434,7 @@ export function ExperimentLab() {
                 </div>
 
                 <div className="mt-4 grid gap-2 md:grid-cols-2">
-                  {strategyOptions.map((strategy) => (
+                  {treatmentStrategyOptions.map((strategy) => (
                     <label
                       key={strategy.id}
                       className="flex items-center gap-2 text-sm text-zinc-300"

@@ -1,6 +1,7 @@
 """Immutable dataset-version writer."""
 
 from datetime import datetime, timezone
+import json
 
 from sqlalchemy.orm import Session
 
@@ -26,23 +27,27 @@ class DatasetWriter:
         creation_time = datetime.now(timezone.utc)
         existing_samples = self.db.query(TeacherTrainingSample).all()
         all_samples = [*existing_samples, *samples]
-        sample_ids = [sample.sample_id for sample in all_samples]
+        eligible_samples = [
+            sample for sample in all_samples
+            if self._training_eligible(json.loads(sample.provenance_json))
+        ]
+        sample_ids = [sample.sample_id for sample in eligible_samples]
         manifest = {
             "schema_version": "teacher-dataset-manifest-v1",
             "dataset_version": dataset_version,
             "creation_time": creation_time.isoformat(),
             "sample_ids": sample_ids,
-            "experiment_ids": sorted({sample.experiment_id for sample in all_samples}),
-            "teacher_models": sorted({sample.teacher_model for sample in all_samples}),
-            "metric_versions": sorted({sample.metric_version for sample in all_samples}),
+            "experiment_ids": sorted({sample.experiment_id for sample in eligible_samples}),
+            "teacher_models": sorted({sample.teacher_model for sample in eligible_samples}),
+            "metric_versions": sorted({sample.metric_version for sample in eligible_samples}),
         }
         dataset = TeacherDatasetVersion(
             dataset_version=dataset_version,
             creation_time=creation_time,
-            teacher_model=", ".join(manifest["teacher_models"]),
-            metric_version=", ".join(manifest["metric_versions"]),
+            teacher_model=", ".join(manifest["teacher_models"]) or "none",
+            metric_version=", ".join(manifest["metric_versions"]) or "none",
             experiment_count=len(manifest["experiment_ids"]),
-            sample_count=len(all_samples),
+            sample_count=len(eligible_samples),
             manifest_json=canonical_json(manifest),
             manifest_hash=provenance_hash(manifest),
         )
@@ -50,8 +55,17 @@ class DatasetWriter:
         self.db.flush()
         self.db.add_all([
             TeacherDatasetMember(dataset_version_id=dataset.id, sample_id=sample.sample_id, ordinal=index)
-            for index, sample in enumerate(all_samples, start=1)
+            for index, sample in enumerate(eligible_samples, start=1)
         ])
         self.db.commit()
         self.db.refresh(dataset)
         return dataset
+
+    @staticmethod
+    def _training_eligible(provenance):
+        if "training_eligible" in provenance:
+            return bool(provenance["training_eligible"])
+        return not any(
+            "frozen" in (source.get("retrieval_provider") or "")
+            for source in provenance.get("source_set", [])
+        )

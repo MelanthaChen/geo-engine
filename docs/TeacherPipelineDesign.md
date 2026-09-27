@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Teacher Pipeline is the reproducible data bridge between completed Princeton GEO experiments and future student-model training. It does not train, fine-tune, serve, or evaluate Qwen, Llama, or any other student model.
+The Teacher Pipeline is the reproducible data bridge between completed Princeton GEO experiments and future student-model training. It does not train, fine-tune, serve, or evaluate Qwen, Llama, or any other student model. A training sample now means one distinct query/source-set/strategy context with one matched baseline-versus-treatment pair; it does not mean another stochastic answer to an already-counted context.
 
 Its only job is to turn valid experimental evidence into immutable supervised samples and immutable dataset-version manifests.
 
@@ -10,8 +10,10 @@ Its only job is to turn valid experimental evidence into immutable supervised sa
 flowchart TD
     W[Website] --> A[Website Audit]
     A --> F[Structured Website Features]
-    F --> TP[Teacher Pipeline]
-    E[Completed Princeton GEO Experiment] --> TP
+    F --> Q[Deterministic evidence-derived query contexts]
+    Q --> R[One frozen target + four references per context]
+    R --> E[Controlled Princeton-style experiments]
+    E --> TP
     TP --> V[Completeness and pairing validation]
     V --> B[Original baseline run]
     V --> O[Optimized strategy run]
@@ -41,6 +43,8 @@ The dataset therefore grows from experiments actually executed by the platform. 
 
 The independent `teacher_pipeline_agent.py` polls for completed experiments. This avoids modifying Experiment Lab execution or the Princeton methodology.
 
+The explicit training-data workflow first prepares deterministic queries from the analyzed audit pages. It records the audit page, title/H1/metadata evidence, path family, intent classification, query source, and query-policy version. It rejects duplicate and near-duplicate normalized queries. It then freezes the audited target plus four external reference snapshots once for each query; baseline and treatment use the same ordering and hashes, and only the selected target content is rewritten.
+
 For every unprocessed optimized run, the pipeline:
 
 1. verifies that the experiment is completed and has a completion timestamp;
@@ -51,10 +55,11 @@ For every unprocessed optimized run, the pipeline:
 6. snapshots original and optimized metric maps;
 7. computes `optimized - original` for every shared numeric metric without estimating missing values;
 8. records canonical provenance, including hashes of source text, prompts, responses, model context, evaluator versions, seed, and experiment settings;
-9. writes one immutable sample for the validated baseline/treatment pair;
-10. creates a new immutable cumulative dataset manifest containing every sample available at that version.
+9. calculates a deterministic context fingerprint from normalized query, ordered target/reference snapshot hashes, target position, and strategy;
+10. writes one immutable sample for the validated baseline/treatment pair, while preventing the new training workflow from counting a duplicate context again;
+11. creates a new immutable cumulative dataset manifest containing every training-eligible sample available at that version.
 
-An experiment with multiple queries, strategies, seeds, or samples can create multiple supervised rows. Each row remains a single matched experimental comparison. This preserves scientific granularity and avoids selecting only a winning strategy.
+`training_sample_count` and `repetitions_per_context` are independent. The professor default is 100 distinct contexts × 1 repetition = 100 paired samples. Historical experiments that used 1 query × 5 stochastic repetitions remain readable as five experimental records, but they are not mislabeled as five different questions. Frozen professor-demo records are preserved and shown as demo/research evidence, but are marked `source_mode=frozen_demo`, `training_eligible=false`, and excluded from training exports.
 
 Incomplete pairs are skipped, not partially materialized. The worker can reconsider them on a later pass after missing audit/evaluation evidence exists.
 
@@ -69,6 +74,9 @@ Incomplete pairs are skipped, not partially materialized. The worker can reconsi
 - teacher provider, model, and recorded model version identifier;
 - prompt, evaluation, and metric schema versions;
 - original, optimized, and delta metric JSON maps;
+- query text, source (`generated`, `benchmark`, or `live_retrieval` where applicable), supported intent, and originating audit page;
+- original target, optimized target, baseline answer, treatment answer, and ordered source-snapshot lineage;
+- context fingerprint, source mode, and explicit training eligibility;
 - canonical provenance JSON and SHA-256 hash;
 - introduction `dataset_version` and creation timestamp.
 
@@ -76,7 +84,7 @@ Rows reject updates and deletion at the SQLAlchemy layer. Foreign-key deletion i
 
 ## Dataset versioning
 
-Every successful append produces an immutable cumulative dataset snapshot:
+Every successful append produces an immutable cumulative dataset snapshot containing only training-eligible samples:
 
 - `dataset_version` (`teacher-dataset-v000001`, etc.);
 - exact creation time;
@@ -87,7 +95,7 @@ Every successful append produces an immutable cumulative dataset snapshot:
 - ordered sample membership;
 - canonical manifest and manifest SHA-256 hash.
 
-The JSONL export starts with a dataset metadata record and then emits the immutable training sample records. This makes the version, teacher model, metric version, experiment count, and manifest hash travel with every export.
+The JSONL export starts with a dataset metadata record and then emits the immutable training sample records; CSV emits the same sample fields in tabular form. Both exports retain the context fingerprint, query/source/intent, target and reference URLs/hashes/order, strategy, answers, metric maps, model, source mode, eligibility, experiment/audit lineage, provenance hash, and timestamps. Metric aliases (`baseline_metrics`, `treatment_metrics`, and `metric_deltas`) are included alongside the existing original/optimized/delta names for future training consumers.
 
 ## Continuous dataset growth
 
@@ -103,12 +111,14 @@ Before any student-model work begins, a separate design must define leakage-safe
 
 ## APIs and transparency UI
 
-- `GET /api/v1/teacher-pipeline/status`: pipeline/sample/dataset summary and recent samples.
+- `GET /api/v1/teacher-pipeline/status`: pipeline/sample/dataset summary, distinct-context diversity counts, generation progress, and recent samples.
 - `GET /api/v1/teacher-pipeline/samples`: read-only sample list.
 - `GET /api/v1/teacher-pipeline/dataset/export`: latest cumulative dataset as JSONL with metadata.
-- `/teacher-pipeline`: read-only frontend page showing status, counts, teacher models, current dataset version, last processed experiment, pending experiments, and recent provenance hashes.
+- `POST /api/v1/teacher-pipeline/dataset-generation/preview`: validates that the selected audit supports the requested distinct contexts and returns the expected baseline, treatment, and evaluation call counts without starting paid generation.
+- `POST /api/v1/teacher-pipeline/dataset-generation/start`: requires explicit confirmation, freezes source sets, and starts the requested job.
+- `/teacher-pipeline`: shows unique-query/page/intent/source-set counts, context preparation and experiment progress, the selected strategy and repetitions separately, and expandable sample provenance including answers and source snapshots.
 
-There is intentionally no public mutation, training, inference, or prediction endpoint. Dataset creation is owned by the independent worker.
+There is no model-training, inference, or prediction endpoint. The only mutation added here is the explicitly confirmed Teacher dataset-generation job; preparing its preview never calls the Teacher model.
 
 ## Operating the worker
 

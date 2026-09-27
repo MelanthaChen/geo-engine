@@ -17,7 +17,7 @@ from app.experiment.trend_validation import (
     stage_decision,
     verify_paper_conclusions,
 )
-from app.ge.geo_rewriter import GeoRewriter, STRATEGY_LABELS
+from app.ge.geo_rewriter import GeoRewriter, OFFICIAL_GEO_STRATEGIES
 from app.ge.llm_runner import OpenAILLMRunner
 from app.ge.prompt_builder import PromptBuilder
 from app.ge.search_provider import RetrievedDocument
@@ -59,7 +59,7 @@ class OfficialReplicationRunner:
             provider="chatgpt",
             dataset_name="geo_bench",
             benchmark_queries=entries,
-            strategies=list(STRATEGY_LABELS),
+            strategies=list(OFFICIAL_GEO_STRATEGIES),
             metrics=["pawc", "word_score", "position_score", "subjective_impression"],
             number_of_queries=len(entries),
             random_seed=42,
@@ -210,7 +210,7 @@ class OfficialReplicationRunner:
         trend = verify_paper_conclusions(payload["statistics"])
         complete = len([run for run in experiment.runs if run.status == "completed"]) == len(
             json.loads(experiment.benchmark_queries_json or "[]")
-        ) * len(STRATEGY_LABELS) * 5
+        ) * len(OFFICIAL_GEO_STRATEGIES) * 5
         subjective_complete = sum(
             1 for run in experiment.runs for metric in run.metrics
             if metric.name == "subjective_impression_calibrated"
@@ -239,7 +239,7 @@ class OfficialReplicationRunner:
 
     def _write_report(self, experiment, payload, trend, output_dir):
         completed = len([run for run in experiment.runs if run.status == "completed"])
-        expected = len(json.loads(experiment.benchmark_queries_json or "[]")) * len(STRATEGY_LABELS) * 5
+        expected = len(json.loads(experiment.benchmark_queries_json or "[]")) * len(OFFICIAL_GEO_STRATEGIES) * 5
         subjective_count = sum(
             1 for run in experiment.runs for metric in run.metrics
             if metric.name == "subjective_impression_calibrated"
@@ -248,7 +248,7 @@ class OfficialReplicationRunner:
         report = (
             "# Princeton GEO Replication Run\n\n"
             f"- Dataset: GEO-Optim/geo-bench test\n- Provider: {experiment.provider}\n"
-            f"- Model: {experiment.llm_model}\n- Strategies: {len(STRATEGY_LABELS)}\n"
+            f"- Model: {experiment.llm_model}\n- Strategies: {len(OFFICIAL_GEO_STRATEGIES)}\n"
             f"- Completed samples: {completed}/{expected}\n"
             f"- Subjective samples calibrated: {subjective_count}/{expected}\n"
             f"- Methodological fidelity: {'high' if complete and subjective_count == expected else 'partial'}\n"

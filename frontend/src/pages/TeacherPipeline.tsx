@@ -1,15 +1,65 @@
 import { useEffect, useState } from "react";
 import { Database, Download, FlaskConical, GitBranch, ShieldCheck } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { Card, CardContent } from "../../@/components/ui/card";
+import { Button } from "../../@/components/ui/button";
 import { EmptyState, Page, PageHeader, SectionHeader, SummaryCard, SummaryGrid } from "@/components/layout/PageLayout";
-import { fetchTeacherPipelineStatus, teacherDatasetExportUrl, type TeacherPipelineStatus } from "@/api/teacherPipeline";
+import { fetchTeacherPipelineStatus, fetchTeacherSamples, previewDatasetGeneration, startDatasetGeneration, teacherDatasetExportUrl, type DatasetGenerationPreview, type DatasetGenerationRequest, type TeacherPipelineStatus, type TeacherSample } from "@/api/teacherPipeline";
 import { groupTeacherSamples, type TeacherExperimentGroup } from "@/lib/teacherExperimentGroups";
+import { useProperty } from "@/contexts/PropertyContext";
 
 export function TeacherPipelinePage() {
   const [status, setStatus] = useState<TeacherPipelineStatus | null>(null);
+  const [samples, setSamples] = useState<TeacherSample[]>([]);
   const [error, setError] = useState("");
-  const experimentGroups = groupTeacherSamples(status?.recent_samples || []);
+  const [preview, setPreview] = useState<DatasetGenerationPreview | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const [searchParams] = useSearchParams();
+  const { activePropertyId } = useProperty();
+  const experimentGroups = groupTeacherSamples(samples);
+  const auditId = Number(searchParams.get("audit_id") || 0);
+  const strategy = searchParams.get("strategy") || "authoritative";
+  const generationRequest: DatasetGenerationRequest = {
+    property_id: activePropertyId || 0,
+    audit_id: auditId,
+    strategy,
+    training_sample_count: 100,
+    repetitions_per_context: 1,
+    provider: "chatgpt",
+    llm: "gpt-3.5-turbo",
+    random_seed: 42,
+    temperature: 0.7,
+    confirmed: false,
+  };
+
+  async function prepareGeneration() {
+    try {
+      setPreparing(true);
+      setError("");
+      setPreview(await previewDatasetGeneration(generationRequest));
+    } catch (reason) {
+      console.error(reason);
+      setError((reason as { response?: { data?: { detail?: string } } }).response?.data?.detail || "Dataset generation could not be prepared.");
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  async function confirmGeneration() {
+    try {
+      setPreparing(true);
+      setError("");
+      await startDatasetGeneration(generationRequest);
+      setPreview(null);
+      setStatus(await fetchTeacherPipelineStatus());
+    } catch (reason) {
+      console.error(reason);
+      setError((reason as { response?: { data?: { detail?: string } } }).response?.data?.detail || "Dataset generation could not be started.");
+    } finally {
+      setPreparing(false);
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -32,6 +82,14 @@ export function TeacherPipelinePage() {
     return () => { mounted = false; if (timer) window.clearTimeout(timer); };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    fetchTeacherSamples(activePropertyId || undefined)
+      .then((result) => { if (mounted) setSamples(result); })
+      .catch((reason) => console.error(reason));
+    return () => { mounted = false; };
+  }, [activePropertyId, status?.generation?.training_samples_ready]);
+
   return <Page>
     <PageHeader
       eyebrow="Research transparency"
@@ -42,9 +100,20 @@ export function TeacherPipelinePage() {
 
     {error && <div className="rounded-lg border border-red-900 bg-red-950/30 px-5 py-4 text-sm text-red-300">{error}</div>}
 
+    {activePropertyId && auditId > 0 && <section>
+      <SectionHeader title="Generate Distinct Training Contexts" description="Prepare 100 evidence-derived query contexts. This is separate from the frozen professor demo and starts only after explicit confirmation." />
+      <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
+        {!preview ? <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-zinc-100">100 unique contexts × 1 repetition</p><p className="mt-1 text-sm text-zinc-500">Selected treatment strategy: {formatStrategy(strategy)}. Preparing the call summary does not call the Teacher model.</p></div><Button disabled={preparing} onClick={prepareGeneration}>{preparing ? "Preparing…" : "Review Generation Plan"}</Button></div> : <div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><MetricCard label="Unique contexts" value={String(preview.training_sample_count)} /><MetricCard label="Baseline answer calls" value={String(preview.expected_baseline_calls)} /><MetricCard label="Strategy rewrite calls" value={String(preview.expected_strategy_rewrite_calls)} /><MetricCard label="Treatment answer calls" value={String(preview.expected_treatment_calls)} /><MetricCard label="Deterministic evaluations" value={String(preview.expected_teacher_evaluations)} /></div><p className="mt-4 text-sm text-zinc-400">{preview.representative_target_pages} target pages • {preview.query_intents.length} supported query intents • {formatStrategy(preview.strategy)} • no dollar estimate available</p><div className="mt-5 flex justify-end gap-3"><Button variant="outline" onClick={() => setPreview(null)}>Cancel</Button><Button disabled={preparing} onClick={confirmGeneration}>{preparing ? "Starting…" : "Confirm Paid Generation"}</Button></div></div>}
+      </CardContent></Card>
+    </section>}
+
+    {status?.generation && <section><SectionHeader title="Dataset Generation" description="Progress counts distinct query contexts; stochastic repetitions are reported separately." /><Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6"><div className="grid gap-3 sm:grid-cols-3"><EvidenceProgress label="Queries prepared" value={status.generation.queries_prepared} total={status.generation.training_sample_count} /><EvidenceProgress label="Experiments completed" value={status.generation.experiments_completed} total={status.generation.training_sample_count} /><EvidenceProgress label="Training samples ready" value={status.generation.training_samples_ready} total={status.generation.training_sample_count} /></div><p className="mt-4 text-xs text-zinc-500">{status.generation.repetitions_per_context} repetition per context • status: {status.generation.status.replaceAll("_", " ")}</p>{status.generation.error_message && <p className="mt-3 text-sm text-red-300">{status.generation.error_message}</p>}</CardContent></Card></section>}
+
     <SummaryGrid>
       <SummaryCard label="Pipeline Status" value={status?.status === "ready" ? "Ready" : "Awaiting samples"} detail="Collection only; training disabled" />
       <SummaryCard label="Training Samples" value={String(status?.generated_samples ?? 0)} detail={`${status?.processed_experiments ?? 0} experiments represented`} />
+      <SummaryCard label="Unique Queries" value={String(status?.unique_queries ?? 0)} detail={`${status?.representative_target_pages ?? 0} representative target pages`} />
+      <SummaryCard label="Query Intents" value={String(status?.query_intents_covered ?? 0)} detail={`${status?.reference_source_sets ?? 0} frozen reference source sets`} />
       <SummaryCard label="Dataset Version" value={status?.dataset_version || "Not created"} detail="Immutable snapshot identifier" />
       <SummaryCard label="Last Experiment" value={status?.last_experiment_processed ? `#${status.last_experiment_processed}` : "Not processed"} detail={status?.last_processed_at ? new Date(status.last_processed_at).toLocaleString() : "No completed sample yet"} />
     </SummaryGrid>
@@ -75,7 +144,7 @@ function ExperimentResultCard({ group }: { group: TeacherExperimentGroup }) {
         <div>
           <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-400" /><p className="text-lg font-semibold text-zinc-100">{formatStrategy(group.strategy)}</p></div>
           <p className="mt-1 text-sm text-zinc-500">Experiment #{group.experimentId} • Audit #{group.auditId}</p>
-          <p className="mt-2 text-sm font-medium text-blue-300">{group.samples.length} training {group.samples.length === 1 ? "sample" : "samples"} generated</p>
+          <p className="mt-2 text-sm font-medium text-blue-300">{group.trainingEligibleCount > 0 ? `${group.trainingEligibleCount} training ${group.trainingEligibleCount === 1 ? "sample" : "samples"} generated` : `${group.samples.length} demo/research ${group.samples.length === 1 ? "record" : "records"} — excluded from training export`}</p>
         </div>
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:text-right">
           <div><dt className="text-xs text-zinc-500">Teacher</dt><dd className="mt-1 text-zinc-300">{group.teacherModel}</dd></div>
@@ -97,13 +166,15 @@ function ExperimentResultCard({ group }: { group: TeacherExperimentGroup }) {
 
     <details className="group border-t border-zinc-800">
       <summary className="cursor-pointer list-none px-6 py-4 text-sm font-medium text-zinc-300 hover:bg-zinc-900/60">View {group.samples.length} {group.samples.length === 1 ? "sample" : "samples"}</summary>
-      <div className="divide-y divide-zinc-800 border-t border-zinc-800">{group.samples.map((sample, index) => <div key={sample.sample_id} className="grid gap-3 px-6 py-4 text-sm md:grid-cols-[auto_minmax(0,1.3fr)_repeat(3,minmax(0,0.7fr))_minmax(0,1fr)] md:items-center">
+      <div className="divide-y divide-zinc-800 border-t border-zinc-800">{group.samples.map((sample, index) => <div key={sample.sample_id} className="space-y-4 px-6 py-4 text-sm">
+        <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1.3fr)_repeat(3,minmax(0,0.7fr))_minmax(0,1fr)] md:items-center">
         <p className="font-medium text-zinc-200">#{index + 1}</p>
-        <div className="min-w-0"><p className="text-xs text-zinc-500">Sample UUID</p><p className="truncate font-mono text-xs text-zinc-400" title={sample.sample_id}>{sample.sample_id}</p></div>
+        <div className="min-w-0"><p className="text-xs text-zinc-500">Query</p><p className="truncate text-xs text-zinc-300" title={sample.query || ""}>{sample.query || "Historical sample"}</p></div>
         <SampleMetric label="Baseline" value={sample.original_metrics.visibility_score} />
         <SampleMetric label="Optimized" value={sample.optimized_metrics.visibility_score} />
         <SampleMetric label="Delta" value={sample.delta_metrics.visibility_score} signed />
         <div className="min-w-0"><p className="text-xs text-zinc-500">Provenance hash</p><p className="truncate font-mono text-xs text-zinc-400" title={sample.provenance_hash}>{sample.provenance_hash}</p></div>
+        </div><div className="grid gap-3 rounded-lg border border-zinc-800 bg-black p-4 md:grid-cols-2"><div><p className="text-xs text-zinc-500">Originating page</p><p className="mt-1 break-all text-xs text-zinc-300">{sample.target_url || "Not recorded"}</p><p className="mt-2 text-xs text-zinc-500">{sample.query_source || "unknown"} • {sample.query_intent || "unclassified"} • {sample.source_mode}</p></div><div><p className="text-xs text-zinc-500">Frozen source set</p><p className="mt-1 text-xs text-zinc-300">Target + {sample.reference_urls.length} references • strategy {formatStrategy(sample.strategy)}</p><p className="mt-2 text-xs text-zinc-500">{sample.training_eligible ? "Training eligible" : "Demo/research only"}</p></div><div><p className="text-xs text-zinc-500">Baseline answer</p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{sample.baseline_answer || "Not retained in historical schema"}</p></div><div><p className="text-xs text-zinc-500">Treatment answer</p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{sample.treatment_answer || "Not retained in historical schema"}</p></div></div>
       </div>)}</div>
     </details>
   </CardContent></Card>;
@@ -129,4 +200,8 @@ function formatStrategy(strategy: string) {
 
 function InfoCard({ icon: Icon, title, value, detail }: { icon: typeof Database; title: string; value: string; detail: string }) {
   return <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-5"><div className="flex items-center gap-3"><div className="rounded-lg border border-zinc-800 bg-black p-2 text-zinc-400"><Icon className="h-4 w-4" /></div><p className="text-sm font-medium text-zinc-200">{title}</p></div><p className="mt-4 text-lg font-semibold text-zinc-50">{value}</p><p className="mt-1 text-xs leading-5 text-zinc-500">{detail}</p></CardContent></Card>;
+}
+
+function EvidenceProgress({ label, value, total }: { label: string; value: number; total: number }) {
+  return <div className="rounded-lg border border-zinc-800 bg-black p-4"><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 text-xl font-semibold text-zinc-100">{value} / {total}</p></div>;
 }

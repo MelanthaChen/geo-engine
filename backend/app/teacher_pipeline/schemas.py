@@ -23,7 +23,24 @@ class TeacherSampleResponse(BaseModel):
     original_metrics: dict[str, float | None]
     optimized_metrics: dict[str, float | None]
     delta_metrics: dict[str, float | None]
+    baseline_metrics: dict[str, float | None]
+    treatment_metrics: dict[str, float | None]
+    metric_deltas: dict[str, float | None]
     provenance: dict[str, Any]
+    context_fingerprint: str | None
+    query: str | None
+    query_source: str | None
+    query_intent: str | None
+    target_url: str | None
+    target_page_id: int | None
+    target_snapshot_hash: str | None
+    reference_urls: list[str | None]
+    reference_snapshot_hashes: list[str | None]
+    reference_order: list[int | None]
+    baseline_answer: str | None
+    treatment_answer: str | None
+    source_mode: str
+    training_eligible: bool
     dataset_version: str
     provenance_hash: str
     created_at: datetime
@@ -52,3 +69,9 @@ class TeacherPipelineStatusResponse(BaseModel):
     last_processed_at: datetime | None
     recent_samples: list[TeacherSampleResponse]
     dataset: DatasetVersionResponse | None
+    unique_queries: int
+    representative_target_pages: int
+    query_intents_covered: int
+    strategies_covered: int
+    reference_source_sets: int
+    generation: dict[str, Any] | None

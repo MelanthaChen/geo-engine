@@ -58,6 +58,7 @@ class ExperimentService:
         temperature: float,
         queries: list[str] | None = None,
         dataset_documents: list[dict[str, Any]] | None = None,
+        repetitions_per_context: int = 5,
     ) -> dict:
         strategies = self._normalize_strategies(strategies)
         self._validate_strategies(strategies)
@@ -77,6 +78,7 @@ class ExperimentService:
             random_seed=random_seed,
             temperature=temperature,
             dataset_documents=dataset_documents,
+            repetitions_per_context=repetitions_per_context,
         )
         self.execute_experiment(experiment.id)
         return self.repository.serialize(experiment)
@@ -98,6 +100,7 @@ class ExperimentService:
         temperature: float,
         queries: list[str] | None = None,
         dataset_documents: list[dict[str, Any]] | None = None,
+        repetitions_per_context: int = 5,
     ) -> Experiment:
         strategies = self._normalize_strategies(strategies)
         self._validate_strategies(strategies)
@@ -125,6 +128,7 @@ class ExperimentService:
             number_of_queries=execution_count,
             random_seed=random_seed,
             temperature=temperature,
+            repetitions_per_context=repetitions_per_context,
         )
 
     def execute_experiment(self, experiment_id: int) -> Experiment:
@@ -191,6 +195,9 @@ class ExperimentService:
             random_seed=seed_value,
             provider=experiment.provider,
             retrieved_documents=uploaded_documents,
+            response_samples=int(
+                self._repetitions_per_context(experiment)
+            ),
             on_strategy=lambda strategy, current_query=query: (
                 self.repository.update_current_strategy(
                     experiment,
@@ -224,6 +231,11 @@ class ExperimentService:
 
         return completed_runs + 1
 
+    @staticmethod
+    def _repetitions_per_context(experiment: Experiment) -> int:
+        params = json.loads(experiment.generation_params_json or "{}")
+        return int(params.get("repetitions_per_context", params.get("samples_per_strategy", 5)))
+
     def _seed_values(
         self,
         dataset_name: str,
@@ -252,7 +264,10 @@ class ExperimentService:
         dataset_name: str,
         strategies: list[str],
     ) -> list[str]:
-        if dataset_name != "geo_bench" or "original" in strategies:
+        # Original is always the controlled baseline arm. User-facing selectors
+        # expose treatment strategies only, so the service adds the baseline
+        # consistently for custom, training-context, and GEO-Bench experiments.
+        if "original" in strategies:
             return strategies
 
         return ["original", *strategies]

@@ -179,11 +179,11 @@ export function GeoPredictor() {
   useEffect(() => {
     if (validation?.status !== "completed" || !experimentId) return;
     const timer = window.setTimeout(
-      () => navigate(`/teacher-pipeline?experiment_id=${experimentId}`),
+      () => navigate(`/teacher-pipeline?experiment_id=${experimentId}&audit_id=${audit?.id || requestedAuditId}&strategy=${selectedStrategy || "authoritative"}`),
       1500,
     );
     return () => window.clearTimeout(timer);
-  }, [experimentId, navigate, validation?.status]);
+  }, [audit?.id, experimentId, navigate, requestedAuditId, selectedStrategy, validation?.status]);
 
   async function handleValidateAudit() {
     if (!audit) return;
@@ -319,7 +319,7 @@ export function GeoPredictor() {
         <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Experiment #{experimentId}</p><p className={`mt-2 text-xl font-semibold ${validation?.status === "completed" ? "text-emerald-300" : validation?.status === "failed" ? "text-red-300" : "text-blue-300"}`}>{validation ? validation.status[0].toUpperCase() + validation.status.slice(1) : "Loading"}</p><p className="mt-2 text-sm text-zinc-500">{validation?.currentStrategy ? `${validation.currentStrategy} • sample ${validation.currentSample}/${validation.totalSamples}` : "Waiting for progress"}</p></div>
-            {validation?.status === "completed" && <Button onClick={() => navigate(`/teacher-pipeline?experiment_id=${experimentId}`)}>View Training Dataset</Button>}
+            {validation?.status === "completed" && <Button onClick={() => navigate(`/teacher-pipeline?experiment_id=${experimentId}&audit_id=${audit?.id || requestedAuditId}&strategy=${selectedStrategy || "authoritative"}`)}>View Training Dataset</Button>}
           </div>
           {(validation?.status === "queued" || validation?.status === "running") && <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-900"><div className="h-full bg-blue-500 transition-all" style={{ width: `${validationProgress(validation)}%` }} /></div>}
           {validation?.status === "failed" && <p className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{validation.errorMessage || "The Princeton experiment failed."}</p>}

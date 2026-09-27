@@ -50,12 +50,16 @@ class ExperimentRepository:
         number_of_queries: int,
         random_seed: int,
         temperature: float,
+        repetitions_per_context: int = 5,
     ) -> Experiment:
         prompt_version = self._get_or_create_prompt_version()
         generation_params = {
             "temperature": temperature,
             "top_p": 1,
-            "samples_per_strategy": 5,
+            "repetitions_per_context": repetitions_per_context,
+            # Retained so historical readers that predate the distinct-context
+            # workflow can still interpret older experiment records.
+            "samples_per_strategy": repetitions_per_context,
             "random_seed": random_seed,
         }
         experiment = Experiment(
@@ -77,7 +81,7 @@ class ExperimentRepository:
             random_seed=random_seed,
             temperature=temperature,
             current_sample=0,
-            total_samples=5,
+            total_samples=repetitions_per_context,
             completed_queries=0,
             total_queries=number_of_queries,
             estimated_remaining_time="Calculating",

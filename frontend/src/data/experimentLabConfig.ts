@@ -47,7 +47,16 @@ export const strategyOptions: Array<{
     label: "Keyword Stuffing",
     tableLabel: "Keyword Stuffing",
   },
+  {
+    id: "faq",
+    label: "FAQ / Q&A Structure",
+    tableLabel: "FAQ / Q&A",
+  },
 ];
+
+export const treatmentStrategyOptions = strategyOptions.filter(
+  (strategy) => strategy.id !== "original",
+);
 
 export const evaluationMetricOptions: Array<{
   id: EvaluationMetricId;
@@ -77,7 +86,7 @@ export const defaultExperimentConfiguration: ExperimentConfigurationValues = {
   manualQuery: "Best AI Resume Builder",
   uploadedQueries: [],
   uploadedDocuments: [],
-  strategies: strategyOptions.map((strategy) => strategy.id),
+  strategies: treatmentStrategyOptions.map((strategy) => strategy.id),
   numberOfQueries: 1,
   randomSeed: 42,
   temperature: 0.7,

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 
 import {
   evaluationMetricOptions,
-  strategyOptions,
+  treatmentStrategyOptions,
 } from "@/data/experimentLabConfig";
 import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import type {
@@ -63,7 +63,7 @@ export function ExperimentConfiguration({
               Experiment Configuration
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Configure the Princeton GEO paper reproduction pipeline.
+              Configure a Princeton-style controlled baseline-versus-treatment experiment.
             </p>
           </div>
           <div className="rounded-md border border-zinc-800 bg-black px-3 py-1.5 text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
@@ -166,8 +166,8 @@ export function ExperimentConfiguration({
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
           <Checklist
-            label="Strategies"
-            items={strategyOptions.map((strategy) => ({
+            label="Treatment Strategies (Original baseline is automatic)"
+            items={treatmentStrategyOptions.map((strategy) => ({
               id: strategy.id,
               label: strategy.label,
               checked: value.strategies.includes(strategy.id),

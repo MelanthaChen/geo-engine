@@ -12,6 +12,7 @@ const labels: Record<StrategyId, string> = {
   citation: "Citation", fluency: "Fluency", easy_to_understand: "Easy to understand",
   technical_terms: "Technical terms", authoritative: "Authoritative",
   unique_words: "Unique words", keyword_stuffing: "Keyword stuffing",
+  faq: "FAQ / Q&A Structure",
 };
 const paperPawc: Partial<Record<StrategyId, number>> = {
   original: 19.3, quotation: 27.2, statistics: 25.2, fluency: 24.7,

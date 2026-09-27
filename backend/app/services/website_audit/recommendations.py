@@ -29,6 +29,8 @@ def build_recommendations(
     recommendations: list[AuditRecommendation] = []
     analyzed_count = len(pages)
 
+    recommendations.extend(build_faq_structure_opportunity(pages))
+
     recommendations.extend(build_missing_field_opportunity(
         pages=pages,
         field="h1",
@@ -105,6 +107,67 @@ def build_recommendations(
         ))
 
     return recommendations
+
+
+def build_faq_structure_opportunity(pages: list[PageExtract]) -> list[AuditRecommendation]:
+    """Recommend Q&A restructuring only from measured content evidence."""
+    strong_faq_pages = [
+        page for page in pages
+        if page.faq_page_schema_detected
+        or page.detected_qa_pair_count >= 2
+        or (page.faq_like_heading_count > 0 and page.question_heading_count >= 2)
+    ]
+    candidates = [
+        page for page in pages
+        if page not in strong_faq_pages
+        and page.word_count >= 250
+        and explanatory_content_detected(page)
+        and page.question_heading_count < 2
+        and page.detected_qa_pair_count == 0
+        and not page.faq_page_schema_detected
+    ]
+    if not candidates:
+        return []
+
+    # A site with an already-strong FAQ area is not prioritized for FAQ merely
+    # because another isolated page could be reformatted. A recommendation is
+    # still warranted when several or most explanatory pages lack Q&A structure.
+    if strong_faq_pages and len(candidates) < max(3, (len(pages) + 1) // 2):
+        return []
+
+    question_headings = sum(page.question_heading_count for page in candidates)
+    evidence = (
+        f"{len(candidates)} of {len(pages)} analyzed pages contain at least 250 words "
+        "and explanatory or how-to language, but have no detected FAQPage schema, "
+        f"no detected Q&A pairs, and only {question_headings} question-style headings."
+    )
+    return [AuditRecommendation(
+        category="faq_opportunities",
+        title="Consider explicit FAQ / Q&A structure",
+        description=evidence,
+        priority="medium",
+        observed_evidence=evidence,
+        affected_page_count=len(candidates),
+        evaluated_page_count=len(pages),
+        why_it_matters=(
+            "Explicit questions paired with answers can make information easier to identify "
+            "and extract, while the answers must remain grounded in the existing page content."
+        ),
+        evidence_url=candidates[0].url,
+    )]
+
+
+def explanatory_content_detected(page: PageExtract) -> bool:
+    text = " ".join(filter(None, [
+        page.page_title,
+        page.h1,
+        page.meta_description,
+        page.body_text,
+    ])).lower()
+    return any(term in text for term in (
+        "how ", "what ", "why ", "guide", "step", "learn", "help",
+        "explain", "understand", "works", "allows", "provides",
+    ))
 
 
 def build_missing_field_opportunity(

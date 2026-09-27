@@ -52,7 +52,7 @@ The first stored optimization opportunity selects an existing Princeton strategy
 
 | Audit opportunity category | Existing strategy |
 |---|---|
-| FAQ opportunities | `easy_to_understand` |
+| Evidence-backed FAQ / Q&A structure opportunity | `faq` |
 | Internal-link suggestions | `citation` |
 | Missing GEO topics | `authoritative` |
 | Missing pages | `fluency` |

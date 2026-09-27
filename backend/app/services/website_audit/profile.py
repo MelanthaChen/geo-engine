@@ -310,6 +310,7 @@ def neutral_direction(category: str) -> str:
         "metadata_coverage": "Review the affected pages and add the missing document metadata where appropriate.",
         "http_html_success": "Investigate the affected URLs and their HTTP or content-type behavior.",
         "internal_linking_suggestions": "Review the internal links associated with the observed page evidence.",
+        "faq_opportunities": "Review the affected explanatory pages for grounded FAQ / Q&A restructuring.",
     }
     return directions.get(category, "Review this observed area as a possible optimization direction.")
 

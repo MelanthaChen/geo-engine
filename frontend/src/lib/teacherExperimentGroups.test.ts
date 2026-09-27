@@ -20,7 +20,24 @@ function sample(overrides: Partial<TeacherSample>): TeacherSample {
     original_metrics: { visibility_score: 0.1 },
     optimized_metrics: { visibility_score: 0.5 },
     delta_metrics: { visibility_score: 0.4 },
+    baseline_metrics: { visibility_score: 0.1 },
+    treatment_metrics: { visibility_score: 0.5 },
+    metric_deltas: { visibility_score: 0.4 },
     provenance: {},
+    context_fingerprint: null,
+    query: null,
+    query_source: null,
+    query_intent: null,
+    target_url: null,
+    target_page_id: null,
+    target_snapshot_hash: null,
+    reference_urls: [],
+    reference_snapshot_hashes: [],
+    reference_order: [],
+    baseline_answer: null,
+    treatment_answer: null,
+    source_mode: "live_retrieval",
+    training_eligible: true,
     dataset_version: "teacher-dataset-v1",
     provenance_hash: "abc",
     created_at: "2026-09-24T12:00:00Z",
@@ -39,6 +56,7 @@ describe("groupTeacherSamples", () => {
 
     expect(groups).toHaveLength(3);
     expect(groups[0].samples.map((item) => item.sample_id)).toEqual(["a", "b"]);
+    expect(groups[0].trainingEligibleCount).toBe(2);
   });
 
   it("uses stored experiment aggregates rather than fabricating values", () => {
@@ -55,5 +73,27 @@ describe("groupTeacherSamples", () => {
     expect(groups[0].originalMetrics.visibility_score).toBe(0.021);
     expect(groups[0].optimizedMetrics.visibility_score).toBe(0.51);
     expect(groups[0].deltaMetrics.visibility_score).toBe(0.489);
+  });
+
+  it("aggregates sample metrics across genuinely distinct contexts", () => {
+    const groups = groupTeacherSamples([
+      sample({
+        context_fingerprint: "context-a",
+        original_metrics: { visibility_score: 0.1 },
+        optimized_metrics: { visibility_score: 0.3 },
+        delta_metrics: { visibility_score: 0.2 },
+        provenance: { aggregate_metrics: { original: { visibility_score: 0.1 } } },
+      }),
+      sample({
+        context_fingerprint: "context-b",
+        original_metrics: { visibility_score: 0.3 },
+        optimized_metrics: { visibility_score: 0.9 },
+        delta_metrics: { visibility_score: 0.6 },
+      }),
+    ]);
+
+    expect(groups[0].originalMetrics.visibility_score).toBeCloseTo(0.2);
+    expect(groups[0].optimizedMetrics.visibility_score).toBeCloseTo(0.6);
+    expect(groups[0].deltaMetrics.visibility_score).toBeCloseTo(0.4);
   });
 });

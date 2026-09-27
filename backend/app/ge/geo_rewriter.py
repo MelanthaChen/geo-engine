@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -17,7 +18,21 @@ STRATEGY_LABELS = {
     "unique_words": "Unique Words",
     "technical_terms": "Technical Terms",
     "keyword_stuffing": "Keyword Stuffing",
+    "faq": "FAQ / Q&A Structure",
 }
+
+OFFICIAL_GEO_STRATEGIES = (
+    "original",
+    "statistics",
+    "citation",
+    "quotation",
+    "authoritative",
+    "easy_to_understand",
+    "fluency",
+    "unique_words",
+    "technical_terms",
+    "keyword_stuffing",
+)
 
 
 OFFICIAL_REWRITE_MODEL = "gpt-3.5-turbo-16k"
@@ -170,6 +185,116 @@ Updated Output:
 """.format(summary=summary).strip()
 
 
+def faq_optimization(summary: str) -> str:
+    return """Reorganize the following source into a natural question-and-answer structure that makes its existing information directly answerable.
+
+Grounding requirements:
+1. Identify important user-facing questions that are already answerable from the source.
+2. Answer every question using only information stated in the source.
+3. Preserve all important original facts and meaning. Every answer must copy one contiguous sentence or passage verbatim from the source; only the questions may reframe that evidence.
+4. Do not invent or infer prices, statistics, customer claims, guarantees, capabilities, citations, policies, or any other unsupported claim.
+5. Do not add outside knowledge or cite external material.
+6. Use multiple Q&A pairs only when the source supports them. Do not merely append an FAQ heading.
+7. Put each question and its answer on separate lines. Output only the rewritten Q&A content, without analysis, preamble, labels, headings, or a numbered list.
+
+Source:
+```
+{summary}
+```""".format(summary=summary).strip()
+
+
+class FAQGroundingError(ValueError):
+    pass
+
+
+def validate_faq_rewrite(source: str, rewritten: str) -> None:
+    lines = [line.strip().lstrip("-* ") for line in rewritten.splitlines() if line.strip()]
+    questions = [line for line in lines if line.endswith("?")]
+    answers = [line for line in lines if not line.endswith("?")]
+    if not questions:
+        raise FAQGroundingError("FAQ treatment must contain at least one explicit question.")
+    if not answers:
+        raise FAQGroundingError("FAQ treatment must contain at least one grounded answer.")
+
+    normalized_source = normalize_grounding_text(source)
+    unsupported_answers = [
+        answer for answer in answers
+        if normalize_grounding_text(answer) not in normalized_source
+    ]
+    if unsupported_answers:
+        raise FAQGroundingError(
+            "FAQ answers must use contiguous wording from the original source."
+        )
+
+    source_terms = content_terms(source)
+    safe_question_terms = {
+        "answer", "about", "information", "source", "explain", "help",
+        "question", "user", "reader", "work",
+    }
+    unsupported_question_terms = set().union(*(
+        content_terms(question) - source_terms - safe_question_terms
+        for question in questions
+    ))
+    if unsupported_question_terms:
+        raise FAQGroundingError(
+            "FAQ questions introduced concepts absent from the original source: "
+            + ", ".join(sorted(unsupported_question_terms))
+        )
+
+    rewritten_terms = content_terms(rewritten)
+    retained = len(source_terms & rewritten_terms) / len(source_terms) if source_terms else 1.0
+    if retained < 0.75:
+        raise FAQGroundingError(
+            "FAQ treatment did not retain enough of the original source information."
+        )
+
+    source_facts = protected_facts(source)
+    unsupported_facts = protected_facts(rewritten) - source_facts
+    if unsupported_facts:
+        raise FAQGroundingError(
+            "FAQ treatment introduced unsupported protected facts: "
+            + ", ".join(sorted(unsupported_facts))
+        )
+
+    source_lower = source.lower()
+    rewritten_lower = rewritten.lower()
+    unsupported_claim_markers = [
+        marker for marker in (
+            "guarantee", "customers say", "according to", "study shows",
+            "research shows", "clinically proven",
+        )
+        if marker in rewritten_lower and marker not in source_lower
+    ]
+    if unsupported_claim_markers:
+        raise FAQGroundingError(
+            "FAQ treatment introduced unsupported claim language: "
+            + ", ".join(unsupported_claim_markers)
+        )
+
+
+def content_terms(value: str) -> set[str]:
+    stop_words = {
+        "the", "and", "for", "that", "with", "this", "from", "are", "was",
+        "what", "how", "why", "does", "your", "you", "into", "can", "its",
+    }
+    return {
+        token for token in re.findall(r"[a-z0-9'-]+", value.lower())
+        if len(token) >= 3 and token not in stop_words
+    }
+
+
+def normalize_grounding_text(value: str) -> str:
+    return " ".join(value.lower().split()).strip(" .")
+
+
+def protected_facts(value: str) -> set[str]:
+    without_list_numbers = re.sub(r"(?m)^\s*\d+[.)]\s+", "", value)
+    facts = set(re.findall(r"[$€£¥]?\d[\d,.]*%?", without_list_numbers))
+    facts.update(re.findall(r"https?://\S+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}", value))
+    facts.update(re.findall(r"\[\d+\]", value))
+    return facts
+
+
 OFFICIAL_PROMPT_BUILDERS = {
     "statistics": stats_optimization_mine,
     "citation": citing_credible_sources_mine,
@@ -180,6 +305,7 @@ OFFICIAL_PROMPT_BUILDERS = {
     "unique_words": unique_words_optimization_gpt,
     "technical_terms": technical_terms_mine,
     "keyword_stuffing": seo_optimize_mine2,
+    "faq": faq_optimization,
 }
 
 
@@ -202,10 +328,14 @@ class GeoRewriter:
         cached = self._cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT)
 
         if cached is not None:
+            if strategy == "faq":
+                validate_faq_rewrite(document_text, cached)
             return cached
 
         rewritten = self._generate_with_official_retry(user_prompt)
         processed = self._get_summary(rewritten)
+        if strategy == "faq":
+            validate_faq_rewrite(document_text, processed)
         self._store_cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT, processed)
         return processed
 

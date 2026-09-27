@@ -34,6 +34,7 @@ class GenerativeEngineService:
         random_seed: int,
         provider: str | None = None,
         retrieved_documents: list[RetrievedDocument] | None = None,
+        response_samples: int | None = None,
         on_strategy=None,
         on_sample=None,
     ) -> dict:
@@ -65,6 +66,7 @@ class GenerativeEngineService:
         selected_document = official_target or random.Random(random_seed).choice(documents)
         strategy_outputs = []
 
+        sample_count = response_samples or self.PAPER_RESPONSE_SAMPLES
         for strategy in strategies:
             if on_strategy:
                 on_strategy(strategy)
@@ -83,17 +85,18 @@ class GenerativeEngineService:
                 modified_document_text=modified_document_text,
             )
 
-            for sample_index in range(self.PAPER_RESPONSE_SAMPLES):
+            for sample_index in range(sample_count):
                 if on_sample:
                     on_sample(
                         strategy,
                         sample_index + 1,
-                        self.PAPER_RESPONSE_SAMPLES,
+                        sample_count,
                     )
 
-                # Appendix B.1 specifies five answer samples per method with
-                # top_p=1. Temperature is passed through from the experiment
-                # configuration, whose default is set to the paper value 0.7.
+                # Paper-mode and historical experiments retain the five-sample
+                # default. Dataset generation passes repetitions per context
+                # explicitly so repetition count cannot masquerade as context
+                # count. top_p and temperature behavior are unchanged.
                 started_at = time.perf_counter()
                 answer = runner.generate(
                     system_prompt="",
