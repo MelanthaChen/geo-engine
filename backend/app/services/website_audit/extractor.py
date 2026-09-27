@@ -37,6 +37,11 @@ class PageExtract:
     http_word_count: int | None = None
     browser_word_count: int | None = None
     evidence: dict = field(default_factory=dict)
+    content_family: str | None = None
+    selection_reasons: tuple[str, ...] = ()
+    geo_importance_rank: int | None = None
+    geo_importance_score: int | None = None
+    geo_importance_signals: dict = field(default_factory=dict)
 
 
 def extract_pages(responses: list[CrawlResponse]) -> list[PageExtract]:

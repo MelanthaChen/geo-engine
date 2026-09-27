@@ -60,6 +60,9 @@ class WebsiteAudit(Base):
     unique_content_count = Column(Integer, nullable=True)
     duplicate_content_count = Column(Integer, nullable=True)
     skipped_due_to_limit_count = Column(Integer, nullable=True)
+    candidate_page_limit = Column(Integer, nullable=True)
+    candidate_url_count = Column(Integer, nullable=True)
+    selected_geo_page_count = Column(Integer, nullable=True)
 
     started_at = Column(
         DateTime(timezone=True),

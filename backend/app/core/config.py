@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     XIAOHONGSHU_RETRIEVAL_TIMEOUT_SECONDS: int = 180
     XIAOHONGSHU_RETRIEVAL_LIMIT: int = 20
     WEBSITE_AUDIT_MAX_PAGES: int = 200
+    WEBSITE_AUDIT_CANDIDATE_PAGES: int = 150
     WEBSITE_AUDIT_SAMPLE_PAGES: int = 30
     WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED: bool = True
     WEBSITE_AUDIT_BROWSER_CONCURRENCY: int = 2
@@ -55,6 +56,12 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_AUDIT_MAX_PAGES must be at least 1")
         if self.WEBSITE_AUDIT_SAMPLE_PAGES < 1:
             raise ValueError("WEBSITE_AUDIT_SAMPLE_PAGES must be at least 1")
+        if self.WEBSITE_AUDIT_CANDIDATE_PAGES < 1:
+            raise ValueError("WEBSITE_AUDIT_CANDIDATE_PAGES must be at least 1")
+        if self.WEBSITE_AUDIT_CANDIDATE_PAGES < self.WEBSITE_AUDIT_SAMPLE_PAGES:
+            raise ValueError(
+                "WEBSITE_AUDIT_CANDIDATE_PAGES must be at least WEBSITE_AUDIT_SAMPLE_PAGES"
+            )
         if self.WEBSITE_AUDIT_BROWSER_CONCURRENCY < 1:
             raise ValueError("WEBSITE_AUDIT_BROWSER_CONCURRENCY must be at least 1")
         if self.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS < 250:

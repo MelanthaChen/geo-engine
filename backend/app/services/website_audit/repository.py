@@ -31,12 +31,20 @@ def create_audit_record(
         and 200 <= page.status_code < 300
         and page.body_text
     ]
-    duplicate_count = sum(page.is_duplicate for page in pages)
-    extraction_success_count = sum(
-        page.status_code is not None
-        and 200 <= page.status_code < 300
-        and bool(page.body_text)
-        for page in pages
+    duplicate_count = (
+        crawl_coverage.candidate_duplicate_fallbacks
+        if crawl_coverage.candidate_urls
+        else sum(page.is_duplicate for page in pages)
+    )
+    extraction_success_count = (
+        crawl_coverage.candidate_extraction_successes
+        if crawl_coverage.candidate_urls
+        else sum(
+            page.status_code is not None
+            and 200 <= page.status_code < 300
+            and bool(page.body_text)
+            for page in pages
+        )
     )
     audit_status = "completed" if unique_pages else "insufficient_analyzable_content"
     audit = WebsiteAudit(
@@ -67,6 +75,9 @@ def create_audit_record(
         unique_content_count=len(unique_pages),
         duplicate_content_count=duplicate_count,
         skipped_due_to_limit_count=crawl_coverage.skipped_due_to_limit,
+        candidate_page_limit=crawl_coverage.candidate_page_limit,
+        candidate_url_count=crawl_coverage.candidate_urls,
+        selected_geo_page_count=crawl_coverage.selected_urls,
         completed_at=now,
     )
 
@@ -101,6 +112,11 @@ def create_audit_record(
                 http_word_count=page.http_word_count,
                 browser_word_count=page.browser_word_count,
                 evidence_json=page.evidence,
+                content_family=page.content_family,
+                selection_reasons=list(page.selection_reasons),
+                geo_importance_rank=page.geo_importance_rank,
+                geo_importance_score=page.geo_importance_score,
+                geo_importance_signals=page.geo_importance_signals,
             )
         )
 
@@ -140,7 +156,8 @@ def create_audit_record(
         ),
         details=(
             f"Discovered {crawl_coverage.discovered_urls} URLs, selected "
-            f"{crawl_coverage.selected_urls} representative pages, analyzed "
+            f"{crawl_coverage.candidate_urls} candidate pages, selected "
+            f"{crawl_coverage.selected_urls} important GEO pages, analyzed "
             f"{len(unique_pages)} unique pages, and identified "
             f"{len(recommendations)} candidate opportunities."
         ),

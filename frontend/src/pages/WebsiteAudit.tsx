@@ -146,17 +146,17 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
         <SectionHeader title="Crawl & Evidence Summary" description="Observed crawl outcomes. HTTP responses, extracted pages, and independent content evidence are reported separately." />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <EvidenceMetric label={<TermHelp term="urls_discovered" />} value={coverage?.discovered_urls ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label={<TermHelp term="pages_selected_for_analysis" />} value={coverage?.selected_urls ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label="URLs requested" value={coverage?.requested_urls ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label={<TermHelp term="http_success" />} value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label={<TermHelp term="candidate_pages" />} value={coverage?.candidate_urls ?? coverage?.requested_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label={<TermHelp term="important_geo_pages" label="Important GEO pages selected" />} value={coverage?.selected_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label={<TermHelp term="unique_pages" label="Pages successfully analyzed" />} value={coverage?.unique_content_pages ?? analyzedCount} />
+          <EvidenceMetric label={<TermHelp term="http_success" label="Candidate HTTP successes" />} value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
           <EvidenceMetric label={<TermHelp term="html_accepted" />} value={coverage?.accepted_html_responses ?? "Not recorded"} />
-          <EvidenceMetric label={<TermHelp term="extraction_success" />} value={coverage?.successful_extractions ?? "Not recorded"} />
-          <EvidenceMetric label={<TermHelp term="extraction_method" label="HTTP-only pages" />} value={coverage?.http_extracted_pages ?? "Not recorded"} />
-          <EvidenceMetric label={<TermHelp term="extraction_method" label="Browser-rendered pages" />} value={coverage?.browser_extracted_pages ?? "Not recorded"} />
-          <EvidenceMetric label="Extraction failures" value={coverage?.extraction_failures ?? "Not recorded"} />
-          <EvidenceMetric label={<TermHelp term="unique_pages" label="Unique pages analyzed" />} value={coverage?.unique_content_pages ?? analyzedCount} />
+          <EvidenceMetric label={<TermHelp term="extraction_success" label="Candidate extraction successes" />} value={coverage?.successful_extractions ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="extraction_method" label="Selected HTTP pages" />} value={coverage?.http_extracted_pages ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="extraction_method" label="Selected browser-rendered pages" />} value={coverage?.browser_extracted_pages ?? "Not recorded"} />
+          <EvidenceMetric label="Candidate extraction failures" value={coverage?.extraction_failures ?? "Not recorded"} />
           <EvidenceMetric label={<TermHelp term="duplicate_fallback" label="Duplicate/fallback responses" />} value={coverage?.duplicate_fallback_responses ?? countDuplicatePages(audit)} />
-          <EvidenceMetric label="Not selected for standard audit" value={coverage?.not_selected_due_to_sampling ?? 0} />
+          <EvidenceMetric label="Not advanced to candidate pool" value={coverage?.not_selected_due_to_sampling ?? 0} />
           <EvidenceMetric label="Skipped by hard safety limit" value={coverage?.skipped_due_to_limit ?? 0} />
           <EvidenceMetric label="Total unique extracted words" value={evidence.totalWords} />
           <EvidenceMetric label="Inventory source" value={formatInventorySource(coverage?.inventory_source)} />
@@ -215,7 +215,7 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
       </section>}
 
       <section>
-        <SectionHeader title="Crawled Page Evidence" description="Page-level observations retained by the latest audit." />
+        <SectionHeader title={<TermHelp term="important_geo_pages" label="Important GEO Page Evidence" />} description="Selected page evidence, content-family coverage, and factual reasons each page entered the audit." />
         <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6"><div className="space-y-2">
           {(audit.pages || []).map((page) => <PageAuditRow key={page.id} page={page} />)}
           {(!audit.pages || !audit.pages.length) && <EmptyState>No crawled pages are stored yet. Run an audit to populate page-level evidence.</EmptyState>}
@@ -226,12 +226,12 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
 
 function CoverageNotice({ coverage }: { coverage: NonNullable<AuditResult["crawl_coverage"]> }) {
   if (coverage.sampling_applied) {
-    return <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-200"><TermHelp term="representative_pages" label="Representative website audit" />: {coverage.selected_urls} pages selected from {coverage.discovered_urls} discovered URLs. {coverage.not_selected_due_to_sampling} URLs were not selected for the standard audit sample.{coverage.truncated ? ` A further ${coverage.skipped_due_to_limit} eligible pages were blocked by the ${coverage.crawl_limit}-page hard safety limit.` : ""}</div>;
+    return <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-200"><TermHelp term="important_geo_pages" label="GEO-oriented important-page selection" />: {coverage.candidate_urls} candidates were considered from {coverage.discovered_urls} discovered URLs, then {coverage.selected_urls} important, content-family-diverse pages were selected. {coverage.not_selected_due_to_sampling} URLs did not advance to the bounded candidate pool.{coverage.truncated ? ` A further ${coverage.skipped_due_to_limit} candidate-eligible pages were blocked by the ${coverage.crawl_limit}-page hard safety limit.` : ""}</div>;
   }
   if (coverage.truncated) {
     return <div className="mt-3 rounded-lg border border-amber-900 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">Safety-capped audit: {coverage.skipped_due_to_limit} eligible URLs were not requested because the hard limit is {coverage.crawl_limit}.</div>;
   }
-  return <div className="mt-3 rounded-lg border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">Complete discovered inventory coverage: all {coverage.discovered_urls} discovered URLs fit within the {coverage.sample_page_limit ?? coverage.crawl_limit}-page standard audit size.</div>;
+  return <div className="mt-3 rounded-lg border border-emerald-900 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">Complete candidate coverage: all {coverage.discovered_urls} discovered URLs fit within the {coverage.candidate_page_limit ?? coverage.crawl_limit}-page candidate pool; {coverage.selected_urls} GEO-relevant pages were retained for analysis.</div>;
 }
 
 function EvidencePanel({ title, description, children }: { title: string; description: string; children: ReactNode }) {
@@ -306,10 +306,11 @@ function PageAuditRow({ page }: { page: WebsitePageAudit }) {
   const referenceLinks = evidence?.links?.reference_like_links || [];
   return <details className={`group rounded-lg border bg-black ${exclusion ? "border-amber-950/80" : "border-zinc-800"}`}>
     <summary className="cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
-      <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-medium text-zinc-100">{page.page_title || "No title detected"}</p><p className="mt-1 break-all text-xs text-zinc-500">{page.url}</p></div><div className="flex gap-2">{exclusion && <span className="rounded border border-amber-900 px-2 py-0.5 text-xs text-amber-400">Excluded</span>}<span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">Extraction: {extraction}</span></div></div>
+      <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-medium text-zinc-100">{page.page_title || "No title detected"}</p><p className="mt-1 break-all text-xs text-zinc-500">{page.url}</p></div><div className="flex flex-wrap gap-2">{page.geo_importance_rank && <span className="rounded border border-blue-900 px-2 py-0.5 text-xs text-blue-300">Selected #{page.geo_importance_rank}</span>}{page.content_family && <span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-400">Family: {page.content_family}</span>}{exclusion && <span className="rounded border border-amber-900 px-2 py-0.5 text-xs text-amber-400">Excluded</span>}<span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">Extraction: {extraction}</span></div></div>
       <p className="mt-3 text-xs text-zinc-400">{page.word_count.toLocaleString()} words • H1 {page.h1 ? "✓" : "not detected"} • Meta {page.meta_description ? "✓" : "not detected"}</p>
       <p className="mt-2 text-xs text-zinc-500"><TermHelp term="prominent_extracted_terms" />: {prominentTerms.length ? prominentTerms.join(", ") : "Not detected"}</p>
       <p className="mt-2 text-xs text-zinc-500">Strategy evidence: FAQ {numberValue(faq.detected_qa_pair_count)} Q&A pairs • Statistics {numberValue(statistics.numeric_claim_count)} numeric claims • Citations {numberValue(citation.reference_like_link_count)} reference links</p>
+      {Boolean(page.selection_reasons?.length) && <div className="mt-3"><p className="text-xs font-medium text-zinc-400">Why selected</p><ul className="mt-1 flex flex-wrap gap-1.5">{page.selection_reasons?.map((reason) => <li className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-500" key={reason}>{reason}</li>)}</ul></div>}
       {exclusion && <p className="mt-2 text-xs text-amber-500">Reason: {exclusion}</p>}
     </summary>
     <div className="space-y-5 border-t border-zinc-900 px-4 py-4 text-xs text-zinc-500">

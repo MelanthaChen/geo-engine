@@ -306,7 +306,8 @@ def test_large_sitemap_is_reported_as_sampled(monkeypatch):
     result = crawler.crawl_website(base, max_pages=200, sample_pages=30)
 
     assert result.coverage.discovered_urls == 51
-    assert result.coverage.selected_urls == 30
+    assert result.coverage.candidate_urls == 30
+    assert result.coverage.selected_urls == 0  # Stage B runs after extraction.
     assert result.coverage.requested_urls == 30
     assert result.coverage.not_selected_due_to_sampling == 21
     assert result.coverage.skipped_due_to_limit == 0

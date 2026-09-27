@@ -63,12 +63,25 @@ def upgrade():
         "h3_count",
         "h2_count",
         "evidence_json",
+        "geo_importance_signals",
+        "geo_importance_score",
+        "geo_importance_rank",
+        "selection_reasons",
+        "content_family",
     ):
         if _column_exists("website_pages", column_name):
             op.drop_column("website_pages", column_name)
 
     if _column_exists("website_audit_recommendations", "evidence_json"):
         op.drop_column("website_audit_recommendations", "evidence_json")
+
+    for column_name in (
+        "selected_geo_page_count",
+        "candidate_url_count",
+        "candidate_page_limit",
+    ):
+        if _column_exists("website_audits", column_name):
+            op.drop_column("website_audits", column_name)
 
     if not _table_exists("properties"):
         op.create_table(

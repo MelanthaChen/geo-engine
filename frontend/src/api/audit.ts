@@ -106,7 +106,9 @@ export type AuditCrawlCoverage = {
   inventory_source: "sitemap" | "recursive_links" | "legacy";
   crawl_limit: number | null;
   sample_page_limit: number | null;
+  candidate_page_limit: number | null;
   discovered_urls: number;
+  candidate_urls: number;
   selected_urls: number;
   not_selected_due_to_sampling: number;
   requested_urls: number;
@@ -185,6 +187,10 @@ export type WebsitePageAudit = {
   http_word_count?: number | null;
   browser_word_count?: number | null;
   evidence?: PageEvidence;
+  content_family?: string | null;
+  selection_reasons?: string[];
+  geo_importance_rank?: number | null;
+  geo_importance_signals?: Record<string, unknown>;
 };
 
 export async function runWebsiteAudit(propertyId: number) {

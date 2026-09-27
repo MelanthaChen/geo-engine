@@ -7,6 +7,8 @@ export type TerminologyEntry = {
 
 export const terminology = {
   representative_pages: { label: "Representative Pages", description: "A selected subset of discovered pages used to represent the site's major content areas during the audit." },
+  candidate_pages: { label: "Candidate Pages Considered", description: "A bounded, structurally diverse subset of discovered URLs fetched for lightweight evidence ranking before the final audit pages are selected." },
+  important_geo_pages: { label: "Important GEO Pages", description: "Pages prioritized because they contain core, substantive, and potentially citable content while representing the site's major content areas." },
   urls_discovered: { label: "URLs Discovered", description: "The total number of unique same-site URLs found through the audited URL, sitemap discovery, and internal-link discovery." },
   pages_selected_for_analysis: { label: "Pages Selected for Analysis", description: "The representative pages chosen from the discovered URL inventory for detailed analysis." },
   http_success: { label: "HTTP Success", description: "Pages whose HTTP request returned a successful 2xx response. This does not necessarily mean usable page content was extracted." },

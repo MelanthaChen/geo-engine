@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from urllib.parse import urljoin, urlparse, urlunparse
 from xml.etree import ElementTree
@@ -32,6 +32,10 @@ class CrawlCoverage:
     skipped_due_to_limit: int
     robots_txt_detected: bool = False
     sitemap_url_count: int = 0
+    candidate_page_limit: int = 0
+    candidate_urls: int = 0
+    candidate_extraction_successes: int = 0
+    candidate_duplicate_fallbacks: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -42,12 +46,17 @@ class CrawlCoverage:
 class CrawlResult:
     responses: list[CrawlResponse]
     coverage: CrawlCoverage
+    audited_url: str = ""
+    homepage_url: str = ""
+    homepage_links: set[str] = field(default_factory=set)
+    sitemap_urls: set[str] = field(default_factory=set)
 
 
 def crawl_website(
     domain: str,
     *,
     max_pages: int,
+    candidate_pages: int | None = None,
     sample_pages: int = 30,
     timeout_seconds: int = 8,
 ) -> CrawlResult:
@@ -55,6 +64,10 @@ def crawl_website(
         raise ValueError("max_pages must be at least 1")
     if sample_pages < 1:
         raise ValueError("sample_pages must be at least 1")
+    if candidate_pages is None:
+        candidate_pages = sample_pages
+    if candidate_pages < 1:
+        raise ValueError("candidate_pages must be at least 1")
 
     base_url = normalize_base_url(domain)
     host = (urlparse(base_url).hostname or "").lower()
@@ -67,14 +80,14 @@ def crawl_website(
     inventory_source = "sitemap" if sitemap_urls else "recursive_links"
     audited_url = normalize_url(base_url)
     homepage_url = origin_homepage(audited_url)
-    discovered = set(deduplicate([audited_url, *sitemap_urls]))
+    discovered = set(deduplicate([audited_url, homepage_url, *sitemap_urls]))
     homepage_links: set[str] = set()
     seen: set[str] = set()
     responses: list[CrawlResponse] = []
-    selection_limit = min(sample_pages, max_pages)
+    candidate_limit = min(candidate_pages, max_pages)
 
     def request_selected(url: str) -> None:
-        if url in seen or len(responses) >= selection_limit:
+        if url in seen or len(responses) >= candidate_limit:
             return
         seen.add(url)
         response = fetch_page(url=url, timeout_seconds=timeout_seconds)
@@ -96,32 +109,32 @@ def crawl_website(
         request_selected(homepage_url)
 
     if sitemap_urls:
-        selected = select_representative_urls(
+        selected = select_candidate_urls(
             urls=discovered,
             audited_url=audited_url,
             homepage_url=homepage_url,
             homepage_links=homepage_links,
-            limit=selection_limit,
+            limit=candidate_limit,
         )
         for url in selected:
             request_selected(url)
     else:
-        while len(responses) < selection_limit:
-            selected = select_representative_urls(
+        while len(responses) < candidate_limit:
+            selected = select_candidate_urls(
                 urls=discovered,
                 audited_url=audited_url,
                 homepage_url=homepage_url,
                 homepage_links=homepage_links,
-                limit=selection_limit,
+                limit=candidate_limit,
             )
             next_url = next((url for url in selected if url not in seen), None)
             if next_url is None:
                 break
             request_selected(next_url)
 
-    selected_count = len(responses)
-    sampling_excluded = max(len(discovered) - sample_pages, 0)
-    hard_limit_skipped = max(min(len(discovered), sample_pages) - max_pages, 0)
+    candidate_count = len(responses)
+    sampling_excluded = max(len(discovered) - candidate_pages, 0)
+    hard_limit_skipped = max(min(len(discovered), candidate_pages) - max_pages, 0)
 
     successful = sum(is_html_success(response.status_code) for response in responses)
     accepted_html = sum(response.html_accepted for response in responses)
@@ -132,7 +145,7 @@ def crawl_website(
             crawl_limit=max_pages,
             sample_page_limit=sample_pages,
             discovered_urls=len(discovered),
-            selected_urls=selected_count,
+            selected_urls=0,
             not_selected_due_to_sampling=sampling_excluded,
             requested_urls=len(responses),
             successful_responses=successful,
@@ -140,18 +153,23 @@ def crawl_website(
             robots_txt_detected=sitemap_discovery.robots_txt_detected,
             sitemap_url_count=len(sitemap_urls),
             skipped_due_to_limit=hard_limit_skipped,
+            candidate_page_limit=candidate_pages,
+            candidate_urls=candidate_count,
         ),
+        audited_url=audited_url,
+        homepage_url=homepage_url,
+        homepage_links=homepage_links,
+        sitemap_urls=set(sitemap_urls),
     )
 
 
-HIGH_LEVEL_SEGMENTS = {
-    "about", "company", "contact", "docs", "documentation", "examples",
-    "faq", "features", "guide", "guides", "help", "learn", "pricing",
-    "research", "resources", "security", "support",
+UTILITY_SEGMENTS = {
+    "account", "auth", "cart", "checkout", "cookie", "cookies", "filter",
+    "login", "logout", "search", "signin", "signup", "tag",
 }
 
 
-def select_representative_urls(
+def select_candidate_urls(
     *,
     urls: set[str] | list[str],
     audited_url: str,
@@ -159,7 +177,7 @@ def select_representative_urls(
     homepage_links: set[str] | list[str],
     limit: int,
 ) -> list[str]:
-    """Select a stable, structurally diverse subset from discovered URLs."""
+    """Stage A: cheaply reduce discovery to a stable, diverse candidate pool."""
     if limit < 1:
         return []
     inventory = set(urls)
@@ -169,32 +187,42 @@ def select_representative_urls(
     add_if_present(selected, inventory, audited_url, limit)
     add_if_present(selected, inventory, homepage_url, limit)
 
-    homepage_candidates = homepage_link_set - set(selected)
-    selected.extend(round_robin_families(
-        homepage_candidates,
-        limit=limit - len(selected),
-    ))
-
     remaining = inventory - set(selected)
     selected.extend(round_robin_families(
         remaining,
         limit=limit - len(selected),
+        promoted_urls=homepage_link_set,
     ))
     return selected[:limit]
 
 
-def round_robin_families(urls: set[str], *, limit: int) -> list[str]:
+def select_representative_urls(**kwargs) -> list[str]:
+    """Backward-compatible alias for the former structural selector."""
+    return select_candidate_urls(**kwargs)
+
+
+def round_robin_families(
+    urls: set[str],
+    *,
+    limit: int,
+    promoted_urls: set[str] | None = None,
+) -> list[str]:
     if limit <= 0:
         return []
     families: dict[str, list[str]] = {}
     for url in urls:
         families.setdefault(path_family(url), []).append(url)
+    promoted_urls = promoted_urls or set()
     for members in families.values():
-        members.sort(key=url_priority)
+        members.sort(key=lambda url: (0 if url in promoted_urls else 1, url_priority(url)))
 
     family_order = sorted(
         families,
-        key=lambda family: (url_priority(families[family][0]), family),
+        key=lambda family: (
+            0 if families[family][0] in promoted_urls else 1,
+            url_priority(families[family][0]),
+            family,
+        ),
     )
     selected: list[str] = []
     while len(selected) < limit:
@@ -218,8 +246,9 @@ def path_family(url: str) -> str:
 
 def url_priority(url: str) -> tuple[int, int, str]:
     segments = path_segments(url)
-    informational = any(segment.lower() in HIGH_LEVEL_SEGMENTS for segment in segments)
-    return (len(segments), 0 if informational else 1, url)
+    utility = any(segment.lower() in UTILITY_SEGMENTS for segment in segments)
+    pagination = bool(re.search(r"/(?:page|p)/\d+(?:/|$)", urlparse(url).path, re.IGNORECASE))
+    return (1 if utility or pagination else 0, len(segments), url)
 
 
 def path_segments(url: str) -> list[str]:

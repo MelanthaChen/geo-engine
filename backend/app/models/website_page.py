@@ -66,6 +66,16 @@ class WebsitePage(Base):
 
     evidence_json = Column(JSON, nullable=True)
 
+    content_family = Column(String(255), nullable=True)
+
+    selection_reasons = Column(JSON, nullable=True)
+
+    geo_importance_rank = Column(Integer, nullable=True)
+
+    geo_importance_score = Column(Integer, nullable=True)
+
+    geo_importance_signals = Column(JSON, nullable=True)
+
     discovered_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

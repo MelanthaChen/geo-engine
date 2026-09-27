@@ -6,6 +6,7 @@ from app.models.website_audit import WebsiteAudit
 from app.services.website_audit.analyzer import analyze_brand_understanding
 from app.services.website_audit.crawler import crawl_website, normalize_base_url
 from app.services.website_audit.rendering import extract_audit_pages
+from app.services.website_audit.importance import select_geo_important_pages
 from app.services.website_audit.evidence import aggregate_site_evidence
 from app.services.website_audit.recommendations import build_recommendations
 from app.services.website_audit.repository import (
@@ -30,15 +31,34 @@ def run_website_audit(
     crawl_result = crawl_website(
         property_record.domain,
         max_pages=settings.WEBSITE_AUDIT_MAX_PAGES,
+        candidate_pages=settings.WEBSITE_AUDIT_CANDIDATE_PAGES,
         sample_pages=settings.WEBSITE_AUDIT_SAMPLE_PAGES,
     )
-    pages = extract_audit_pages(
+    candidate_pages = extract_audit_pages(
         crawl_result.responses,
         browser_enabled=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED,
         browser_timeout_ms=settings.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS,
         browser_concurrency=settings.WEBSITE_AUDIT_BROWSER_CONCURRENCY,
         browser_fallback_limit=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT,
     )
+    crawl_result.coverage.candidate_extraction_successes = sum(
+        page.status_code is not None
+        and 200 <= page.status_code < 300
+        and bool(page.body_text)
+        for page in candidate_pages
+    )
+    crawl_result.coverage.candidate_duplicate_fallbacks = sum(
+        page.is_duplicate for page in candidate_pages
+    )
+    pages = select_geo_important_pages(
+        candidate_pages,
+        audited_url=crawl_result.audited_url,
+        homepage_url=crawl_result.homepage_url,
+        homepage_links=crawl_result.homepage_links,
+        sitemap_urls=crawl_result.sitemap_urls,
+        limit=settings.WEBSITE_AUDIT_SAMPLE_PAGES,
+    )
+    crawl_result.coverage.selected_urls = len(pages)
     evidence_pages = [
         page for page in pages
         if not page.is_duplicate
@@ -135,8 +155,15 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             "inventory_source": audit.crawl_inventory_source or "legacy",
             "crawl_limit": audit.crawl_limit,
             "sample_page_limit": settings.WEBSITE_AUDIT_SAMPLE_PAGES,
+            "candidate_page_limit": audit.candidate_page_limit
+            or settings.WEBSITE_AUDIT_CANDIDATE_PAGES,
             "discovered_urls": audit.discovered_url_count or len(audit.pages),
-            "selected_urls": audit.requested_url_count or len(audit.pages),
+            "candidate_urls": audit.candidate_url_count
+            if audit.candidate_url_count is not None
+            else audit.requested_url_count or len(audit.pages),
+            "selected_urls": audit.selected_geo_page_count
+            if audit.selected_geo_page_count is not None
+            else len(audit.pages),
             "not_selected_due_to_sampling": max(
                 (audit.discovered_url_count or len(audit.pages))
                 - (audit.requested_url_count or len(audit.pages))
@@ -166,9 +193,13 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             "browser_extracted_pages": sum(
                 page.extraction_method == "browser" for page in audit.pages
             ) if has_render_provenance else None,
-            "extraction_failures": sum(
-                page.extraction_method == "failed" for page in audit.pages
-            ) if has_render_provenance else None,
+            "extraction_failures": max(
+                audit.candidate_url_count - (audit.extraction_success_count or 0),
+                0,
+            ) if audit.candidate_url_count is not None else (
+                sum(page.extraction_method == "failed" for page in audit.pages)
+                if has_render_provenance else None
+            ),
             "unique_content_pages": audit.unique_content_count
             if audit.unique_content_count is not None
             else sum(not getattr(page, "is_duplicate", False) for page in audit.pages),
@@ -213,6 +244,10 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
                 "http_word_count": page.http_word_count,
                 "browser_word_count": page.browser_word_count,
                 "evidence": page.evidence_json or {},
+                "content_family": page.content_family,
+                "selection_reasons": page.selection_reasons or [],
+                "geo_importance_rank": page.geo_importance_rank,
+                "geo_importance_signals": page.geo_importance_signals or {},
             }
             for page in audit.pages
         ],
