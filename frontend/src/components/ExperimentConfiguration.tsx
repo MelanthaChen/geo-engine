@@ -9,6 +9,8 @@ import {
   treatmentStrategyOptions,
 } from "@/data/experimentLabConfig";
 import { LlmProviderSelector } from "@/components/LlmProviderSelector";
+import { TermHelp } from "@/components/TermHelp";
+import { metricTerms, strategyTermKey, type TermKey } from "@/data/terminology";
 import type {
   EvaluationMetricId,
   ExperimentConfigurationValues,
@@ -166,10 +168,11 @@ export function ExperimentConfiguration({
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
           <Checklist
-            label="Treatment Strategies (Original baseline is automatic)"
+            label={<><TermHelp term="treatment" label="Treatment Strategies" /> (<TermHelp term="baseline" label="Original baseline" /> is automatic)</>}
             items={treatmentStrategyOptions.map((strategy) => ({
               id: strategy.id,
-              label: strategy.label,
+              name: strategy.label,
+              term: strategyTermKey(strategy.id)!,
               checked: value.strategies.includes(strategy.id),
               onChange: () => toggleStrategy(strategy.id),
             }))}
@@ -179,7 +182,8 @@ export function ExperimentConfiguration({
             label="Evaluation Metrics"
             items={evaluationMetricOptions.map((metric) => ({
               id: metric.id,
-              label: metric.label,
+              name: metric.id === "pawc" ? "PAWC" : metric.label,
+              term: metricTerms[metric.id],
               checked: value.evaluationMetrics.includes(metric.id),
               onChange: () => toggleMetric(metric.id),
             }))}
@@ -235,10 +239,11 @@ function Checklist({
   items,
   label,
 }: {
-  label: string;
+  label: ReactNode;
   items: Array<{
     id: string;
-    label: string;
+    name: string;
+    term: TermKey;
     checked: boolean;
     onChange: () => void;
   }>;
@@ -248,18 +253,21 @@ function Checklist({
       <p className="text-sm font-medium text-zinc-100">{label}</p>
       <div className="mt-3 space-y-2">
         {items.map((item) => (
-          <label
+          <div
             key={item.id}
-            className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-900/70"
+            className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-900/70"
           >
             <input
+              id={`experiment-option-${item.id}`}
+              aria-label={item.name}
               checked={item.checked}
-              className="h-4 w-4 accent-blue-500"
+              className="h-4 w-4 cursor-pointer accent-blue-500"
               type="checkbox"
               onChange={item.onChange}
             />
-            {item.label}
-          </label>
+            <label className="cursor-pointer" htmlFor={`experiment-option-${item.id}`}>{item.name}</label>
+            <TermHelp term={item.term} showLabel={false} />
+          </div>
         ))}
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
   type WebsitePageAudit,
 } from "@/api/audit";
 import { EmptyState, Page, PageHeader, SectionHeader } from "@/components/layout/PageLayout";
+import { TermHelp } from "@/components/TermHelp";
 import { useProperty } from "@/contexts/PropertyContext";
 import { buildAuditEvidence, formatAbsentSignal, pageExclusionReason } from "@/lib/auditEvidence";
 
@@ -144,17 +145,17 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
       <section>
         <SectionHeader title="Crawl & Evidence Summary" description="Observed crawl outcomes. HTTP responses, extracted pages, and independent content evidence are reported separately." />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <EvidenceMetric label="URLs discovered" value={coverage?.discovered_urls ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label="Representative pages selected" value={coverage?.selected_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label={<TermHelp term="urls_discovered" />} value={coverage?.discovered_urls ?? audit.pages?.length ?? 0} />
+          <EvidenceMetric label={<TermHelp term="pages_selected_for_analysis" />} value={coverage?.selected_urls ?? audit.pages?.length ?? 0} />
           <EvidenceMetric label="URLs requested" value={coverage?.requested_urls ?? audit.pages?.length ?? 0} />
-          <EvidenceMetric label="Successful HTTP responses" value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
-          <EvidenceMetric label="Successful HTML responses" value={coverage?.accepted_html_responses ?? "Not recorded"} />
-          <EvidenceMetric label="Pages with extracted text" value={coverage?.successful_extractions ?? "Not recorded"} />
-          <EvidenceMetric label="HTTP-only pages" value={coverage?.http_extracted_pages ?? "Not recorded"} />
-          <EvidenceMetric label="Browser-rendered pages" value={coverage?.browser_extracted_pages ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="http_success" />} value={coverage?.successful_responses ?? countSuccessfulPages(audit)} />
+          <EvidenceMetric label={<TermHelp term="html_accepted" />} value={coverage?.accepted_html_responses ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="extraction_success" />} value={coverage?.successful_extractions ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="extraction_method" label="HTTP-only pages" />} value={coverage?.http_extracted_pages ?? "Not recorded"} />
+          <EvidenceMetric label={<TermHelp term="extraction_method" label="Browser-rendered pages" />} value={coverage?.browser_extracted_pages ?? "Not recorded"} />
           <EvidenceMetric label="Extraction failures" value={coverage?.extraction_failures ?? "Not recorded"} />
-          <EvidenceMetric label="Unique pages analyzed" value={coverage?.unique_content_pages ?? analyzedCount} />
-          <EvidenceMetric label="Duplicate/fallback responses" value={coverage?.duplicate_fallback_responses ?? countDuplicatePages(audit)} />
+          <EvidenceMetric label={<TermHelp term="unique_pages" label="Unique pages analyzed" />} value={coverage?.unique_content_pages ?? analyzedCount} />
+          <EvidenceMetric label={<TermHelp term="duplicate_fallback" label="Duplicate/fallback responses" />} value={coverage?.duplicate_fallback_responses ?? countDuplicatePages(audit)} />
           <EvidenceMetric label="Not selected for standard audit" value={coverage?.not_selected_due_to_sampling ?? 0} />
           <EvidenceMetric label="Skipped by hard safety limit" value={coverage?.skipped_due_to_limit ?? 0} />
           <EvidenceMetric label="Total unique extracted words" value={evidence.totalWords} />
@@ -167,7 +168,7 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
         <section>
           <SectionHeader title="Content Evidence" description="Counts from unique pages with usable extracted text. Duplicate and fallback responses are excluded." />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <EvidenceMetric label="Unique pages analyzed" value={analyzedCount} />
+            <EvidenceMetric label={<TermHelp term="unique_pages" label="Unique pages analyzed" />} value={analyzedCount} />
             <EvidenceMetric label="Total extracted words" value={evidence.totalWords} />
             <EvidenceMetric label="Average words per page" value={evidence.averageWords} />
             <EvidenceMetric label="Titles found" value={`${evidence.pagesWithTitle} / ${analyzedCount} pages`} />
@@ -187,8 +188,8 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
               ["Internal links found", evidence.internalLinks],
               ["External links found", evidence.externalLinks],
               ["Average internal links per page", evidence.averageInternalLinks],
-              ["Sitemap detected", formatBoolean(coverage?.sitemap_detected)],
-              ["robots.txt detected", formatBoolean(coverage?.robots_txt_detected)],
+              [<TermHelp term="sitemap" label="Sitemap detected" />, formatBoolean(coverage?.sitemap_detected)],
+              [<TermHelp term="robots_txt" label="robots.txt detected" />, formatBoolean(coverage?.robots_txt_detected)],
               ["Sitemap URLs discovered", coverage?.sitemap_url_count ?? "Not recorded separately"],
               ["Distinct content URLs analyzed", analyzedCount],
             ]} />
@@ -225,7 +226,7 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
 
 function CoverageNotice({ coverage }: { coverage: NonNullable<AuditResult["crawl_coverage"]> }) {
   if (coverage.sampling_applied) {
-    return <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-200">Representative website audit: {coverage.selected_urls} pages selected from {coverage.discovered_urls} discovered URLs. {coverage.not_selected_due_to_sampling} URLs were not selected for the standard audit sample.{coverage.truncated ? ` A further ${coverage.skipped_due_to_limit} eligible pages were blocked by the ${coverage.crawl_limit}-page hard safety limit.` : ""}</div>;
+    return <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-200"><TermHelp term="representative_pages" label="Representative website audit" />: {coverage.selected_urls} pages selected from {coverage.discovered_urls} discovered URLs. {coverage.not_selected_due_to_sampling} URLs were not selected for the standard audit sample.{coverage.truncated ? ` A further ${coverage.skipped_due_to_limit} eligible pages were blocked by the ${coverage.crawl_limit}-page hard safety limit.` : ""}</div>;
   }
   if (coverage.truncated) {
     return <div className="mt-3 rounded-lg border border-amber-900 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">Safety-capped audit: {coverage.skipped_due_to_limit} eligible URLs were not requested because the hard limit is {coverage.crawl_limit}.</div>;
@@ -237,8 +238,8 @@ function EvidencePanel({ title, description, children }: { title: string; descri
   return <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6"><h2 className="text-lg font-semibold text-zinc-50">{title}</h2><p className="mt-1 text-sm leading-6 text-zinc-500">{description}</p><div className="mt-5 space-y-5">{children}</div></CardContent></Card>;
 }
 
-function EvidenceRows({ rows }: { rows: Array<[string, string | number]> }) {
-  return <div className="divide-y divide-zinc-900 rounded-lg border border-zinc-800 bg-black">{rows.map(([label, value]) => <div className="flex items-center justify-between gap-4 px-4 py-3" key={label}><span className="text-sm text-zinc-500">{label}</span><span className="text-sm font-medium text-zinc-200">{value}</span></div>)}</div>;
+function EvidenceRows({ rows }: { rows: Array<[ReactNode, string | number]> }) {
+  return <div className="divide-y divide-zinc-900 rounded-lg border border-zinc-800 bg-black">{rows.map(([label, value], index) => <div className="flex items-center justify-between gap-4 px-4 py-3" key={index}><span className="text-sm text-zinc-500">{label}</span><span className="text-sm font-medium text-zinc-200">{value}</span></div>)}</div>;
 }
 
 function SignalList({ signals, absentTitle = "Not detected", absentSuffix }: { signals: Array<{ label: string; detected: boolean }>; absentTitle?: string; absentSuffix?: string }) {
@@ -273,15 +274,15 @@ function OpportunityRow({ opportunity }: { opportunity: OptimizationOpportunity 
 }
 
 function Tag({ children }: { children: string }) { return <span className="rounded-full border border-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">{children}</span>; }
-function EvidenceMetric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 truncate text-sm font-medium text-zinc-200">{value}</p></div>; }
+function EvidenceMetric({ label, value }: { label: ReactNode; value: string | number }) { return <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3"><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 truncate text-sm font-medium text-zinc-200">{value}</p></div>; }
 function StrategyEvidenceSummary({ audit }: { audit: AuditResult }) {
   const summary = audit.strategy_evidence_summary!;
   const total = summary.analyzed_pages;
   const schemas = Object.entries(summary.structured_data);
   return <section><SectionHeader title="Strategy-Relevant Evidence" description="Deterministic facts derived from the same admitted page evidence. These are not scores or predicted gains." /><div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-    <EvidencePanel title="FAQ / Q&A" description="Observed question structure and FAQ structured data."><EvidenceRows rows={[["Pages with question headings", `${summary.faq.pages_with_question_headings} / ${total}`], ["Pages with Q&A pairs", `${summary.faq.pages_with_qa_pairs} / ${total}`], ["Pages with FAQPage schema", `${summary.faq.pages_with_faq_schema} / ${total}`], ["Explanatory pages without Q&A", summary.faq.explanatory_pages_without_qa]]} /></EvidencePanel>
+    <EvidencePanel title="FAQ / Q&A" description="Observed question structure and FAQ structured data."><EvidenceRows rows={[["Pages with question headings", `${summary.faq.pages_with_question_headings} / ${total}`], [<TermHelp term="qa_pairs" label="Pages with Q&A pairs" />, `${summary.faq.pages_with_qa_pairs} / ${total}`], [<TermHelp term="faq_page_schema" label="Pages with FAQPage schema" />, `${summary.faq.pages_with_faq_schema} / ${total}`], ["Explanatory pages without Q&A", summary.faq.explanatory_pages_without_qa]]} /></EvidencePanel>
     <EvidencePanel title="Statistics" description="Numeric evidence is detected, not fact-checked."><EvidenceRows rows={[["Pages with numeric claims", `${summary.statistics.pages_with_numeric_claims} / ${total}`], ["Quantitative statements", summary.statistics.quantitative_statements]]} /></EvidencePanel>
-    <EvidencePanel title="Citations" description="Reference-like links are separated from generic external links."><EvidenceRows rows={[["Pages with reference links", `${summary.citations.pages_with_reference_links} / ${total}`], ["Reference-like links", summary.citations.reference_like_links], ["Distinct reference domains", summary.citations.distinct_reference_domains.length]]} /></EvidencePanel>
+    <EvidencePanel title="Citations" description="Reference-like links are separated from generic external links."><EvidenceRows rows={[["Pages with reference links", `${summary.citations.pages_with_reference_links} / ${total}`], [<TermHelp term="reference_like_links" />, summary.citations.reference_like_links], ["Distinct reference domains", summary.citations.distinct_reference_domains.length]]} /></EvidencePanel>
     <EvidencePanel title="Authorship / Dates" description="Only explicitly detected authorship and date metadata."><EvidenceRows rows={[["Pages exposing an author", `${summary.authorship.pages_with_author} / ${total}`], ["Pages exposing dates", `${summary.authorship.pages_with_dates} / ${total}`]]} /></EvidencePanel>
     <EvidencePanel title="Quotations" description="Blockquotes and explicit quoted passages."><EvidenceRows rows={[["Pages with quotations", `${summary.quotations.pages_with_quotations} / ${total}`]]} /></EvidencePanel>
     <EvidencePanel title="Structured Data" description="JSON-LD schema types observed in analyzed pages.">{schemas.length ? <EvidenceRows rows={schemas} /> : <p className="text-sm text-zinc-600">No JSON-LD schema types detected.</p>}</EvidencePanel>
@@ -307,7 +308,7 @@ function PageAuditRow({ page }: { page: WebsitePageAudit }) {
     <summary className="cursor-pointer list-none p-4 [&::-webkit-details-marker]:hidden">
       <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-medium text-zinc-100">{page.page_title || "No title detected"}</p><p className="mt-1 break-all text-xs text-zinc-500">{page.url}</p></div><div className="flex gap-2">{exclusion && <span className="rounded border border-amber-900 px-2 py-0.5 text-xs text-amber-400">Excluded</span>}<span className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-500">Extraction: {extraction}</span></div></div>
       <p className="mt-3 text-xs text-zinc-400">{page.word_count.toLocaleString()} words • H1 {page.h1 ? "✓" : "not detected"} • Meta {page.meta_description ? "✓" : "not detected"}</p>
-      <p className="mt-2 text-xs text-zinc-500">Prominent extracted terms: {prominentTerms.length ? prominentTerms.join(", ") : "Not detected"}</p>
+      <p className="mt-2 text-xs text-zinc-500"><TermHelp term="prominent_extracted_terms" />: {prominentTerms.length ? prominentTerms.join(", ") : "Not detected"}</p>
       <p className="mt-2 text-xs text-zinc-500">Strategy evidence: FAQ {numberValue(faq.detected_qa_pair_count)} Q&A pairs • Statistics {numberValue(statistics.numeric_claim_count)} numeric claims • Citations {numberValue(citation.reference_like_link_count)} reference links</p>
       {exclusion && <p className="mt-2 text-xs text-amber-500">Reason: {exclusion}</p>}
     </summary>
@@ -315,9 +316,9 @@ function PageAuditRow({ page }: { page: WebsitePageAudit }) {
       <EvidenceRows rows={[["Requested URL", evidence?.identity?.requested_url || page.url], ["Final URL", evidence?.identity?.final_url || page.url], ["Canonical", evidence?.identity?.canonical_url || "Not detected"], ["Path family", evidence?.identity?.path_family || "Not recorded"], ["Robots directives", evidence?.metadata?.robots_directives?.join(", ") || "Not detected"]]} />
       <EvidenceBlock title="Headings" values={[...(evidence?.headings?.h1 || []).map((value) => `H1: ${value}`), ...(evidence?.headings?.h2 || []).map((value) => `H2: ${value}`), ...(evidence?.headings?.h3 || []).map((value) => `H3: ${value}`)]} />
       <EvidenceBlock title="Content preview" values={evidence?.content?.preview ? [evidence.content.preview] : []} />
-      <EvidenceRows rows={[["Paragraphs", evidence?.content?.paragraph_count ?? "Not recorded"], ["Lists", evidence?.content?.list_count ?? "Not recorded"], ["Internal links", evidence?.links?.internal_urls?.length ?? page.internal_link_count], ["External links", evidence?.links?.external_urls?.length ?? page.external_link_count], ["Reference-like links", referenceLinks.length], ["External reference domains", evidence?.links?.reference_domains?.join(", ") || "None detected"]]} />
-      <EvidenceBlock title="Reference-like links" values={referenceLinks.map((link) => `${link.anchor_text || link.domain}: ${link.url}`)} />
-      <EvidenceRows rows={[["Question headings", numberValue(faq.question_heading_count)], ["Detected Q&A pairs", numberValue(faq.detected_qa_pair_count)], ["FAQPage schema", booleanEvidence(faq.faq_page_schema_present)], ["Numeric claims", numberValue(statistics.numeric_claim_count)], ["Percentages", numberValue(statistics.percentage_count)], ["Currency values", numberValue(statistics.currency_value_count)], ["Quotations", numberValue(quotation.quoted_passage_count) + numberValue(quotation.blockquote_count)], ["Average sentence words", scalarValue(readability.average_sentence_words)], ["Unique tokens", scalarValue(uniqueWords.unique_token_count)], ["Lexical diversity", scalarValue(uniqueWords.lexical_diversity_ratio)], ["Top-term concentration", scalarValue(keywordEvidence.top_term_concentration)]]} />
+      <EvidenceRows rows={[["Paragraphs", evidence?.content?.paragraph_count ?? "Not recorded"], ["Lists", evidence?.content?.list_count ?? "Not recorded"], ["Internal links", evidence?.links?.internal_urls?.length ?? page.internal_link_count], ["External links", evidence?.links?.external_urls?.length ?? page.external_link_count], [<TermHelp term="reference_like_links" />, referenceLinks.length], ["External reference domains", evidence?.links?.reference_domains?.join(", ") || "None detected"]]} />
+      <EvidenceBlock title={<TermHelp term="reference_like_links" />} values={referenceLinks.map((link) => `${link.anchor_text || link.domain}: ${link.url}`)} />
+      <EvidenceRows rows={[["Question headings", numberValue(faq.question_heading_count)], [<TermHelp term="qa_pairs" label="Detected Q&A pairs" />, numberValue(faq.detected_qa_pair_count)], [<TermHelp term="faq_page_schema" />, booleanEvidence(faq.faq_page_schema_present)], ["Numeric claims", numberValue(statistics.numeric_claim_count)], ["Percentages", numberValue(statistics.percentage_count)], ["Currency values", numberValue(statistics.currency_value_count)], ["Quotations", numberValue(quotation.quoted_passage_count) + numberValue(quotation.blockquote_count)], ["Average sentence words", scalarValue(readability.average_sentence_words)], ["Unique tokens", scalarValue(uniqueWords.unique_token_count)], ["Lexical diversity", scalarValue(uniqueWords.lexical_diversity_ratio)], ["Top-term concentration", scalarValue(keywordEvidence.top_term_concentration)]]} />
       <EvidenceBlock title="Quantitative evidence snippets" values={asStrings(statistics.quantitative_snippets)} />
       <EvidenceBlock title="Quotation / attribution evidence" values={[...asStrings(quotation.quote_snippets), ...asStrings(quotation.attribution_snippets)]} />
       <EvidenceBlock title="Highest-frequency meaningful terms" values={formatTermCounts(keywordEvidence.highest_frequency_terms)} />
@@ -329,7 +330,7 @@ function PageAuditRow({ page }: { page: WebsitePageAudit }) {
   </details>;
 }
 
-function EvidenceBlock({ title, values }: { title: string; values: string[] }) { return <div><p className="font-semibold uppercase tracking-[0.14em] text-zinc-600">{title}</p>{values.length ? <ul className="mt-2 space-y-1 text-zinc-400">{values.map((value, index) => <li className="break-words" key={`${title}-${index}`}>• {value}</li>)}</ul> : <p className="mt-2 text-zinc-700">Not detected</p>}</div>; }
+function EvidenceBlock({ title, values }: { title: ReactNode; values: string[] }) { return <div><p className="font-semibold uppercase tracking-[0.14em] text-zinc-600">{title}</p>{values.length ? <ul className="mt-2 space-y-1 text-zinc-400">{values.map((value, index) => <li className="break-words" key={index}>• {value}</li>)}</ul> : <p className="mt-2 text-zinc-700">Not detected</p>}</div>; }
 function asStrings(value: unknown): string[] { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
 function formatTermCounts(value: unknown): string[] { return Array.isArray(value) ? value.flatMap((item) => typeof item === "object" && item !== null && "term" in item && "count" in item ? [`${String(item.term)} — ${String(item.count)} occurrences`] : []) : []; }
 function formatPhraseCounts(value: unknown): string[] { return Array.isArray(value) ? value.flatMap((item) => typeof item === "object" && item !== null && "phrase" in item && "count" in item ? [`${String(item.phrase)} — ${String(item.count)} occurrences`] : []) : []; }

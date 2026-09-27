@@ -1,5 +1,7 @@
 import { Card, CardContent } from "../../@/components/ui/card";
+import type { ReactNode } from "react";
 
+import { TermHelp } from "@/components/TermHelp";
 import type { ExperimentRun } from "@/types/experimentLab";
 
 type ExperimentSummaryProps = {
@@ -19,15 +21,15 @@ export function ExperimentSummary({ run }: ExperimentSummaryProps) {
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <SummaryMetric
-            label="Visibility Score"
+            label={<TermHelp term="visibility" label="Visibility Score" />}
             value={run ? run.overall.visibilityScore.toFixed(1) : "No result"}
           />
           <SummaryMetric
-            label="Citation Count"
+            label={<TermHelp term="citation_count" />}
             value={run ? String(run.overall.citationCount) : "No result"}
           />
           <SummaryMetric
-            label="PAWC"
+            label={<TermHelp term="pawc" />}
             value={run ? run.overall.pawc.toFixed(2) : "No result"}
           />
         </div>
@@ -36,7 +38,7 @@ export function ExperimentSummary({ run }: ExperimentSummaryProps) {
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
+function SummaryMetric({ label, value }: { label: ReactNode; value: string }) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-black p-5">
       <p className="text-sm text-zinc-500">{label}</p>

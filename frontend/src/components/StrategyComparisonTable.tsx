@@ -1,5 +1,7 @@
 import { Card, CardContent } from "../../@/components/ui/card";
 
+import { TermHelp } from "@/components/TermHelp";
+import { strategyTermKey } from "@/data/terminology";
 import type { StrategyResult } from "@/types/experimentLab";
 
 type StrategyComparisonTableProps = {
@@ -24,16 +26,16 @@ export function StrategyComparisonTable({
             <thead className="border-b border-zinc-800 bg-black text-xs uppercase tracking-[0.16em] text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Strategy</th>
-                <th className="px-4 py-3 font-medium">Visibility</th>
-                <th className="px-4 py-3 font-medium">PAWC</th>
-                <th className="px-4 py-3 font-medium">Citation Count</th>
+                <th className="px-4 py-3 font-medium"><TermHelp term="visibility" /></th>
+                <th className="px-4 py-3 font-medium"><TermHelp term="pawc" /></th>
+                <th className="px-4 py-3 font-medium"><TermHelp term="citation_count" /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {results.map((result) => (
                 <tr key={result.strategy} className="bg-zinc-950">
                   <td className="px-4 py-3 font-medium text-zinc-100">
-                    {result.label}
+                    {strategyTermKey(result.strategy) ? <TermHelp term={strategyTermKey(result.strategy)!} label={result.label} /> : result.label}
                   </td>
                   <td className="px-4 py-3 text-zinc-300">
                     {result.visibility.toFixed(1)}

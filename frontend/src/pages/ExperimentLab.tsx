@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -18,6 +18,7 @@ import { LlmProviderSelector } from "@/components/LlmProviderSelector";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import { PrincetonReplicationPanel } from "@/components/PrincetonReplicationPanel";
 import { ScientificReplicationDashboard } from "@/components/ScientificReplicationDashboard";
+import { TermHelp } from "@/components/TermHelp";
 import {
   Page,
   PageHeader as SharedPageHeader,
@@ -266,7 +267,7 @@ export function ExperimentLab() {
     <Page>
       <SharedPageHeader
         eyebrow="Research Benchmark"
-        title="Experiment Lab"
+        title={<TermHelp term="geo" label="GEO Experiment Lab" />}
         description="Run a faithful Princeton GEO paper reproduction experiment: one query, Google Top-5 retrieval, one randomly selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
       />
 
@@ -1289,7 +1290,7 @@ function BenchmarkSelector({
 
   return (
     <div className="space-y-3">
-      <Label>Benchmark Source</Label>
+      <div className="text-sm text-zinc-400"><TermHelp term="benchmark_query" label="Benchmark Source" /></div>
       <div className="grid gap-3 md:grid-cols-3">
         {options.map((option) => (
           <button
@@ -1416,7 +1417,7 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReadOnlySetting({ label, value }: { label: string; value: string }) {
+function ReadOnlySetting({ label, value }: { label: ReactNode; value: string }) {
   return (
     <div className="rounded-lg border border-zinc-800 bg-black p-3">
       <p className="text-xs text-zinc-500">{label}</p>
@@ -1453,13 +1454,13 @@ function MetricStrip({ detail }: { detail?: StrategyEvidence }) {
         label="Position"
         value={detail.metrics.position?.toString() || "None"}
       />
-      <ReadOnlySetting label="PAWC" value={detail.metrics.pawc.toFixed(4)} />
+      <ReadOnlySetting label={<TermHelp term="pawc" />} value={detail.metrics.pawc.toFixed(4)} />
       <ReadOnlySetting
-        label="Citations"
+        label={<TermHelp term="citation_count" label="Citations" />}
         value={String(detail.metrics.citationCount)}
       />
       <ReadOnlySetting
-        label="Visibility"
+        label={<TermHelp term="visibility" />}
         value={detail.metrics.visibilityScore.toFixed(4)}
       />
     </div>

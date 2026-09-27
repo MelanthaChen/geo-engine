@@ -41,6 +41,8 @@ import {
   SummaryGrid,
   fieldClassName,
 } from "@/components/layout/PageLayout";
+import { TermHelp } from "@/components/TermHelp";
+import { strategyTermKey } from "@/data/terminology";
 
 const pipelineSteps = [
   {
@@ -278,18 +280,19 @@ export function GeoPredictor() {
             </div>
             {selectedOpportunity && !experimentId && <div className="grid gap-4 rounded-lg border border-zinc-800 bg-black p-4 lg:grid-cols-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Selected Audit Opportunity</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500"><TermHelp term="optimization_opportunity" label="Selected Audit Opportunity" /></p>
                 <p className="mt-2 text-sm font-medium text-zinc-100">{selectedOpportunity.title}</p>
                 <p className="mt-1 text-xs text-zinc-500">The first optimization opportunity provided by this audit.</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Recommended Strategy</p>
-                <p className="mt-2 text-sm font-medium text-blue-300">{recommendedStrategy ? STRATEGY_LABELS[recommendedStrategy] : "Unavailable"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500"><TermHelp term="recommended_strategy" /></p>
+                <p className="mt-2 text-sm font-medium text-blue-300">{recommendedStrategy && strategyTermKey(recommendedStrategy) ? <TermHelp term={strategyTermKey(recommendedStrategy)!} label={STRATEGY_LABELS[recommendedStrategy]} /> : "Unavailable"}</p>
                 <p className="mt-1 text-xs text-zinc-500">Suggested from the audit opportunity category.</p>
               </div>
-              <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Validation Strategy</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500"><label htmlFor="validation-strategy">Validation Strategy</label><TermHelp term="validation_strategy" showLabel={false} /></div>
                 <select
+                  id="validation-strategy"
                   aria-label="Validation Strategy"
                   className={fieldClassName}
                   value={selectedStrategy || ""}
@@ -304,8 +307,8 @@ export function GeoPredictor() {
                     <option key={strategy} value={strategy}>{STRATEGY_LABELS[strategy]}</option>
                   ))}
                 </select>
-                <p className="text-xs text-zinc-500">Your selection controls the single treatment arm; Original remains the baseline.</p>
-              </label>
+                <p className="text-xs text-zinc-500">Your selection controls the single <TermHelp term="treatment" label="treatment" /> arm; <TermHelp term="baseline" label="Original" /> remains the baseline.</p>
+              </div>
             </div>}
             {!experimentId && <div className="flex justify-end"><Button onClick={handleValidateAudit} disabled={startingValidation || !selectedOpportunity || !selectedStrategy}><FlaskConical />{startingValidation ? "Starting…" : "Validate"}</Button></div>}
           </div> : <p className="text-sm text-zinc-400">Loading audit #{requestedAuditId || ""}…</p>}
@@ -329,7 +332,7 @@ export function GeoPredictor() {
 
       <SummaryGrid>
         <SummaryCard
-          label="Total Samples"
+          label={<TermHelp term="training_sample" label="Training Samples" />}
           value={loading ? "Loading" : String(dataset?.total_samples || 0)}
           detail={`${dataset?.valid_samples || 0} valid for export`}
         />
@@ -352,7 +355,7 @@ export function GeoPredictor() {
 
       <section>
         <SectionHeader
-          title="Dataset Overview"
+          title={<TermHelp term="training_dataset" label="Dataset Overview" />}
           description="Immutable supervised records automatically collected from completed GEO experiments."
           actions={
             <div className="flex gap-2">
@@ -366,7 +369,7 @@ export function GeoPredictor() {
             <CardContent className="p-6">
               <div className="flex items-start justify-between gap-5">
                 <div>
-                  <p className="text-sm font-medium text-zinc-100">Training sample repository</p>
+                  <p className="text-sm font-medium text-zinc-100"><TermHelp term="training_sample" label="Training sample repository" /></p>
                   <p className="mt-1 text-sm leading-6 text-zinc-500">
                     {dataset?.message || (
                       loading
@@ -386,7 +389,7 @@ export function GeoPredictor() {
 
           <Card className="border-zinc-800 bg-zinc-950">
             <CardContent className="p-6">
-              <p className="text-sm font-medium text-zinc-100">Dataset provenance</p>
+              <p className="text-sm font-medium text-zinc-100"><TermHelp term="provenance" label="Dataset provenance" /></p>
               <dl className="mt-5 space-y-4 text-sm">
                 <InfoRow label="Source" value="Completed GEO experiments" />
                 <InfoRow label="Storage" value="training_samples" />
