@@ -62,9 +62,13 @@ def upgrade():
         "canonical_url",
         "h3_count",
         "h2_count",
+        "evidence_json",
     ):
         if _column_exists("website_pages", column_name):
             op.drop_column("website_pages", column_name)
+
+    if _column_exists("website_audit_recommendations", "evidence_json"):
+        op.drop_column("website_audit_recommendations", "evidence_json")
 
     if not _table_exists("properties"):
         op.create_table(

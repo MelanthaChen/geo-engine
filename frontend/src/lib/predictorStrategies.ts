@@ -38,6 +38,9 @@ export function recommendedStrategyForOpportunity(
     missing_geo_topics: "authoritative",
     missing_pages: "fluency",
     content_recommendations: "authoritative",
+    statistics: "statistics",
+    citation: "citation",
+    authoritative: "authoritative",
   };
   return strategies[opportunity.category] || "fluency";
 }

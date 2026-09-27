@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -35,6 +35,8 @@ class WebsiteAuditRecommendation(Base):
     evaluated_page_count = Column(Integer, nullable=True)
 
     why_it_matters = Column(Text, nullable=True)
+
+    evidence_json = Column(JSON, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),

@@ -34,6 +34,58 @@ export type OptimizationOpportunity = {
   basis: "objective_audit_finding";
   validation_status: "not_validated";
   predicted_gain: null;
+  affected_urls?: string[];
+  suggested_strategy?: string | null;
+};
+
+export type StrategyEvidenceSummary = {
+  analyzed_pages: number;
+  faq: {
+    pages_with_question_headings: number;
+    pages_with_qa_pairs: number;
+    pages_with_faq_schema: number;
+    explanatory_pages_without_qa: number;
+  };
+  statistics: { pages_with_numeric_claims: number; quantitative_statements: number };
+  citations: {
+    pages_with_reference_links: number;
+    reference_like_links: number;
+    distinct_reference_domains: string[];
+  };
+  authorship: { pages_with_author: number; pages_with_dates: number };
+  quotations: { pages_with_quotations: number };
+  structured_data: Record<string, number>;
+};
+
+export type PageEvidence = {
+  version?: string;
+  identity?: {
+    requested_url?: string;
+    final_url?: string;
+    canonical_url?: string | null;
+    path_family?: string | null;
+    extraction_method?: string;
+    http_html_accepted?: boolean;
+  };
+  metadata?: { robots_directives?: string[] };
+  headings?: { h1?: string[]; h2?: string[]; h3?: string[]; counts?: Record<string, number> };
+  content?: { body_text?: string; preview?: string; paragraph_count?: number; list_count?: number };
+  links?: {
+    internal_urls?: string[];
+    external_urls?: string[];
+    external_domains?: string[];
+    reference_like_links?: Array<{ url: string; domain: string; anchor_text: string; context: string }>;
+    reference_domains?: string[];
+  };
+  structured_data?: {
+    schema_types?: string[];
+    faq_page_present?: boolean;
+    article_present?: boolean;
+    organization_present?: boolean;
+    person_or_author_present?: boolean;
+  };
+  authorship?: { author_name?: string | null; published_date?: string | null; modified_date?: string | null };
+  strategies?: Record<string, Record<string, unknown>>;
 };
 
 export type WebsiteProfile = {
@@ -93,6 +145,7 @@ export type AuditResult = {
   };
   brand_understanding: AuditSection;
   website_profile?: WebsiteProfile;
+  strategy_evidence_summary?: StrategyEvidenceSummary;
   crawl_coverage?: AuditCrawlCoverage;
   strengths?: AuditFinding[];
   weaknesses?: AuditFinding[];
@@ -131,6 +184,7 @@ export type WebsitePageAudit = {
   extraction_failure_reason?: string | null;
   http_word_count?: number | null;
   browser_word_count?: number | null;
+  evidence?: PageEvidence;
 };
 
 export async function runWebsiteAudit(propertyId: number) {

@@ -15,6 +15,7 @@ class CrawlResponse:
     error: str | None = None
     content_type: str | None = None
     html_accepted: bool = False
+    requested_url: str | None = None
 
 
 @dataclass
@@ -411,6 +412,7 @@ def fetch_page(url: str, timeout_seconds: int) -> CrawlResponse:
             html=html,
             content_type=content_type,
             html_accepted=html_accepted,
+            requested_url=normalize_url(url),
         )
     except requests.RequestException as error:
         return CrawlResponse(
@@ -418,6 +420,7 @@ def fetch_page(url: str, timeout_seconds: int) -> CrawlResponse:
             status_code=None,
             html="",
             error=str(error),
+            requested_url=normalize_url(url),
         )
 
 

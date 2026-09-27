@@ -100,6 +100,7 @@ def create_audit_record(
                 extraction_failure_reason=page.extraction_failure_reason,
                 http_word_count=page.http_word_count,
                 browser_word_count=page.browser_word_count,
+                evidence_json=page.evidence,
             )
         )
 
@@ -116,6 +117,10 @@ def create_audit_record(
                 affected_page_count=recommendation.affected_page_count,
                 evaluated_page_count=recommendation.evaluated_page_count,
                 why_it_matters=recommendation.why_it_matters,
+                evidence_json={
+                    "affected_urls": recommendation.affected_urls,
+                    "suggested_strategy": recommendation.suggested_strategy,
+                },
             )
         )
 

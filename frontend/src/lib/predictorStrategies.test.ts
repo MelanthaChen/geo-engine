@@ -12,6 +12,9 @@ describe("Predictor strategy selection", () => {
     expect(recommendedStrategyForOpportunity({ category: "missing_geo_topics" })).toBe("authoritative");
     expect(recommendedStrategyForOpportunity({ category: "internal_linking_suggestions" })).toBe("citation");
     expect(recommendedStrategyForOpportunity({ category: "faq_opportunities" })).toBe("faq");
+    expect(recommendedStrategyForOpportunity({ category: "statistics" })).toBe("statistics");
+    expect(recommendedStrategyForOpportunity({ category: "citation" })).toBe("citation");
+    expect(recommendedStrategyForOpportunity({ category: "authoritative" })).toBe("authoritative");
   });
 
   it("allows a user to select any supported treatment strategy", () => {

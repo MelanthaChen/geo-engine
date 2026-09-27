@@ -89,6 +89,7 @@ def extract_audit_pages(
                 html=result.html,
                 content_type="text/html",
                 html_accepted=True,
+                requested_url=response.requested_url or response.url,
             )
         )
         if not rendered_content_is_materially_richer(
@@ -102,6 +103,7 @@ def extract_audit_pages(
             )
             continue
         browser_page.extraction_method = "browser"
+        browser_page.evidence["identity"]["extraction_method"] = "browser"
         browser_page.extraction_failure_reason = None
         browser_page.http_word_count = http_page.word_count
         browser_page.browser_word_count = browser_page.word_count
@@ -210,3 +212,6 @@ def mark_failed(page: PageExtract, reason: str) -> None:
     page.content_sha256 = None
     page.is_duplicate = False
     page.duplicate_of_url = None
+    if page.evidence:
+        page.evidence.setdefault("identity", {})["extraction_method"] = "failed"
+        page.evidence["extraction_failure_reason"] = reason

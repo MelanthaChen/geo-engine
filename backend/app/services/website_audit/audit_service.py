@@ -6,6 +6,7 @@ from app.models.website_audit import WebsiteAudit
 from app.services.website_audit.analyzer import analyze_brand_understanding
 from app.services.website_audit.crawler import crawl_website, normalize_base_url
 from app.services.website_audit.rendering import extract_audit_pages
+from app.services.website_audit.evidence import aggregate_site_evidence
 from app.services.website_audit.recommendations import build_recommendations
 from app.services.website_audit.repository import (
     create_audit_record,
@@ -57,6 +58,7 @@ def run_website_audit(
             pages=evidence_pages,
             requested_urls=crawl_result.coverage.requested_urls,
             accepted_html_responses=crawl_result.coverage.accepted_html_responses,
+            all_pages=pages,
         )
         if evidence_pages
         else []
@@ -128,6 +130,7 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
             ],
         },
         "website_profile": website_profile,
+        "strategy_evidence_summary": aggregate_site_evidence(audit.pages),
         "crawl_coverage": {
             "inventory_source": audit.crawl_inventory_source or "legacy",
             "crawl_limit": audit.crawl_limit,
@@ -209,6 +212,7 @@ def serialize_audit(audit: WebsiteAudit, property_record: Property):
                 "extraction_failure_reason": page.extraction_failure_reason,
                 "http_word_count": page.http_word_count,
                 "browser_word_count": page.browser_word_count,
+                "evidence": page.evidence_json or {},
             }
             for page in audit.pages
         ],

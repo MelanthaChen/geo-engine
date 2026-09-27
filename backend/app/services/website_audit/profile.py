@@ -3,40 +3,7 @@
 from typing import Any
 
 from app.models.website_audit import WebsiteAudit
-
-
-UNAVAILABLE_FEATURES = (
-    (
-        "statistics_density",
-        "Statistics Density",
-        "Quantitative-fact extraction is not available in the current audit.",
-    ),
-    (
-        "citation_density",
-        "Citation Density",
-        "The current audit counts external links, but does not classify citations.",
-    ),
-    (
-        "readability",
-        "Readability",
-        "No readability analyzer is implemented in the current audit.",
-    ),
-    (
-        "technical_terminology",
-        "Technical Terminology",
-        "No terminology classifier is implemented in the current audit.",
-    ),
-    (
-        "schema_presence",
-        "Schema Presence",
-        "Structured-data markup is not extracted by the current audit.",
-    ),
-    (
-        "freshness",
-        "Freshness",
-        "Publication and modification dates are not extracted by the current audit.",
-    ),
-)
+from app.services.website_audit.evidence import aggregate_site_evidence, page_evidence
 
 
 def build_website_profile(audit: WebsiteAudit) -> dict[str, Any]:
@@ -198,6 +165,21 @@ def build_website_features(audit: WebsiteAudit) -> dict[str, dict[str, Any]]:
     profile = build_website_profile(audit)
     successful = profile["successful_pages"]
     h1_count = profile["_evidence"]["pages_with_h1"]
+    pages = evidence_pages(audit)
+    strategy_summary = aggregate_site_evidence(pages)
+    evidence_documents = [page_evidence(page) for page in pages if page_evidence(page)]
+    sentence_lengths = [
+        document.get("strategies", {}).get("easy_to_understand", {}).get("average_sentence_words")
+        for document in evidence_documents
+    ]
+    sentence_lengths = [value for value in sentence_lengths if isinstance(value, (int, float))]
+    prominent_terms = list(dict.fromkeys(
+        term
+        for document in evidence_documents
+        for term in document.get("strategies", {}).get("technical_terms", {}).get("prominent_terms", [])
+    ))[:12]
+    schema_types = list(strategy_summary["structured_data"])
+    strategy_evidence_available = strategy_summary["analyzed_pages"] > 0
 
     features: dict[str, dict[str, Any]] = {
         "authority_score": feature(
@@ -236,9 +218,49 @@ def build_website_features(audit: WebsiteAudit) -> dict[str, dict[str, Any]]:
             "Brand Clarity", audit.brand_clarity_score, "score", score_availability(audit.brand_clarity_score),
             "Existing brand clarity score based on H1 and meta-description presence.",
         ),
+        "statistics_density": feature(
+            "Quantitative Statements",
+            strategy_summary["statistics"]["quantitative_statements"],
+            "detected statements",
+            "available" if strategy_evidence_available else "unavailable",
+            "Count of deterministic numeric evidence detections; values are not fact-checked.",
+        ),
+        "citation_density": feature(
+            "Reference-like Links",
+            strategy_summary["citations"]["reference_like_links"],
+            "links",
+            "available" if strategy_evidence_available else "unavailable",
+            "Outbound links with source, study, report, paper, or equivalent attribution evidence.",
+        ),
+        "readability": feature(
+            "Average Sentence Length",
+            round(sum(sentence_lengths) / len(sentence_lengths), 1) if sentence_lengths else None,
+            "words",
+            "available" if sentence_lengths else "unavailable",
+            "Structural sentence-length evidence only; no reading-grade or fluency score is inferred.",
+        ),
+        "technical_terminology": feature(
+            "Prominent Extracted Terms",
+            ", ".join(prominent_terms) if prominent_terms else None,
+            None,
+            "available" if prominent_terms else "unavailable",
+            "Deterministic prominent terms from headings and normalized token frequency.",
+        ),
+        "schema_presence": feature(
+            "Structured Data Types",
+            ", ".join(schema_types) if schema_types else None,
+            None,
+            "available" if schema_types else "unavailable",
+            "JSON-LD schema types observed in admitted representative-page evidence.",
+        ),
+        "freshness": feature(
+            "Pages with Publication or Update Dates",
+            strategy_summary["authorship"]["pages_with_dates"],
+            "pages",
+            "available" if strategy_evidence_available else "unavailable",
+            "Count of pages exposing deterministic publication or modification date metadata.",
+        ),
     }
-    for key, label, evidence in UNAVAILABLE_FEATURES:
-        features[key] = feature(label, None, None, "unavailable", evidence)
     return features
 
 
@@ -265,6 +287,12 @@ def build_optimization_opportunities(audit: WebsiteAudit) -> list[dict[str, Any]
                 "evaluated_page_count": recommendation.evaluated_page_count,
                 "why_it_matters": recommendation.why_it_matters,
                 "evidence_url": recommendation.evidence_url,
+                "affected_urls": (
+                    recommendation.evidence_json or {}
+                ).get("affected_urls", []),
+                "suggested_strategy": (
+                    recommendation.evidence_json or {}
+                ).get("suggested_strategy"),
                 "basis": "objective_audit_finding",
                 "validation_status": "not_validated",
                 "predicted_gain": None,
@@ -311,6 +339,9 @@ def neutral_direction(category: str) -> str:
         "http_html_success": "Investigate the affected URLs and their HTTP or content-type behavior.",
         "internal_linking_suggestions": "Review the internal links associated with the observed page evidence.",
         "faq_opportunities": "Review the affected explanatory pages for grounded FAQ / Q&A restructuring.",
+        "statistics": "Review the affected explanatory pages for appropriate, verified quantitative evidence.",
+        "citation": "Review the affected informational pages for relevant source attribution.",
+        "authoritative": "Review explicit authorship, dates, and source provenance on the affected pages.",
     }
     return directions.get(category, "Review this observed area as a possible optimization direction.")
 

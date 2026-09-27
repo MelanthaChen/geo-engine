@@ -71,9 +71,16 @@ def upgrade():
     )
     op.add_column("website_pages", sa.Column("http_word_count", sa.Integer(), nullable=True))
     op.add_column("website_pages", sa.Column("browser_word_count", sa.Integer(), nullable=True))
+    op.add_column("website_pages", sa.Column("evidence_json", sa.JSON(), nullable=True))
+    op.add_column(
+        "website_audit_recommendations",
+        sa.Column("evidence_json", sa.JSON(), nullable=True),
+    )
 
 
 def downgrade():
+    op.drop_column("website_audit_recommendations", "evidence_json")
+    op.drop_column("website_pages", "evidence_json")
     op.drop_column("website_pages", "browser_word_count")
     op.drop_column("website_pages", "http_word_count")
     op.drop_column("website_pages", "extraction_failure_reason")

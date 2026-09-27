@@ -14,6 +14,8 @@ class AuditRecommendation:
     evaluated_page_count: int
     why_it_matters: str
     evidence_url: str | None = None
+    affected_urls: list[str] | None = None
+    suggested_strategy: str | None = None
 
 
 def build_recommendations(
@@ -21,6 +23,7 @@ def build_recommendations(
     *,
     requested_urls: int,
     accepted_html_responses: int,
+    all_pages: list[PageExtract] | None = None,
 ) -> list[AuditRecommendation]:
     """Build opportunities only from directly measured page and crawl defects."""
     if not pages:
@@ -30,6 +33,9 @@ def build_recommendations(
     analyzed_count = len(pages)
 
     recommendations.extend(build_faq_structure_opportunity(pages))
+    recommendations.extend(build_statistics_opportunity(pages))
+    recommendations.extend(build_citation_opportunity(pages))
+    recommendations.extend(build_authoritative_opportunity(pages))
 
     recommendations.extend(build_missing_field_opportunity(
         pages=pages,
@@ -64,6 +70,10 @@ def build_recommendations(
 
     unsuccessful_html = max(requested_urls - accepted_html_responses, 0)
     if unsuccessful_html:
+        affected_html_urls = [
+            page.url for page in (all_pages or [])
+            if not page.evidence.get("identity", {}).get("http_html_accepted", False)
+        ]
         evidence = (
             f"{unsuccessful_html} of {requested_urls} requested URLs did not return "
             "a successful accepted HTML response."
@@ -80,6 +90,8 @@ def build_recommendations(
                 "Pages without successful HTML responses cannot contribute extracted content "
                 "evidence to this audit and may be inaccessible to plain HTTP clients."
             ),
+            evidence_url=affected_html_urls[0] if affected_html_urls else None,
+            affected_urls=affected_html_urls,
         ))
 
     low_link_pages = [
@@ -104,6 +116,7 @@ def build_recommendations(
                 "related content; whether a link belongs must be judged page by page."
             ),
             evidence_url=low_link_pages[0].url,
+            affected_urls=[page.url for page in low_link_pages],
         ))
 
     return recommendations
@@ -154,10 +167,121 @@ def build_faq_structure_opportunity(pages: list[PageExtract]) -> list[AuditRecom
             "and extract, while the answers must remain grounded in the existing page content."
         ),
         evidence_url=candidates[0].url,
+        affected_urls=[page.url for page in candidates],
+        suggested_strategy="faq",
+    )]
+
+
+def build_statistics_opportunity(pages: list[PageExtract]) -> list[AuditRecommendation]:
+    candidates = [
+        page for page in pages
+        if page.word_count >= 250
+        and explanatory_content_detected(page)
+        and page_strategy(page, "statistics").get("numeric_claim_count", 0) <= 1
+    ]
+    if len(candidates) < min_required_candidates(len(pages)):
+        return []
+    total_claims = sum(
+        page_strategy(page, "statistics").get("numeric_claim_count", 0)
+        for page in candidates
+    )
+    evidence = (
+        f"{len(candidates)} of {len(pages)} analyzed pages contain at least 250 words "
+        "and explanatory language, while those pages contain only "
+        f"{total_claims} detected numeric claims in total."
+    )
+    return [AuditRecommendation(
+        category="statistics",
+        title="Review explanatory pages with little quantitative evidence",
+        description=evidence,
+        priority="medium",
+        observed_evidence=evidence,
+        affected_page_count=len(candidates),
+        evaluated_page_count=len(pages),
+        why_it_matters=(
+            "Grounded quantitative facts may make factual explanations more specific, but "
+            "only verified figures appropriate to each page should be added."
+        ),
+        evidence_url=candidates[0].url,
+        affected_urls=[page.url for page in candidates],
+        suggested_strategy="statistics",
+    )]
+
+
+def build_citation_opportunity(pages: list[PageExtract]) -> list[AuditRecommendation]:
+    candidates = [
+        page for page in pages
+        if page.word_count >= 250
+        and explanatory_content_detected(page)
+        and page_strategy(page, "citation").get("reference_like_link_count", 0) == 0
+        and page_strategy(page, "citation").get("attribution_phrase_count", 0) == 0
+    ]
+    if len(candidates) < min_required_candidates(len(pages)):
+        return []
+    evidence = (
+        f"{len(candidates)} of {len(pages)} analyzed pages contain at least 250 words "
+        "and explanatory language, but contain no detected reference-like outbound links "
+        "or source-attribution phrases."
+    )
+    return [AuditRecommendation(
+        category="citation",
+        title="Review informational pages with limited source attribution",
+        description=evidence,
+        priority="medium",
+        observed_evidence=evidence,
+        affected_page_count=len(candidates),
+        evaluated_page_count=len(pages),
+        why_it_matters=(
+            "Explicit links to relevant primary sources can make factual provenance inspectable; "
+            "citations are not assumed to be appropriate for every page."
+        ),
+        evidence_url=candidates[0].url,
+        affected_urls=[page.url for page in candidates],
+        suggested_strategy="citation",
+    )]
+
+
+def build_authoritative_opportunity(pages: list[PageExtract]) -> list[AuditRecommendation]:
+    candidates = []
+    for page in pages:
+        authority = page_strategy(page, "authoritative")
+        if (
+            page.word_count >= 250
+            and explanatory_content_detected(page)
+            and not authority.get("named_author_present")
+            and not authority.get("published_or_modified_date_present")
+            and authority.get("reference_like_link_count", 0) == 0
+        ):
+            candidates.append(page)
+    if len(candidates) < min_required_candidates(len(pages)):
+        return []
+    evidence = (
+        f"{len(candidates)} of {len(pages)} analyzed informational pages contain at least "
+        "250 words but expose no detected named author, publication/update date, or "
+        "reference-like outbound link."
+    )
+    return [AuditRecommendation(
+        category="authoritative",
+        title="Review explicit authorship and source provenance",
+        description=evidence,
+        priority="medium",
+        observed_evidence=evidence,
+        affected_page_count=len(candidates),
+        evaluated_page_count=len(pages),
+        why_it_matters=(
+            "Explicit, truthful authorship and source provenance can help readers inspect who "
+            "produced informational content and what evidence it relies on."
+        ),
+        evidence_url=candidates[0].url,
+        affected_urls=[page.url for page in candidates],
+        suggested_strategy="authoritative",
     )]
 
 
 def explanatory_content_detected(page: PageExtract) -> bool:
+    faq = page_strategy(page, "faq")
+    if faq:
+        return bool(faq.get("explanatory_text_present"))
     text = " ".join(filter(None, [
         page.page_title,
         page.h1,
@@ -168,6 +292,14 @@ def explanatory_content_detected(page: PageExtract) -> bool:
         "how ", "what ", "why ", "guide", "step", "learn", "help",
         "explain", "understand", "works", "allows", "provides",
     ))
+
+
+def page_strategy(page: PageExtract, name: str) -> dict:
+    return page.evidence.get("strategies", {}).get(name, {})
+
+
+def min_required_candidates(page_count: int) -> int:
+    return 1 if page_count == 1 else max(2, (page_count + 2) // 3)
 
 
 def build_missing_field_opportunity(
@@ -194,4 +326,5 @@ def build_missing_field_opportunity(
         evaluated_page_count=len(pages),
         why_it_matters=why,
         evidence_url=affected[0].url,
+        affected_urls=[page.url for page in affected],
     )]

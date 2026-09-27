@@ -64,6 +64,8 @@ class WebsitePage(Base):
 
     browser_word_count = Column(Integer, nullable=True)
 
+    evidence_json = Column(JSON, nullable=True)
+
     discovered_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

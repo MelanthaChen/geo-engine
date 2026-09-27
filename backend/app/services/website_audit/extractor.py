@@ -1,13 +1,13 @@
 import hashlib
-import json
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
 from app.services.website_audit.crawler import CrawlResponse
+from app.services.website_audit.evidence import build_page_evidence
 
 
 @dataclass
@@ -36,6 +36,7 @@ class PageExtract:
     extraction_failure_reason: str | None = None
     http_word_count: int | None = None
     browser_word_count: int | None = None
+    evidence: dict = field(default_factory=dict)
 
 
 def extract_pages(responses: list[CrawlResponse]) -> list[PageExtract]:
@@ -77,15 +78,20 @@ def extract_page(response: CrawlResponse) -> PageExtract:
             extraction_method="failed",
             extraction_failure_reason=response.error or "HTTP response did not contain accepted HTML.",
             http_word_count=0,
+            evidence={
+                "version": "website-audit-evidence-v1",
+                "identity": {
+                    "requested_url": response.requested_url or response.url,
+                    "final_url": response.url,
+                    "canonical_url": None,
+                    "path_family": None,
+                    "extraction_method": "failed",
+                    "http_html_accepted": response.html_accepted,
+                },
+            },
         )
 
     soup = BeautifulSoup(response.html, "html.parser")
-
-    faq_page_schema_detected = detect_faq_page_schema(soup)
-    schema_types = extract_schema_types(soup)
-    question_heading_count, detected_qa_pair_count, faq_like_heading_count = (
-        extract_faq_structure(soup)
-    )
 
     for tag in soup(["script", "style", "noscript", "svg"]):
         tag.decompose()
@@ -99,6 +105,16 @@ def extract_page(response: CrawlResponse) -> PageExtract:
     body_text = clean_text(soup.get_text(" "))
     words = re.findall(r"\b[\w'-]+\b", body_text)
     internal_links, external_links = count_links(soup, response.url)
+    evidence = build_page_evidence(
+        html=response.html,
+        final_url=response.url,
+        requested_url=response.requested_url or response.url,
+        body_text=body_text,
+        extraction_method="http",
+    )
+    evidence["identity"]["http_html_accepted"] = response.html_accepted
+    faq = evidence["strategies"]["faq"]
+    schema_types = tuple(evidence["structured_data"]["schema_types"])
 
     return PageExtract(
         url=response.url,
@@ -110,42 +126,18 @@ def extract_page(response: CrawlResponse) -> PageExtract:
         internal_link_count=internal_links,
         external_link_count=external_links,
         body_text=body_text,
-        question_heading_count=question_heading_count,
-        detected_qa_pair_count=detected_qa_pair_count,
-        faq_like_heading_count=faq_like_heading_count,
-        faq_page_schema_detected=faq_page_schema_detected,
+        question_heading_count=faq["question_heading_count"],
+        detected_qa_pair_count=faq["detected_qa_pair_count"],
+        faq_like_heading_count=faq["faq_like_heading_count"],
+        faq_page_schema_detected=faq["faq_page_schema_present"],
         h2_count=h2_count,
         h3_count=h3_count,
         canonical_url=canonical_url,
         schema_types=schema_types,
         extraction_method="http",
         http_word_count=len(words),
+        evidence=evidence,
     )
-
-
-def extract_schema_types(soup: BeautifulSoup) -> tuple[str, ...]:
-    found: set[str] = set()
-    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
-        try:
-            payload = json.loads(script.string or script.get_text(" "))
-        except (TypeError, ValueError):
-            continue
-        collect_schema_types(payload, found)
-    return tuple(sorted(found))
-
-
-def collect_schema_types(value, found: set[str]) -> None:
-    if isinstance(value, dict):
-        schema_type = value.get("@type")
-        if isinstance(schema_type, str):
-            found.add(schema_type)
-        elif isinstance(schema_type, list):
-            found.update(item for item in schema_type if isinstance(item, str))
-        for child in value.values():
-            collect_schema_types(child, found)
-    elif isinstance(value, list):
-        for child in value:
-            collect_schema_types(child, found)
 
 
 def extract_canonical(soup: BeautifulSoup, page_url: str) -> str | None:

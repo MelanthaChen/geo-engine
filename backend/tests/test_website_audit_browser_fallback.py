@@ -93,6 +93,9 @@ def test_empty_spa_shell_uses_materially_richer_browser_dom():
     assert pages[0].http_word_count == 1
     assert pages[0].browser_word_count > 70
     assert pages[0].h2_count == 1
+    assert pages[0].evidence["identity"]["extraction_method"] == "browser"
+    assert pages[0].evidence["headings"]["h2"] == ["Details"]
+    assert pages[0].evidence["content"]["body_text"] == pages[0].body_text
 
 
 def test_identical_http_shells_can_become_distinct_browser_evidence():
