@@ -207,6 +207,10 @@ class FAQGroundingError(ValueError):
     pass
 
 
+class RewriteOutputError(ValueError):
+    pass
+
+
 def validate_faq_rewrite(source: str, rewritten: str) -> None:
     lines = [line.strip().lstrip("-* ") for line in rewritten.splitlines() if line.strip()]
     questions = [line for line in lines if line.endswith("?")]
@@ -381,16 +385,52 @@ class GeoRewriter:
         cached = self._cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT)
 
         if cached is not None:
-            if strategy == "faq":
-                validate_faq_rewrite(document_text, cached)
-            return cached
+            if self._is_complete_rewritten_document(document_text, cached, strategy):
+                if strategy == "faq":
+                    validate_faq_rewrite(document_text, cached)
+                return cached
 
         rewritten = self._generate_with_official_retry(user_prompt)
         processed = self._get_summary(rewritten)
+        if not self._is_complete_rewritten_document(document_text, processed, strategy):
+            repair_prompt = (
+                f"{user_prompt}\n\n"
+                "Your previous response was an edit plan rather than the rewritten document. "
+                "Return only the complete rewritten source document. Do not return instructions, "
+                "a change list, analysis, or placeholders."
+            )
+            processed = self._get_summary(self._generate_with_official_retry(repair_prompt))
+        if not self._is_complete_rewritten_document(document_text, processed, strategy):
+            raise RewriteOutputError(
+                f"{strategy} rewrite did not return a complete transformed document"
+            )
         if strategy == "faq":
             validate_faq_rewrite(document_text, processed)
         self._store_cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT, processed)
         return processed
+
+    @staticmethod
+    def _is_complete_rewritten_document(source: str, rewritten: str, strategy: str) -> bool:
+        candidate = rewritten.strip()
+        if not candidate or "<Output>" in candidate:
+            return False
+        if " ".join(candidate.split()) == " ".join(source.split()):
+            return False
+        instruction_lines = re.findall(
+            r"(?im)^\s*(?:\d+[.)]|[-*])?\s*(?:in (?:the )?sentence|add (?:the )?"
+            r"(?:keyword|statistic|citation|quote)|replace |rewrite |change |insert )",
+            candidate,
+        )
+        if instruction_lines and len(instruction_lines) >= max(1, len(candidate.splitlines()) // 2):
+            return False
+        source_terms = content_terms(source)
+        rewritten_terms = content_terms(candidate)
+        retained_ratio = (
+            len(source_terms & rewritten_terms) / len(source_terms)
+            if source_terms else 1.0
+        )
+        minimum_retention = 0.35 if strategy == "faq" else 0.45
+        return retained_ratio >= minimum_retention and len(candidate) >= max(20, int(len(source) * 0.25))
 
     def _generate_with_official_retry(self, user_prompt: str) -> str:
         prompt = user_prompt

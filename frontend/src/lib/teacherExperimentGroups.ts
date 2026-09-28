@@ -10,6 +10,7 @@ export type TeacherExperimentGroup = {
   teacherModel: string;
   createdAt: string;
   trainingEligibleCount: number;
+  repetitionCount: number;
   samples: TeacherSample[];
   originalMetrics: MetricSet;
   optimizedMetrics: MetricSet;
@@ -43,6 +44,7 @@ export function groupTeacherSamples(samples: TeacherSample[]): TeacherExperiment
       teacherModel: first.teacher_model,
       createdAt: first.created_at,
       trainingEligibleCount: groupedSamples.filter((sample) => sample.training_eligible).length,
+      repetitionCount: groupedSamples.reduce((sum, sample) => sum + sample.repetition_count, 0),
       samples: groupedSamples,
       originalMetrics: stored?.original || averageMetrics(groupedSamples, "original_metrics"),
       optimizedMetrics: stored?.optimized || averageMetrics(groupedSamples, "optimized_metrics"),

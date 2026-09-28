@@ -1,11 +1,16 @@
 """Build immutable baseline/treatment samples from completed experiments."""
 
+import json
 import uuid
 import statistics
 
-from app.services.website_audit.profile import build_website_features, build_website_profile
 from app.teacher_pipeline.models import TeacherTrainingSample
-from app.teacher_pipeline.provenance import build_provenance, canonical_json, provenance_hash
+from app.teacher_pipeline.provenance import (
+    build_provenance,
+    canonical_json,
+    provenance_hash,
+    run_provenance,
+)
 
 
 class IncompleteTeacherExperiment(ValueError):
@@ -16,26 +21,59 @@ class TrainingSampleBuilder:
     metric_schema_version = "princeton-evaluation-metrics-v1"
 
     def build(self, *, experiment, query, baseline_run, optimized_run, audit, dataset_version):
-        self._validate(experiment, query, baseline_run, optimized_run, audit)
+        return self.build_context(
+            experiment=experiment,
+            query=query,
+            baseline_runs=[baseline_run],
+            optimized_runs=[optimized_run],
+            audit=audit,
+            dataset_version=dataset_version,
+        )
+
+    def build_context(
+        self,
+        *,
+        experiment,
+        query,
+        baseline_runs,
+        optimized_runs,
+        audit,
+        dataset_version,
+    ):
+        """Build one formal sample from every repetition of one fixed context."""
+        baseline_by_index = {run.sample_index: run for run in baseline_runs if run is not None}
+        pairs = [
+            (baseline_by_index.get(run.sample_index), run)
+            for run in sorted(
+                (item for item in optimized_runs if item is not None),
+                key=lambda item: (item.sample_index, item.id),
+            )
+        ]
+        if not pairs:
+            raise IncompleteTeacherExperiment("At least one treatment repetition is required")
+        for baseline_run, optimized_run in pairs:
+            self._validate(experiment, query, baseline_run, optimized_run, audit)
+
+        baseline_run, optimized_run = pairs[0]
         selected_document = next((document for document in query.documents if document.is_selected), None)
         if selected_document is None:
             raise IncompleteTeacherExperiment("Selected source document is missing")
 
-        profile = build_website_profile(audit)
-        profile.pop("_evidence", None)
-        feature_vector = {
-            "schema_version": "website-feature-vector-v1",
-            "profile": profile,
-            "features": build_website_features(audit),
+        rewritten_documents = {
+            run.strategy_result.modified_document_text
+            for _, run in pairs
+            if run.strategy_result is not None
         }
-        original_metrics = self._metrics(baseline_run)
-        optimized_metrics = self._metrics(optimized_run)
-        metric_names = sorted(set(original_metrics) | set(optimized_metrics))
-        delta_metrics = {
-            name: self._delta(original_metrics.get(name), optimized_metrics.get(name))
-            for name in metric_names
-        }
+        if len(rewritten_documents) != 1:
+            raise IncompleteTeacherExperiment(
+                "All repetitions must use one identical rewritten target document"
+            )
+
+        feature_vector = self._factual_feature_vector(audit)
         aggregate_metrics = self._aggregate_metrics(query, optimized_run.strategy)
+        original_metrics = aggregate_metrics["original"]
+        optimized_metrics = aggregate_metrics["optimized"]
+        delta_metrics = aggregate_metrics["delta"]
         evaluation_version = self._evaluation_version(optimized_run)
         provenance = build_provenance(
             experiment=experiment,
@@ -46,6 +84,12 @@ class TrainingSampleBuilder:
             selected_document=selected_document,
             aggregate_metrics=aggregate_metrics,
         )
+        provenance["schema_version"] = "teacher-provenance-v2"
+        provenance["repetitions"] = [
+            self._repetition(index, baseline, treatment)
+            for index, (baseline, treatment) in enumerate(pairs)
+        ]
+        provenance["repetition_count"] = len(pairs)
         provenance["feature_vector_schema"] = feature_vector["schema_version"]
         provenance["metric_schema_version"] = self.metric_schema_version
         provenance["primary_training_label"] = {
@@ -77,6 +121,107 @@ class TrainingSampleBuilder:
             provenance_hash=provenance_hash(provenance),
             dataset_version=dataset_version,
         )
+
+    def _repetition(self, repetition_index, baseline_run, optimized_run):
+        original = self._metrics(baseline_run)
+        optimized = self._metrics(optimized_run)
+        names = sorted(set(original) | set(optimized))
+        return {
+            "repetition_index": repetition_index,
+            "sample_index": optimized_run.sample_index,
+            "baseline_run_id": baseline_run.id,
+            "treatment_run_id": optimized_run.id,
+            "baseline_run": run_provenance(baseline_run),
+            "treatment_run": run_provenance(optimized_run),
+            "baseline_answer": baseline_run.raw_response,
+            "treatment_answer": optimized_run.raw_response,
+            "original_metrics": original,
+            "optimized_metrics": optimized,
+            "delta_metrics": {
+                name: self._delta(original.get(name), optimized.get(name))
+                for name in names
+            },
+        }
+
+    @staticmethod
+    def _factual_feature_vector(audit):
+        pages = [
+            page for page in (getattr(audit, "pages", []) or [])
+            if 200 <= (getattr(page, "status_code", 0) or 0) < 300
+            and not getattr(page, "is_duplicate", False)
+            and (getattr(page, "word_count", 0) or 0) > 0
+        ]
+        evidence_rows = []
+        for page in pages:
+            evidence = getattr(page, "evidence_json", None) or {}
+            if isinstance(evidence, str):
+                try:
+                    evidence = json.loads(evidence)
+                except json.JSONDecodeError:
+                    evidence = {}
+            evidence_rows.append(evidence)
+
+        def total(path, fallback=None):
+            result = 0
+            for page, evidence in zip(pages, evidence_rows):
+                value = evidence
+                for part in path:
+                    value = value.get(part, {}) if isinstance(value, dict) else {}
+                if not isinstance(value, (int, float)) and fallback:
+                    value = getattr(page, fallback, 0)
+                result += value if isinstance(value, (int, float)) else 0
+            return result
+
+        def average(path):
+            values = []
+            for evidence in evidence_rows:
+                value = evidence
+                for part in path:
+                    value = value.get(part, {}) if isinstance(value, dict) else {}
+                if isinstance(value, (int, float)):
+                    values.append(value)
+            return statistics.fmean(values) if values else None
+
+        schema_types = sorted({
+            schema
+            for page, evidence in zip(pages, evidence_rows)
+            for schema in (
+                evidence.get("structured_data", {}).get("schema_types")
+                or getattr(page, "schema_types", None)
+                or []
+            )
+        })
+        word_counts = [getattr(page, "word_count", 0) or 0 for page in pages]
+        return {
+            "schema_version": "website-factual-evidence-vector-v2",
+            "analyzed_page_count": len(pages),
+            "total_word_count": sum(word_counts),
+            "average_word_count": statistics.fmean(word_counts) if word_counts else 0,
+            "pages_with_h1": sum(bool(getattr(page, "h1", None)) for page in pages),
+            "pages_with_meta": sum(bool(getattr(page, "meta_description", None)) for page in pages),
+            "pages_with_authors": sum(bool(row.get("authorship", {}).get("author_name")) for row in evidence_rows),
+            "pages_with_dates": sum(bool(row.get("authorship", {}).get("published_date") or row.get("authorship", {}).get("modified_date")) for row in evidence_rows),
+            "internal_link_count": sum(getattr(page, "internal_link_count", 0) or 0 for page in pages),
+            "external_link_count": sum(getattr(page, "external_link_count", 0) or 0 for page in pages),
+            "reference_like_link_count": total(("strategies", "citation", "reference_like_link_count")),
+            "citation_attribution_phrase_count": total(("strategies", "citation", "attribution_phrase_count")),
+            "faq_page_schema_count": sum(bool(getattr(page, "faq_page_schema_detected", False)) for page in pages),
+            "question_heading_count": sum(getattr(page, "question_heading_count", 0) or 0 for page in pages),
+            "qa_pair_count": sum(getattr(page, "detected_qa_pair_count", 0) or 0 for page in pages),
+            "quantitative_statement_count": total(("strategies", "statistics", "numeric_claim_count")),
+            "blockquote_count": total(("strategies", "quotation", "blockquote_count")),
+            "h2_count": sum(getattr(page, "h2_count", 0) or 0 for page in pages),
+            "h3_count": sum(getattr(page, "h3_count", 0) or 0 for page in pages),
+            "structured_data_types": schema_types,
+            "readability_structural_evidence": {
+                "sentence_count": total(("strategies", "easy_to_understand", "sentence_count")),
+                "paragraph_count": total(("content", "paragraph_count")),
+                "list_count": total(("content", "list_count")),
+                "average_sentence_words": average(("strategies", "easy_to_understand", "average_sentence_words")),
+                "average_paragraph_words": average(("strategies", "easy_to_understand", "average_paragraph_words")),
+                "headings_per_100_words": average(("strategies", "easy_to_understand", "headings_per_100_words")),
+            },
+        }
 
     def _validate(self, experiment, query, baseline_run, optimized_run, audit):
         if experiment.status != "completed" or not experiment.completed_at:

@@ -33,12 +33,16 @@ class TeacherSampleResponse(BaseModel):
     query_intent: str | None
     target_url: str | None
     target_page_id: int | None
+    originating_page_id: int | None
+    originating_page_url: str | None
     target_snapshot_hash: str | None
     reference_urls: list[str | None]
     reference_snapshot_hashes: list[str | None]
     reference_order: list[int | None]
     baseline_answer: str | None
     treatment_answer: str | None
+    repetitions: list[dict[str, Any]]
+    repetition_count: int
     source_mode: str
     training_eligible: bool
     dataset_version: str
@@ -61,6 +65,9 @@ class TeacherPipelineStatusResponse(BaseModel):
     status: Literal["ready", "empty"]
     training_enabled: bool = False
     generated_samples: int
+    unique_training_contexts: int
+    repetitions: int
+    generated_answer_pairs: int
     processed_experiments: int
     completed_experiments_pending: int
     teacher_models: list[str]

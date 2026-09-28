@@ -55,11 +55,19 @@ class TeacherDatasetMember(Base):
     __tablename__ = "teacher_dataset_members"
     __table_args__ = (
         UniqueConstraint("dataset_version_id", "sample_id", name="uq_teacher_dataset_member"),
+        UniqueConstraint(
+            "dataset_version_id",
+            "context_fingerprint",
+            name="uq_teacher_dataset_context",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
     dataset_version_id = Column(Integer, ForeignKey("teacher_dataset_versions.id", ondelete="RESTRICT"), nullable=False, index=True)
     sample_id = Column(String(36), ForeignKey("teacher_training_samples.sample_id", ondelete="RESTRICT"), nullable=False, index=True)
+    # Nullable only so pre-existing immutable dataset memberships can be
+    # retained. Every membership written by the current pipeline supplies it.
+    context_fingerprint = Column(String(64), nullable=True, index=True)
     ordinal = Column(Integer, nullable=False)
 
 

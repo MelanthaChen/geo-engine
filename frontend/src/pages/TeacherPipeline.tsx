@@ -113,7 +113,9 @@ export function TeacherPipelinePage() {
 
     <SummaryGrid>
       <SummaryCard label="Pipeline Status" value={status?.status === "ready" ? "Ready" : "Awaiting samples"} detail="Collection only; training disabled" />
-      <SummaryCard label={<TermHelp term="training_sample" label="Training Samples" />} value={String(status?.generated_samples ?? 0)} detail={`${status?.processed_experiments ?? 0} experiments represented`} />
+      <SummaryCard label={<TermHelp term="unique_context" label="Unique Training Contexts" />} value={String(status?.unique_training_contexts ?? 0)} detail={`${status?.processed_experiments ?? 0} experiments represented`} />
+      <SummaryCard label={<TermHelp term="repetition" label="Repetitions" />} value={String(status?.repetitions ?? 0)} detail="Retained for variance analysis" />
+      <SummaryCard label="Generated Answer Pairs" value={String(status?.generated_answer_pairs ?? 0)} detail="Baseline-treatment pairs" />
       <SummaryCard label="Unique Queries" value={String(status?.unique_queries ?? 0)} detail={`${status?.representative_target_pages ?? 0} representative target pages`} />
       <SummaryCard label="Query Intents" value={String(status?.query_intents_covered ?? 0)} detail={`${status?.reference_source_sets ?? 0} frozen reference source sets`} />
       <SummaryCard label={<TermHelp term="dataset_version" />} value={status?.dataset_version || "Not created"} detail="Immutable snapshot identifier" />
@@ -122,7 +124,7 @@ export function TeacherPipelinePage() {
 
     <section className="grid gap-4 lg:grid-cols-3">
       <InfoCard icon={FlaskConical} title={<TermHelp term="teacher_model" />} value={status?.teacher_models.join(", ") || "No teacher recorded"} detail="Exact model identifiers captured from experiment runs." />
-      <InfoCard icon={Database} title={<TermHelp term="training_dataset" label="Dataset manifest" />} value={status?.dataset ? `${status.dataset.sample_count} samples` : "No manifest"} detail={status?.dataset ? `${status.dataset.experiment_count} experiments • ${status.dataset.metric_version}` : "Created when the first valid pair is processed."} />
+      <InfoCard icon={Database} title={<TermHelp term="training_dataset" label="Dataset manifest" />} value={status?.dataset ? `${status.dataset.sample_count} unique contexts` : "No manifest"} detail={status?.dataset ? `${status.dataset.experiment_count} experiments • ${status.dataset.metric_version}` : "Created when the first valid pair is processed."} />
       <InfoCard icon={GitBranch} title="Pending experiments" value={String(status?.completed_experiments_pending ?? 0)} detail="Completed experiments without generated samples in this property scope." />
     </section>
 
@@ -139,6 +141,17 @@ function ExperimentResultCard({ group }: { group: TeacherExperimentGroup }) {
   const baselineVisibility = group.originalMetrics.visibility_score;
   const optimizedVisibility = group.optimizedMetrics.visibility_score;
   const visibilityDelta = group.deltaMetrics.visibility_score;
+  const repetitionRows: Array<{
+    sample: TeacherSample;
+    repetition: Record<string, unknown> | null;
+  }> = [];
+  for (const sample of group.samples) {
+    if (sample.repetitions.length) {
+      repetitionRows.push(...sample.repetitions.map((repetition) => ({ sample, repetition })));
+    } else {
+      repetitionRows.push({ sample, repetition: null });
+    }
+  }
 
   return <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-0">
     <div className="p-6">
@@ -146,7 +159,7 @@ function ExperimentResultCard({ group }: { group: TeacherExperimentGroup }) {
         <div>
           <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-400" /><p className="text-lg font-semibold text-zinc-100">{formatStrategy(group.strategy)}</p></div>
           <p className="mt-1 text-sm text-zinc-500">Experiment #{group.experimentId} • Audit #{group.auditId}</p>
-          <p className="mt-2 text-sm font-medium text-blue-300">{group.trainingEligibleCount > 0 ? `${group.trainingEligibleCount} training ${group.trainingEligibleCount === 1 ? "sample" : "samples"} generated` : `${group.samples.length} demo/research ${group.samples.length === 1 ? "record" : "records"} — excluded from training export`}</p>
+          <p className="mt-2 text-sm font-medium text-blue-300">{group.trainingEligibleCount > 0 ? `${group.trainingEligibleCount} unique training ${group.trainingEligibleCount === 1 ? "context" : "contexts"} • ${group.repetitionCount} baseline-treatment ${group.repetitionCount === 1 ? "pair" : "pairs"}` : `${group.samples.length} demo/research ${group.samples.length === 1 ? "record" : "records"} — excluded from training export`}</p>
         </div>
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:text-right">
           <div><dt className="text-xs text-zinc-500"><TermHelp term="teacher_model" label="Teacher" /></dt><dd className="mt-1 text-zinc-300">{group.teacherModel}</dd></div>
@@ -167,19 +180,31 @@ function ExperimentResultCard({ group }: { group: TeacherExperimentGroup }) {
     </div>
 
     <details className="group border-t border-zinc-800">
-      <summary className="cursor-pointer list-none px-6 py-4 text-sm font-medium text-zinc-300 hover:bg-zinc-900/60">View {group.samples.length} {group.samples.length === 1 ? "sample" : "samples"}</summary>
-      <div className="divide-y divide-zinc-800 border-t border-zinc-800">{group.samples.map((sample, index) => <div key={sample.sample_id} className="space-y-4 px-6 py-4 text-sm">
+      <summary className="cursor-pointer list-none px-6 py-4 text-sm font-medium text-zinc-300 hover:bg-zinc-900/60">View {group.repetitionCount} experimental {group.repetitionCount === 1 ? "repetition" : "repetitions"}</summary>
+      <div className="divide-y divide-zinc-800 border-t border-zinc-800">{repetitionRows.map(({ sample, repetition }, index) => <div key={`${sample.sample_id}:${index}`} className="space-y-4 px-6 py-4 text-sm">
         <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1.3fr)_repeat(3,minmax(0,0.7fr))_minmax(0,1fr)] md:items-center">
         <p className="font-medium text-zinc-200">#{index + 1}</p>
         <div className="min-w-0"><p className="text-xs text-zinc-500">Query</p><p className="truncate text-xs text-zinc-300" title={sample.query || ""}>{sample.query || "Historical sample"}</p></div>
-        <SampleMetric label="Baseline" value={sample.original_metrics.visibility_score} />
-        <SampleMetric label="Optimized" value={sample.optimized_metrics.visibility_score} />
-        <SampleMetric label="Delta" value={sample.delta_metrics.visibility_score} signed />
+        <SampleMetric label="Baseline" value={repetitionMetric(repetition, "original_metrics", "visibility_score") ?? sample.original_metrics.visibility_score} />
+        <SampleMetric label="Optimized" value={repetitionMetric(repetition, "optimized_metrics", "visibility_score") ?? sample.optimized_metrics.visibility_score} />
+        <SampleMetric label="Delta" value={repetitionMetric(repetition, "delta_metrics", "visibility_score") ?? sample.delta_metrics.visibility_score} signed />
         <div className="min-w-0"><p className="text-xs text-zinc-500"><TermHelp term="provenance" label="Provenance hash" /></p><p className="truncate font-mono text-xs text-zinc-400" title={sample.provenance_hash}>{sample.provenance_hash}</p></div>
-        </div><div className="grid gap-3 rounded-lg border border-zinc-800 bg-black p-4 md:grid-cols-2"><div><p className="text-xs text-zinc-500"><TermHelp term="target_source" label="Originating page" /></p><p className="mt-1 break-all text-xs text-zinc-300">{sample.target_url || "Not recorded"}</p><p className="mt-2 text-xs text-zinc-500"><TermHelp term="source_mode" label={sample.source_mode} /> • {sample.query_source || "unknown"} • {sample.query_intent || "unclassified"}</p></div><div><p className="text-xs text-zinc-500"><TermHelp term="frozen_references" label="Frozen source set" /></p><p className="mt-1 text-xs text-zinc-300"><TermHelp term="target_source" label="Target" /> + {sample.reference_urls.length} <TermHelp term="reference_sources" label="references" /> • strategy {formatStrategy(sample.strategy)}</p><p className="mt-2 text-xs text-zinc-500"><TermHelp term="training_eligible" label={sample.training_eligible ? "Training eligible" : "Demo/research only"} /></p></div><div><p className="text-xs text-zinc-500"><TermHelp term="baseline" label="Baseline answer" /></p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{sample.baseline_answer || "Not retained in historical schema"}</p></div><div><p className="text-xs text-zinc-500"><TermHelp term="treatment" label="Treatment answer" /></p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{sample.treatment_answer || "Not retained in historical schema"}</p></div></div>
+        </div><div className="grid gap-3 rounded-lg border border-zinc-800 bg-black p-4 md:grid-cols-2"><div><p className="text-xs text-zinc-500"><TermHelp term="target_source" label="Originating page" /></p><p className="mt-1 break-all text-xs text-zinc-300">{sample.target_url || "Not recorded"}</p><p className="mt-2 text-xs text-zinc-500"><TermHelp term="source_mode" label={sample.source_mode} /> • {sample.query_source || "unknown"} • {sample.query_intent || "unclassified"}</p></div><div><p className="text-xs text-zinc-500"><TermHelp term="frozen_references" label="Frozen source set" /></p><p className="mt-1 text-xs text-zinc-300"><TermHelp term="target_source" label="Target" /> + {sample.reference_urls.length} <TermHelp term="reference_sources" label="references" /> • strategy {formatStrategy(sample.strategy)}</p><p className="mt-2 text-xs text-zinc-500"><TermHelp term="training_eligible" label={sample.training_eligible ? "Training eligible" : "Demo/research only"} /> • treatment run {repetitionValue(repetition, "treatment_run_id") || sample.experiment_run_id}</p></div><div><p className="text-xs text-zinc-500"><TermHelp term="baseline" label="Baseline answer" /></p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{repetitionValue(repetition, "baseline_answer") || sample.baseline_answer || "Not retained in historical schema"}</p></div><div><p className="text-xs text-zinc-500"><TermHelp term="treatment" label="Treatment answer" /></p><p className="mt-1 line-clamp-4 text-xs leading-5 text-zinc-400">{repetitionValue(repetition, "treatment_answer") || sample.treatment_answer || "Not retained in historical schema"}</p></div></div>
       </div>)}</div>
     </details>
   </CardContent></Card>;
+}
+
+function repetitionValue(repetition: Record<string, unknown> | null, key: string) {
+  const value = repetition?.[key];
+  return typeof value === "string" || typeof value === "number" ? value : null;
+}
+
+function repetitionMetric(repetition: Record<string, unknown> | null, set: string, name: string) {
+  const metrics = repetition?.[set];
+  if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) return null;
+  const value = (metrics as Record<string, unknown>)[name];
+  return typeof value === "number" ? value : null;
 }
 
 function MetricCard({ label, value, highlight = false }: { label: ReactNode; value: string; highlight?: boolean }) {

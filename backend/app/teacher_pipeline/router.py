@@ -207,9 +207,11 @@ def export_latest_dataset(
             "optimized_metrics", "delta_metrics", "baseline_metrics",
             "treatment_metrics", "metric_deltas", "provenance",
             "context_fingerprint", "query", "query_source", "query_intent",
-            "target_url", "target_page_id", "target_snapshot_hash",
+            "target_url", "target_page_id", "originating_page_id",
+            "originating_page_url", "target_snapshot_hash",
             "reference_urls", "reference_snapshot_hashes", "reference_order",
-            "baseline_answer", "treatment_answer", "source_mode",
+            "baseline_answer", "treatment_answer", "repetitions",
+            "repetition_count", "source_mode",
             "training_eligible",
             "dataset_version", "provenance_hash", "created_at",
         ]

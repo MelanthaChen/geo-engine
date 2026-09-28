@@ -4,6 +4,8 @@ import hashlib
 import json
 from typing import Any
 
+from app.core.url_identity import canonical_url_identity
+
 
 def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -46,6 +48,7 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
     training_eligible = bool(
         supporting_evidence.get("training_eligible", source_mode != "frozen_demo")
     )
+    target_page_id = _target_page_id(audit, selected_document.url, supporting_evidence)
     return {
         "schema_version": "teacher-provenance-v1",
         "website_id": experiment.property_id,
@@ -75,7 +78,7 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
                 "benchmark" if source_mode == "benchmark" else "generated"
             ),
             "query_intent": supporting_evidence.get("query_intent"),
-            "originating_page_id": supporting_evidence.get("page_id"),
+            "originating_page_id": target_page_id,
             "originating_page_url": supporting_evidence.get("page_url") or selected_document.url,
             "retrieval_provider": query.retrieval_provider,
             "retrieval_timestamp": query.retrieval_timestamp.isoformat() if query.retrieval_timestamp else None,
@@ -86,6 +89,7 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
             ),
         },
         "selected_document": {
+            "page_id": target_page_id,
             "url": selected_document.url,
             "title": selected_document.title,
             "rank": selected_document.rank,
@@ -123,6 +127,17 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
             if optimized_run.strategy_result else None
         ),
     }
+
+
+def _target_page_id(audit, target_url: str, supporting_evidence: dict[str, Any]) -> int | None:
+    recorded = supporting_evidence.get("page_id") or supporting_evidence.get("target_page_id")
+    if recorded is not None:
+        return recorded
+    target_identity = canonical_url_identity(target_url)
+    for page in getattr(audit, "pages", []) or []:
+        if canonical_url_identity(page.url) == target_identity:
+            return page.id
+    return None
 
 
 def run_provenance(run) -> dict[str, Any]:

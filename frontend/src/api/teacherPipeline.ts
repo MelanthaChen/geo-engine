@@ -27,12 +27,16 @@ export type TeacherSample = {
   query_intent: string | null;
   target_url: string | null;
   target_page_id: number | null;
+  originating_page_id: number | null;
+  originating_page_url: string | null;
   target_snapshot_hash: string | null;
   reference_urls: Array<string | null>;
   reference_snapshot_hashes: Array<string | null>;
   reference_order: Array<number | null>;
   baseline_answer: string | null;
   treatment_answer: string | null;
+  repetitions: Array<Record<string, unknown>>;
+  repetition_count: number;
   source_mode: string;
   training_eligible: boolean;
   dataset_version: string;
@@ -55,6 +59,9 @@ export type TeacherPipelineStatus = {
   status: "ready" | "empty";
   training_enabled: false;
   generated_samples: number;
+  unique_training_contexts: number;
+  repetitions: number;
+  generated_answer_pairs: number;
   processed_experiments: number;
   completed_experiments_pending: number;
   teacher_models: string[];

@@ -271,9 +271,6 @@ def test_teacher_sample_persists_faq_strategy(monkeypatch):
         temperature=0.7,
     )
     audit = SimpleNamespace(id=30, completed_at=now, base_url="https://source-1.example")
-    monkeypatch.setattr("app.teacher_pipeline.sample_builder.build_website_profile", lambda _audit: {})
-    monkeypatch.setattr("app.teacher_pipeline.sample_builder.build_website_features", lambda _audit: {})
-
     sample = TrainingSampleBuilder().build(
         experiment=experiment,
         query=query,

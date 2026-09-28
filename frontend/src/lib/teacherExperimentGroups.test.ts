@@ -30,12 +30,16 @@ function sample(overrides: Partial<TeacherSample>): TeacherSample {
     query_intent: null,
     target_url: null,
     target_page_id: null,
+    originating_page_id: null,
+    originating_page_url: null,
     target_snapshot_hash: null,
     reference_urls: [],
     reference_snapshot_hashes: [],
     reference_order: [],
     baseline_answer: null,
     treatment_answer: null,
+    repetitions: [],
+    repetition_count: 1,
     source_mode: "live_retrieval",
     training_eligible: true,
     dataset_version: "teacher-dataset-v1",
@@ -57,6 +61,19 @@ describe("groupTeacherSamples", () => {
     expect(groups).toHaveLength(3);
     expect(groups[0].samples.map((item) => item.sample_id)).toEqual(["a", "b"]);
     expect(groups[0].trainingEligibleCount).toBe(2);
+    expect(groups[0].repetitionCount).toBe(2);
+  });
+
+  it("counts nested repetitions separately from unique contexts", () => {
+    const groups = groupTeacherSamples([sample({
+      context_fingerprint: "one-context",
+      repetition_count: 5,
+      repetitions: Array.from({ length: 5 }, (_, index) => ({ repetition_index: index })),
+    })]);
+
+    expect(groups[0].samples).toHaveLength(1);
+    expect(groups[0].trainingEligibleCount).toBe(1);
+    expect(groups[0].repetitionCount).toBe(5);
   });
 
   it("uses stored experiment aggregates rather than fabricating values", () => {
