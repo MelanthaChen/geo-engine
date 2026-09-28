@@ -13,6 +13,10 @@ class GenerativeEngineService:
     PAPER_RESPONSE_SAMPLES = 5
     PAPER_TOP_P = 1
 
+    LIVE_TARGET_SOURCE_CHARS = 6000
+    LIVE_REFERENCE_SOURCE_CHARS = 4500
+    LIVE_ANSWER_MAX_TOKENS = 1024
+
     def __init__(
         self,
         search_provider: SearchProvider | None = None,
