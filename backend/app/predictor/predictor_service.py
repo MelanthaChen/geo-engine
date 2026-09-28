@@ -11,6 +11,7 @@ from app.predictor.schemas import (
 )
 from app.predictor.dataset_builder import DatasetBuilder
 from app.predictor.training_sample_repository import TrainingSampleRepository
+from app.ge.search_provider_factory import configured_search_provider_name
 
 
 class PredictorService:
@@ -27,6 +28,7 @@ class PredictorService:
 
     def status(self) -> PredictorStatusResponse:
         return PredictorStatusResponse(
+            search_provider=configured_search_provider_name(),
             components=[
                 PredictorComponentStatus(
                     name="dataset_builder",

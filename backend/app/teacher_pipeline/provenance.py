@@ -79,6 +79,11 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
             "originating_page_url": supporting_evidence.get("page_url") or selected_document.url,
             "retrieval_provider": query.retrieval_provider,
             "retrieval_timestamp": query.retrieval_timestamp.isoformat() if query.retrieval_timestamp else None,
+            "retrieval_query": supporting_evidence.get("retrieval_query") or query.query,
+            "retrieval_results": supporting_evidence.get("retrieval_results", []),
+            "target_retrieval_status": supporting_evidence.get(
+                "target_retrieval_status"
+            ),
         },
         "selected_document": {
             "url": selected_document.url,

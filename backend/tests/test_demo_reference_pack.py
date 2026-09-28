@@ -67,7 +67,13 @@ def test_demo_source_order_and_target_index_are_unchanged(monkeypatch):
         product_summary="Resume guidance",
     )
     recommendation = SimpleNamespace(id=73)
-    builder = object.__new__(NewWebsiteValidationBuilder)
+    monkeypatch.setattr(
+        "app.ge.search_provider_factory.settings.SEARCH_PROVIDER", "exa"
+    )
+    monkeypatch.setattr(
+        "app.ge.exa_search_provider.settings.EXA_API_KEY", None
+    )
+    builder = NewWebsiteValidationBuilder(db=None)
     frozen = builder._build_demo_pack(audit, recommendation)
 
     assert frozen["metadata"]["target_index"] == 0

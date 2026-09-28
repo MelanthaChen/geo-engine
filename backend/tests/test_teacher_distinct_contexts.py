@@ -112,6 +112,8 @@ def test_frozen_context_preserves_one_ordered_source_set(monkeypatch):
     )
 
     class Provider:
+        provider_id = "brave"
+
         def search(self, query, top_k=10):
             return [
                 RetrievedDocument(
@@ -133,7 +135,7 @@ def test_frozen_context_preserves_one_ordered_source_set(monkeypatch):
         for document in entry["documents"]
     )
     assert all(document["supporting_evidence"]["page_id"] == context.target_page_id for document in entry["documents"])
-    assert all(document["retrieval_provider"] == "google-custom-search-api" for document in entry["documents"])
+    assert all(document["retrieval_provider"] == "brave" for document in entry["documents"])
 
 
 def test_baseline_and_treatment_change_only_the_frozen_target():

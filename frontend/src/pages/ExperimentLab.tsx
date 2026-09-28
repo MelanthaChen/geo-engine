@@ -268,7 +268,7 @@ export function ExperimentLab() {
       <SharedPageHeader
         eyebrow="Research Benchmark"
         title={<TermHelp term="geo" label="GEO Experiment Lab" />}
-        description="Run a faithful Princeton GEO paper reproduction experiment: one query, Google Top-5 retrieval, one randomly selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
+        description="Run a Princeton-style GEO experiment: one query, a Top-5 reference source set, one selected source, independent GEO strategies, five samples, and paper-style visibility evaluation."
       />
 
       <SummaryGrid>
@@ -368,7 +368,7 @@ export function ExperimentLab() {
               {configuration.benchmarkSource === "geo_bench" && (
                 <div className="rounded-lg border border-zinc-800 bg-black p-4 text-sm text-zinc-500">
                   Official GEO-bench test split. The backend loads benchmark
-                  queries and the five cleaned Google sources for each query.
+                  queries and the five cleaned reference sources for each query.
                 </div>
               )}
 
@@ -1064,7 +1064,7 @@ function RunPanel({
             This experiment will:
           </p>
           <ul className="mt-3 space-y-2 text-sm text-zinc-400">
-            <li>• Retrieve the Top-5 Google search results</li>
+            <li>• Build a Top-5 reference source set through Live Retrieval</li>
             <li>• Randomly select one source</li>
             <li>• Apply every GEO strategy independently</li>
             <li>• Generate five responses per strategy</li>

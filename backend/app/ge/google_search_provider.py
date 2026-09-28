@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timezone
+import hashlib
 from urllib.parse import quote_plus, urlparse
 
 import requests
@@ -6,17 +8,19 @@ from bs4 import BeautifulSoup
 
 from app.core.config import settings
 from app.ge.document_cleaner import DocumentCleaner
-from app.ge.search_provider import RetrievedDocument
+from app.ge.search_provider import RetrievedDocument, SearchProviderError
 
 
 logger = logging.getLogger(__name__)
 
 
-class GoogleRetrievalError(RuntimeError):
+class GoogleRetrievalError(SearchProviderError):
     pass
 
 
 class GoogleSearchProvider:
+    provider_id = "google-custom-search-api"
+    display_name = "Google Custom Search"
     def __init__(
         self,
         cleaner: DocumentCleaner | None = None,
@@ -274,6 +278,7 @@ class GoogleSearchProvider:
         backend_name: str,
     ) -> list[RetrievedDocument]:
         documents = []
+        retrieved_at = datetime.now(timezone.utc)
 
         for index, row in enumerate(rows[:top_k], start=1):
             plain_text, download_succeeded = self._fetch_plain_text(
@@ -294,6 +299,12 @@ class GoogleSearchProvider:
                     title=row["title"],
                     url=row["url"],
                     plain_text=plain_text,
+                    snippet=row.get("snippet") or "",
+                    retrieval_provider=self.provider_id,
+                    retrieved_at=retrieved_at,
+                    content_sha256=hashlib.sha256(
+                        plain_text.encode("utf-8")
+                    ).hexdigest(),
                 )
             )
 

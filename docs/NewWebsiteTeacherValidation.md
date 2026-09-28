@@ -48,7 +48,13 @@ The source set always has exactly five ordered documents:
 
 Reference results from the audited website's host are excluded. Duplicate URLs and empty documents are excluded. Retrieval never replaces source 1 and never chooses the target randomly.
 
-Teacher Validation requires the Google Custom Search API configuration currently used by the retrieval abstraction. Both `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` must be configured. This workflow explicitly disables the Google HTML parser fallback; missing credentials produce HTTP 503 with a configuration explanation.
+Live Teacher Validation uses the configured `SearchProvider`; Exa is the
+default. Set `SEARCH_PROVIDER=exa` and supply `EXA_API_KEY`.
+Missing credentials produce HTTP 503 with the provider-specific configuration
+error. The live path never silently falls back to Brave or Google. Brave remains
+available through `SEARCH_PROVIDER=brave`; Google Custom Search remains available
+only when `SEARCH_PROVIDER=google` is chosen explicitly and both Google
+credentials are supplied.
 
 ## Frozen provenance
 
@@ -123,6 +129,9 @@ The professor uses only the existing UI:
 
 Experiment Lab and command-line interaction are not required.
 
-## Current local-runtime prerequisite
+## Live-runtime prerequisite
 
-As of the 2026-09-23 verification, the local backend does not have `GOOGLE_SEARCH_API_KEY` or `GOOGLE_SEARCH_ENGINE_ID`. The live workflow therefore stops before experiment creation with a deliberate HTTP 503 configuration error. This protects scientific integrity by preventing HTML-scraped or fabricated references. Configure both values and restart the backend before the final live demo rerun.
+For the default live path, configure a real `EXA_API_KEY` in the backend
+runtime. Frozen source modes do not require live-search credentials. The platform
+does not fabricate references or silently switch providers when live retrieval is
+not configured.

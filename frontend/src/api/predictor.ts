@@ -11,6 +11,7 @@ export type PredictorStatus = {
   status: "foundation_ready";
   model_ready: boolean;
   version: string;
+  search_provider: string;
   components: PredictorComponentStatus[];
 };
 

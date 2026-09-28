@@ -42,6 +42,7 @@ class PredictorFoundationTests(unittest.TestCase):
 
         self.assertEqual(status.status, "foundation_ready")
         self.assertFalse(status.model_ready)
+        self.assertEqual(status.search_provider, "Exa")
 
     def test_empty_dataset_is_reported_explicitly(self):
         service = PredictorService(FakeTrainingSampleRepository())

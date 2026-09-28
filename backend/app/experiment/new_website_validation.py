@@ -6,7 +6,12 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.ge.google_search_provider import GoogleSearchProvider
+from app.ge.search_provider import (
+    provider_id,
+    retrieval_result_ledger,
+    target_retrieval_status,
+)
+from app.ge.search_provider_factory import build_search_provider
 from app.experiment.demo_reference_pack import (
     DEMO_AUDIT_EVIDENCE,
     DEMO_FROZEN_AT,
@@ -25,7 +30,6 @@ from app.services.website_audit.extractor import extract_page
 
 
 QUERY_POLICY_VERSION = "audit-evidence-query-v1"
-RETRIEVAL_PROVIDER = "google-custom-search-api"
 
 
 class NewWebsiteValidationError(ValueError):
@@ -37,9 +41,7 @@ class NewWebsiteValidationBuilder:
 
     def __init__(self, db: Session, search_provider=None):
         self.db = db
-        self.search_provider = search_provider or GoogleSearchProvider(
-            require_api_credentials=True
-        )
+        self.search_provider = search_provider or build_search_provider()
 
     def build(self, *, property_id: int, audit_id: int, opportunity_id: int) -> dict:
         audit = (
@@ -83,6 +85,12 @@ class NewWebsiteValidationBuilder:
         query, evidence = self._query(audit, recommendation, target)
         retrieved_at = datetime.now(timezone.utc)
         candidates = self.search_provider.search(query=query, top_k=10)
+        retrieval_provider = provider_id(self.search_provider, candidates)
+        target_status = target_retrieval_status(target.url, candidates)
+        retrieved_at = next(
+            (item.retrieved_at for item in candidates if item.retrieved_at),
+            retrieved_at,
+        )
         target_host = self._host(target.url)
         references = []
         seen_urls = {target.url.rstrip("/")}
@@ -105,11 +113,10 @@ class NewWebsiteValidationBuilder:
             )
 
         common = {
-            "retrieval_provider": RETRIEVAL_PROVIDER,
+            "retrieval_provider": retrieval_provider,
             "retrieved_at": retrieved_at.isoformat(),
             "query_policy_version": QUERY_POLICY_VERSION,
             "source_audit_id": audit.id,
-            "supporting_evidence": evidence,
         }
         documents = [{
             "rank": 1,
@@ -132,6 +139,20 @@ class NewWebsiteValidationBuilder:
             **common,
         } for index, document in enumerate(references, start=2))
 
+        supporting_evidence = {
+            **evidence,
+            "retrieval_query": query,
+            "retrieval_results": retrieval_result_ledger(candidates),
+            "target_retrieval_status": target_status,
+            "source_order": [document["url"] for document in documents],
+            "source_snapshot_hashes": [
+                document["content_sha256"] for document in documents
+            ],
+            "target_index": 0,
+        }
+        for document in documents:
+            document["supporting_evidence"] = supporting_evidence
+
         return {
             "query": query,
             "documents": documents,
@@ -142,6 +163,12 @@ class NewWebsiteValidationBuilder:
                 "target_rank": 1,
                 "target_url": target.url,
                 "source_order": [document["url"] for document in documents],
+                "source_snapshot_hashes": [
+                    document["content_sha256"] for document in documents
+                ],
+                "retrieval_query": query,
+                "retrieval_results": retrieval_result_ledger(candidates),
+                "target_retrieval_status": target_status,
             },
         }
 

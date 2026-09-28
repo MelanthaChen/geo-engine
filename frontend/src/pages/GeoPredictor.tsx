@@ -43,6 +43,7 @@ import {
 } from "@/components/layout/PageLayout";
 import { TermHelp } from "@/components/TermHelp";
 import { strategyTermKey } from "@/data/terminology";
+import { searchProviderLabel } from "@/lib/searchProviders";
 
 const pipelineSteps = [
   {
@@ -273,6 +274,7 @@ export function GeoPredictor() {
               <InfoRow label="Audit" value={`#${audit.id}`} />
               <InfoRow label="Features received" value={String(Object.keys(audit.website_features || {}).length)} />
               <InfoRow label="Opportunities received" value={String(audit.optimization_opportunities?.length || 0)} />
+              <InfoRow label="Search Provider" value={searchProviderLabel(status?.search_provider)} />
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <FieldList title="Website features" fields={Object.values(audit.website_features || {}).map((feature) => feature.label)} />

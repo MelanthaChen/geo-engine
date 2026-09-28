@@ -52,8 +52,13 @@ Configure these variables manually on the Render backend service:
 | `FRONTEND_ORIGINS` | Yes | Comma-separated allowed browser origins, normally the production Vercel URL and any intentional custom domain. |
 | `BACKEND_URL` | Yes | Public HTTPS URL of the deployed Render backend. The production validator rejects localhost. |
 | `PUBLISH_DRY_RUN` | Recommended | Keep `true` unless publishing is intentionally enabled. |
-| `GOOGLE_SEARCH_API_KEY` | Optional | Needed only for non-demo live Google Custom Search retrieval. The frozen professor demo does not need it. |
-| `GOOGLE_SEARCH_ENGINE_ID` | Optional | Paired with `GOOGLE_SEARCH_API_KEY`. |
+| `SEARCH_PROVIDER` | Yes for live retrieval | Set to `exa` for the default live reference-source path. |
+| `EXA_API_KEY` | Yes for default live retrieval | Exa API key. Frozen source modes do not need it. |
+| `EXA_SEARCH_RESULT_COUNT` | Optional | Defaults to `10`; accepted range is 1–100. |
+| `BRAVE_SEARCH_API_KEY` | Optional | Used only when `SEARCH_PROVIDER=brave`. |
+| `BRAVE_SEARCH_RESULT_COUNT` | Optional | Defaults to `10`; accepted range is 1–20. |
+| `GOOGLE_SEARCH_API_KEY` | Optional | Compatibility mode only when `SEARCH_PROVIDER=google`. |
+| `GOOGLE_SEARCH_ENGINE_ID` | Optional | Paired with `GOOGLE_SEARCH_API_KEY` in Google compatibility mode. |
 | `GITHUB_TOKEN` | Optional | Only for workflows that use GitHub access. |
 | `REDDIT_USERNAME`, `REDDIT_PASSWORD` | Optional | Not required for backend startup or the professor demo. |
 

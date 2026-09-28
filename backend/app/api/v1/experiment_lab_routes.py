@@ -16,7 +16,7 @@ from app.experiment.new_website_validation import (
     NewWebsiteValidationBuilder,
     NewWebsiteValidationError,
 )
-from app.ge.google_search_provider import GoogleRetrievalError
+from app.ge.search_provider import SearchProviderError
 from app.storage.experiment_repository import ExperimentRepository
 
 
@@ -164,7 +164,7 @@ def start_new_website_teacher_validation(
             audit_id=request.audit_id,
             opportunity_id=request.opportunity_id,
         )
-    except GoogleRetrievalError as exc:
+    except SearchProviderError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except NewWebsiteValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

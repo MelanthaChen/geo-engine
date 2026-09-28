@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 import hashlib
 from urllib.parse import urlparse
 
-from app.ge.google_search_provider import GoogleSearchProvider
+from app.ge.search_provider import (
+    provider_id,
+    retrieval_result_ledger,
+    target_retrieval_status,
+)
+from app.ge.search_provider_factory import build_search_provider
 from app.services.website_audit.crawler import fetch_page
 from app.services.website_audit.extractor import extract_page
 from app.teacher_pipeline.query_contexts import QUERY_POLICY_VERSION
@@ -16,7 +21,7 @@ class TrainingContextBuildError(ValueError):
 
 class TrainingContextBuilder:
     def __init__(self, search_provider=None):
-        self.search_provider = search_provider or GoogleSearchProvider(require_api_credentials=True)
+        self.search_provider = search_provider or build_search_provider()
 
     def freeze(self, contexts: list, *, on_progress=None) -> list[dict]:
         target_cache = {}
@@ -33,6 +38,12 @@ class TrainingContextBuilder:
 
             retrieved_at = datetime.now(timezone.utc)
             candidates = self.search_provider.search(query=context.query, top_k=10)
+            retrieval_provider = provider_id(self.search_provider, candidates)
+            target_status = target_retrieval_status(target.url, candidates)
+            retrieved_at = next(
+                (item.retrieved_at for item in candidates if item.retrieved_at),
+                retrieved_at,
+            )
             references = []
             seen = {target.url.rstrip("/")}
             target_host = self._host(target.url)
@@ -50,17 +61,10 @@ class TrainingContextBuilder:
                 )
 
             common = {
-                "retrieval_provider": "google-custom-search-api",
+                "retrieval_provider": retrieval_provider,
                 "retrieved_at": retrieved_at.isoformat(),
                 "query_policy_version": QUERY_POLICY_VERSION,
                 "source_audit_id": context.originating_evidence["audit_id"],
-                "supporting_evidence": {
-                    **context.originating_evidence,
-                    "query_source": context.query_source,
-                    "query_intent": context.query_intent,
-                    "source_mode": "generated_query",
-                    "training_eligible": True,
-                },
             }
             documents = [{
                 "rank": 1,
@@ -82,6 +86,24 @@ class TrainingContextBuilder:
                 "content_sha256": reference.content_sha256 or self._sha256(reference.plain_text),
                 **common,
             } for rank, reference in enumerate(references, start=2))
+
+            supporting_evidence = {
+                **context.originating_evidence,
+                "query_source": context.query_source,
+                "query_intent": context.query_intent,
+                "source_mode": "generated_query",
+                "training_eligible": True,
+                "retrieval_query": context.query,
+                "retrieval_results": retrieval_result_ledger(candidates),
+                "target_retrieval_status": target_status,
+                "source_order": [document["url"] for document in documents],
+                "source_snapshot_hashes": [
+                    document["content_sha256"] for document in documents
+                ],
+                "target_index": 0,
+            }
+            for document in documents:
+                document["supporting_evidence"] = supporting_evidence
             entries.append({"query": context.query, "documents": documents})
             if on_progress:
                 on_progress(len(entries), len(contexts), context.query)

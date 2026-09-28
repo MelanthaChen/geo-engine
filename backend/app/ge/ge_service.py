@@ -2,7 +2,7 @@ import random
 import time
 
 from app.ge.geo_rewriter import GeoRewriter
-from app.ge.google_search_provider import GoogleSearchProvider
+from app.ge.search_provider_factory import build_search_provider
 from app.ge.llm_runner import LLMRunner, OpenAILLMRunner
 from app.ge.prompt_builder import PromptBuilder
 from app.ge.search_provider import RetrievedDocument, SearchProvider
@@ -20,7 +20,7 @@ class GenerativeEngineService:
         prompt_builder: PromptBuilder | None = None,
     ):
         runner = llm_runner or OpenAILLMRunner()
-        self.search_provider = search_provider or GoogleSearchProvider()
+        self.search_provider = search_provider or build_search_provider()
         self.rewriter = GeoRewriter(runner)
         self.llm_runner = runner
         self.prompt_builder = prompt_builder or PromptBuilder()
@@ -47,7 +47,7 @@ class GenerativeEngineService:
         )
 
         if len(documents) < self.PAPER_TOP_K:
-            source_name = "Uploaded dataset" if retrieved_documents is not None else "Google Search"
+            source_name = "Uploaded dataset" if retrieved_documents is not None else "Live Retrieval"
             raise RuntimeError(
                 f"{source_name} returned {len(documents)} documents; "
                 "the Princeton reproduction requires Top-5 results."

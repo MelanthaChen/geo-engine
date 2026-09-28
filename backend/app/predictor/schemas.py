@@ -21,6 +21,7 @@ class PredictorStatusResponse(BaseModel):
     status: Literal["foundation_ready"] = "foundation_ready"
     model_ready: bool = False
     version: str = "0.1.0"
+    search_provider: str
     components: list[PredictorComponentStatus]
 
 

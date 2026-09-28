@@ -150,9 +150,17 @@ Create `backend/.env`:
 OPENAI_API_KEY=sk-...
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DB_NAME
 BACKEND_URL=http://localhost:8000
+SEARCH_PROVIDER=exa
+EXA_API_KEY=
+EXA_SEARCH_RESULT_COUNT=10
+
+# Optional provider alternatives
+BRAVE_SEARCH_API_KEY=
+BRAVE_SEARCH_RESULT_COUNT=10
 
 # Optional
 GITHUB_TOKEN=
+# Only required when SEARCH_PROVIDER=google
 GOOGLE_SEARCH_API_KEY=
 GOOGLE_SEARCH_ENGINE_ID=
 REDDIT_USERNAME=
@@ -168,6 +176,10 @@ XIAOHONGSHU_RETRIEVAL_LIMIT=20
 Notes:
 
 - `OPENAI_API_KEY` and `DATABASE_URL` are required by the backend settings.
+- Live retrieval defaults to Exa. Set `EXA_API_KEY` when
+  `SEARCH_PROVIDER=exa`. Brave remains available with
+  `SEARCH_PROVIDER=brave`; Google credentials are only used in the optional
+  `SEARCH_PROVIDER=google` compatibility mode.
 - Reddit username/password are optional. Publishing uses local browser profiles, not password login.
 - `BACKEND_URL` is required for local agents. Use `https://geo-engine.onrender.com` when agents should talk to the deployed backend.
 - `ACCOUNT_ID` can restrict `publisher_agent.py` to one account. Leave blank for the generic pending endpoint.

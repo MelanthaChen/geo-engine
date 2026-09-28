@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     DEMO_TARGET_URL: str | None = None
     FRONTEND_ORIGINS: str | None = None
     GITHUB_TOKEN: str | None = None
+    SEARCH_PROVIDER: str = "exa"
+    EXA_API_KEY: str | None = None
+    EXA_SEARCH_RESULT_COUNT: int = 10
+    BRAVE_SEARCH_API_KEY: str | None = None
+    BRAVE_SEARCH_RESULT_COUNT: int = 10
     GOOGLE_SEARCH_API_KEY: str | None = None
     GOOGLE_SEARCH_ENGINE_ID: str | None = None
     REDDIT_USERNAME: str | None = None
@@ -68,6 +73,13 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_AUDIT_BROWSER_TIMEOUT_MS must be at least 250")
         if self.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT < 1:
             raise ValueError("WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT must be at least 1")
+        self.SEARCH_PROVIDER = self.SEARCH_PROVIDER.strip().lower()
+        if self.SEARCH_PROVIDER not in {"exa", "brave", "google"}:
+            raise ValueError("SEARCH_PROVIDER must be exa, brave, or google")
+        if not 1 <= self.EXA_SEARCH_RESULT_COUNT <= 100:
+            raise ValueError("EXA_SEARCH_RESULT_COUNT must be between 1 and 100")
+        if not 1 <= self.BRAVE_SEARCH_RESULT_COUNT <= 20:
+            raise ValueError("BRAVE_SEARCH_RESULT_COUNT must be between 1 and 20")
 
         database_host = (urlparse(self.DATABASE_URL).hostname or "").lower()
         if environment == "production" and database_host in {
