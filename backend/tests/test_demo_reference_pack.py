@@ -86,6 +86,58 @@ def test_demo_source_order_and_target_index_are_unchanged(monkeypatch):
     assert [document["rank"] for document in frozen["documents"]] == [1, 2, 3, 4, 5]
 
 
+def test_full_frozen_builder_path_does_not_resolve_live_exa(monkeypatch):
+    target = SimpleNamespace(
+        status_code=200,
+        body_text=DEMO_TARGET_SNAPSHOT["content"],
+        page_title="GeoAIResume | GEO Resume Content Experiment",
+        h1=None,
+        url=DEMO_TARGET_SNAPSHOT["resolved_url"],
+    )
+    recommendation = SimpleNamespace(id=73)
+    audit = SimpleNamespace(
+        id=41,
+        property_id=9,
+        status="completed",
+        base_url=DEMO_TARGET_SNAPSHOT["resolved_url"],
+        brand_summary="GeoAIResume",
+        product_summary="Resume guidance",
+        property=SimpleNamespace(
+            name="GeoAIResume",
+            domain="geoairesume-web-six.vercel.app",
+        ),
+        pages=[],
+        recommendations=[recommendation],
+    )
+
+    class Query:
+        def options(self, *_args): return self
+        def filter(self, *_args): return self
+        def first(self): return audit
+
+    monkeypatch.setattr(new_website_validation, "fetch_page", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(new_website_validation, "extract_page", lambda _response: target)
+    monkeypatch.setattr(
+        new_website_validation,
+        "build_search_provider",
+        lambda: (_ for _ in ()).throw(AssertionError("live provider must not be resolved")),
+    )
+    monkeypatch.setattr(
+        demo_reference_pack.settings,
+        "DEMO_TARGET_URL",
+        "https://geoairesume-web-six.vercel.app/",
+    )
+
+    frozen = NewWebsiteValidationBuilder(SimpleNamespace(query=lambda *_args: Query())).build(
+        property_id=9,
+        audit_id=41,
+        opportunity_id=73,
+    )
+
+    assert frozen["metadata"]["target_index"] == 0
+    assert len(frozen["documents"]) == 5
+
+
 @pytest.mark.parametrize(
     ("property_domain", "configured_target"),
     [

@@ -71,13 +71,14 @@ class GenerativeEngineService:
             if on_strategy:
                 on_strategy(strategy)
 
-            modified_document_text = rewriter.rewrite(
+            rewrite_artifact = rewriter.rewrite_artifact(
                 document_text=selected_document.plain_text,
                 query=query,
                 strategy=strategy,
                 model=model,
                 temperature=temperature,
             )
+            modified_document_text = rewrite_artifact.document
             prompt = self.prompt_builder.build(
                 query=query,
                 documents=documents,
@@ -112,6 +113,7 @@ class GenerativeEngineService:
                         "query": query,
                         "sample_index": sample_index,
                         "modified_document_text": modified_document_text,
+                        "rewrite_plan": rewrite_artifact.plan,
                         "prompt": prompt,
                         "answer": answer,
                         "latency_ms": latency_ms,

@@ -49,6 +49,7 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
         supporting_evidence.get("training_eligible", source_mode != "frozen_demo")
     )
     target_page_id = _target_page_id(audit, selected_document.url, supporting_evidence)
+    optimized_parameters = json.loads(optimized_run.generation_params_json or "{}")
     return {
         "schema_version": "teacher-provenance-v1",
         "website_id": experiment.property_id,
@@ -122,6 +123,7 @@ def build_provenance(*, experiment, query, baseline_run, optimized_run, audit, s
         "baseline_answer": baseline_run.raw_response,
         "treatment_answer": optimized_run.raw_response,
         "original_target_content": selected_document.plain_text,
+        "rewrite_plan": optimized_parameters.get("rewrite_plan"),
         "optimized_target_content": (
             optimized_run.strategy_result.modified_document_text
             if optimized_run.strategy_result else None

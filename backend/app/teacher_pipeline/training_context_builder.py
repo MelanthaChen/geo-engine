@@ -75,6 +75,7 @@ class TrainingContextBuilder:
                 "source_role": "audited_target",
                 "content_sha256": self._sha256(target.body_text),
                 **common,
+                "retrieval_provider": "injected_for_controlled_experiment",
             }]
             documents.extend({
                 "rank": rank,

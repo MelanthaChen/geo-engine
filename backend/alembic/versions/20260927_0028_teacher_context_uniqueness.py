@@ -15,20 +15,40 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "teacher_dataset_members",
-        sa.Column("context_fingerprint", sa.String(length=64), nullable=True),
-    )
-    op.create_index(
-        "ix_teacher_dataset_members_context_fingerprint",
-        "teacher_dataset_members",
-        ["context_fingerprint"],
-    )
-    op.create_unique_constraint(
-        "uq_teacher_dataset_context",
-        "teacher_dataset_members",
-        ["dataset_version_id", "context_fingerprint"],
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {
+        column["name"]
+        for column in inspector.get_columns("teacher_dataset_members")
+    }
+    if "context_fingerprint" not in columns:
+        op.add_column(
+            "teacher_dataset_members",
+            sa.Column("context_fingerprint", sa.String(length=64), nullable=True),
+        )
+
+    inspector = sa.inspect(bind)
+    indexes = {
+        index["name"]
+        for index in inspector.get_indexes("teacher_dataset_members")
+    }
+    if "ix_teacher_dataset_members_context_fingerprint" not in indexes:
+        op.create_index(
+            "ix_teacher_dataset_members_context_fingerprint",
+            "teacher_dataset_members",
+            ["context_fingerprint"],
+        )
+
+    unique_constraints = {
+        constraint["name"]
+        for constraint in inspector.get_unique_constraints("teacher_dataset_members")
+    }
+    if "uq_teacher_dataset_context" not in unique_constraints:
+        op.create_unique_constraint(
+            "uq_teacher_dataset_context",
+            "teacher_dataset_members",
+            ["dataset_version_id", "context_fingerprint"],
+        )
 
 
 def downgrade():

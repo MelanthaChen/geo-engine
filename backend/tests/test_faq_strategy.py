@@ -126,7 +126,10 @@ def test_faq_runs_through_the_existing_rewriter_pipeline_without_paid_calls(monk
 
     class FakeRunner:
         def generate(self, **_kwargs):
-            return treatment
+            return json.dumps({"version": "rewrite-plan-v1", "operations": [{
+                "anchor": source,
+                "replacement": treatment,
+            }]})
 
     monkeypatch.setenv("GEO_DISABLE_REWRITE_CACHE", "True")
     rewritten = GeoRewriter(FakeRunner()).rewrite(

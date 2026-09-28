@@ -135,7 +135,33 @@ def test_frozen_context_preserves_one_ordered_source_set(monkeypatch):
         for document in entry["documents"]
     )
     assert all(document["supporting_evidence"]["page_id"] == context.target_page_id for document in entry["documents"])
-    assert all(document["retrieval_provider"] == "brave" for document in entry["documents"])
+    assert entry["documents"][0]["retrieval_provider"] == "injected_for_controlled_experiment"
+    assert all(document["retrieval_provider"] == "brave" for document in entry["documents"][1:])
+
+
+def test_one_hundred_generated_contexts_have_distinct_formal_fingerprints():
+    contexts = AuditQueryContextGenerator().generate(audit_with_pages(), count=100)
+    fingerprints = set()
+    families = set()
+    for index, context in enumerate(contexts):
+        query = SimpleNamespace(
+            query=context.query,
+            documents=[
+                SimpleNamespace(
+                    rank=rank,
+                    url=(context.target_url if rank == 1 else f"https://reference-{rank}.example/{index}"),
+                    content_sha256=(f"{index:060x}{rank:04x}"),
+                    plain_text="",
+                    is_selected=rank == 1,
+                )
+                for rank in range(1, 6)
+            ],
+        )
+        fingerprints.add(context_fingerprint(query=query, strategy="citation"))
+        families.add(context.originating_evidence["path_family"])
+
+    assert len(fingerprints) == 100
+    assert len(families) == 8
 
 
 def test_baseline_and_treatment_change_only_the_frozen_target():

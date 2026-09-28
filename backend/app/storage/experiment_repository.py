@@ -361,6 +361,8 @@ class ExperimentRepository:
         for output in strategy_outputs:
             evaluation = output["evaluation"]
             now = datetime.now(timezone.utc)
+            generation_parameters = json.loads(experiment.generation_params_json or "{}")
+            generation_parameters["rewrite_plan"] = output.get("rewrite_plan")
             run = ExperimentRun(
                 experiment_id=experiment.id,
                 experiment_query_id=experiment_query.id,
@@ -373,7 +375,7 @@ class ExperimentRepository:
                 status="completed",
                 raw_prompt=output["prompt"],
                 raw_response=output["answer"],
-                generation_params_json=experiment.generation_params_json,
+                generation_params_json=json.dumps(generation_parameters),
                 latency_ms=output.get("latency_ms"),
                 started_at=now,
                 finished_at=now,
@@ -604,6 +606,8 @@ class ExperimentRepository:
     ) -> ExperimentRun:
         evaluation = output["evaluation"]
         now = datetime.now(timezone.utc)
+        generation_parameters = json.loads(experiment.generation_params_json or "{}")
+        generation_parameters["rewrite_plan"] = output.get("rewrite_plan")
         run = ExperimentRun(
             experiment_id=experiment.id,
             experiment_query_id=experiment_query.id,
@@ -616,7 +620,7 @@ class ExperimentRepository:
             status="completed",
             raw_prompt=output["prompt"],
             raw_response=output["answer"],
-            generation_params_json=experiment.generation_params_json,
+            generation_params_json=json.dumps(generation_parameters),
             latency_ms=output.get("latency_ms"),
             started_at=now,
             finished_at=now,

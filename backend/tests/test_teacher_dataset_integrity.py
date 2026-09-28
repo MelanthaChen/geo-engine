@@ -132,11 +132,15 @@ def test_target_page_id_resolves_from_the_source_audit_without_fabrication():
 )
 def test_each_standard_strategy_returns_document_content_not_an_edit_plan(monkeypatch, strategy):
     source = "The vehicle combines distinctive design with responsive driving performance for daily journeys."
+    anchor = "responsive driving performance"
     rewritten = "The vehicle combines distinctive design with responsive luxury driving performance for daily journeys."
 
     class Runner:
         def generate(self, **_kwargs):
-            return rewritten
+            return json.dumps({"version": "rewrite-plan-v1", "operations": [{
+                "anchor": anchor,
+                "replacement": "responsive luxury driving performance",
+            }]})
 
     monkeypatch.setenv("GEO_DISABLE_REWRITE_CACHE", "True")
     output = GeoRewriter(Runner()).rewrite(source, "Which vehicle?", strategy, "unused", 0)
@@ -150,7 +154,10 @@ def test_keyword_instruction_plan_is_rejected_and_replaced_by_full_document(monk
     outputs = iter([
         "1. In sentence about design, add keyword luxury\n"
         "2. In sentence about driving, add keyword precision",
-        "The vehicle combines distinctive luxury design with responsive precision driving performance for daily journeys.",
+        json.dumps({"version": "rewrite-plan-v1", "operations": [{
+            "anchor": "distinctive design with responsive driving performance",
+            "replacement": "distinctive luxury design with responsive precision driving performance",
+        }]}),
     ])
 
     class Runner:
@@ -175,7 +182,10 @@ def test_faq_strategy_returns_a_grounded_rewritten_document(monkeypatch):
 
     class Runner:
         def generate(self, **_kwargs):
-            return rewritten
+            return json.dumps({"version": "rewrite-plan-v1", "operations": [{
+                "anchor": source,
+                "replacement": rewritten,
+            }]})
 
     monkeypatch.setenv("GEO_DISABLE_REWRITE_CACHE", "True")
     assert GeoRewriter(Runner()).rewrite(source, "How does it work?", "faq", "unused", 0) == rewritten

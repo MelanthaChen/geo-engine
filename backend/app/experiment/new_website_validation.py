@@ -41,7 +41,10 @@ class NewWebsiteValidationBuilder:
 
     def __init__(self, db: Session, search_provider=None):
         self.db = db
-        self.search_provider = search_provider or build_search_provider()
+        # Frozen validation must not require credentials for the live provider.
+        # Resolve the configured provider only after the demo path has been
+        # ruled out.
+        self.search_provider = search_provider
 
     def build(self, *, property_id: int, audit_id: int, opportunity_id: int) -> dict:
         audit = (
@@ -74,6 +77,8 @@ class NewWebsiteValidationBuilder:
         if is_demo_property(audit.property):
             return self._build_demo_pack(audit, recommendation)
 
+        search_provider = self.search_provider or build_search_provider()
+
         target_url = self._target_url(audit, recommendation)
         target = extract_page(fetch_page(target_url, timeout_seconds=20))
         if target.status_code != 200 or not target.body_text.strip():
@@ -84,8 +89,8 @@ class NewWebsiteValidationBuilder:
 
         query, evidence = self._query(audit, recommendation, target)
         retrieved_at = datetime.now(timezone.utc)
-        candidates = self.search_provider.search(query=query, top_k=10)
-        retrieval_provider = provider_id(self.search_provider, candidates)
+        candidates = search_provider.search(query=query, top_k=10)
+        retrieval_provider = provider_id(search_provider, candidates)
         target_status = target_retrieval_status(target.url, candidates)
         retrieved_at = next(
             (item.retrieved_at for item in candidates if item.retrieved_at),
@@ -127,6 +132,7 @@ class NewWebsiteValidationBuilder:
             "source_role": "audited_target",
             "content_sha256": self._sha256(target.body_text),
             **common,
+            "retrieval_provider": "injected_for_controlled_experiment",
         }]
         documents.extend({
             "rank": index,

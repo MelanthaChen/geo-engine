@@ -172,8 +172,11 @@ def test_baseline_and_treatment_reuse_one_exa_source_set():
     provider = Provider()
     runner = Runner()
     service = GenerativeEngineService(search_provider=provider, llm_runner=runner)
-    service.rewriter.rewrite = lambda document_text, strategy, **_kwargs: (
-        document_text if strategy == "original" else "optimized target"
+    from app.ge.geo_rewriter import RewriteArtifact
+
+    service.rewriter.rewrite_artifact = lambda document_text, strategy, **_kwargs: RewriteArtifact(
+        document_text if strategy == "original" else "optimized target",
+        {"version": "rewrite-plan-v1", "operations": []},
     )
 
     result = service.run_query(

@@ -115,12 +115,12 @@ APP_ENV=production alembic upgrade head
 The remaining production variables must be present in the process environment when this command runs. The expected revision is:
 
 ```text
-20260923_0020
+20260927_0028
 ```
 
-The clean-database migration path was repaired for the legacy first migration, which materializes current SQLAlchemy metadata. Revisions 0017–0020 now detect schema objects already created by that legacy behavior while continuing to perform normal incremental upgrades on older databases.
+The clean-database migration path accounts for the legacy first migration, which materializes current SQLAlchemy metadata. The current chain reaches 0028 while continuing to support incremental upgrades and the 0027 repair path.
 
-Local verification created a disposable PostgreSQL database, migrated it from zero to `20260923_0020`, confirmed the three Teacher Pipeline tables and four new experiment-document provenance columns, and removed the database afterward.
+Release-candidate verification created disposable PostgreSQL databases, migrated one from zero to `20260927_0028`, exercised the stale 0025/0026 repair and 0027→0028 paths, and compared the final critical tables with current ORM metadata.
 
 ## Startup and Playwright
 
@@ -138,11 +138,11 @@ The Playwright-based container image and package remain unchanged because browse
 
 ## Verification performed
 
-- Backend test suite: 27 passed.
+- Backend test suite: 170 passed.
 - Backend module compilation: passed.
 - Fresh backend startup and `/health`: passed.
 - Playwright initialization during startup: none observed.
-- Clean disposable PostgreSQL migration: reached `20260923_0020` and schema checks passed.
+- Clean disposable PostgreSQL migration: reached `20260927_0028` and schema checks passed.
 - Frozen reference pack: four texts, URLs, ranks, and SHA-256 hashes passed.
 - Production configuration dry run with dummy non-secret external values: passed.
 - Production loopback database rejection: passed.
@@ -160,7 +160,7 @@ The existing local professor dataset remains in the local Docker database. The c
 2. Set the Render variables listed above, using that resource's actual `DATABASE_URL`.
 3. Deploy a public HTTPS GeoAIResume page whose audited target content matches the verified demo target, then set `DEMO_TARGET_URL` to it.
 4. Set `FRONTEND_ORIGINS` to the Vercel origin.
-5. Deploy the backend and confirm the migration log reaches `20260923_0020` before Uvicorn starts.
+5. Deploy the backend and confirm the migration log reaches `20260927_0028` before Uvicorn starts.
 6. Set Vercel `VITE_API_BASE_URL` to the deployed backend URL and rebuild the frontend.
 7. Verify `/health`, CORS, OpenAI authentication, Audit, Teacher Validation, dataset creation, and both exports in production.
 

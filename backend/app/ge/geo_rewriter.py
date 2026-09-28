@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.ge.llm_runner import LLMRunner
@@ -211,6 +212,16 @@ class RewriteOutputError(ValueError):
     pass
 
 
+class RewriteAnchorError(RewriteOutputError):
+    pass
+
+
+@dataclass(frozen=True)
+class RewriteArtifact:
+    document: str
+    plan: dict
+
+
 def validate_faq_rewrite(source: str, rewritten: str) -> None:
     lines = [line.strip().lstrip("-* ") for line in rewritten.splitlines() if line.strip()]
     questions = [line for line in lines if line.endswith("?")]
@@ -378,36 +389,134 @@ class GeoRewriter:
         model: str,
         temperature: float,
     ) -> str:
+        return self.rewrite_artifact(
+            document_text=document_text,
+            query=query,
+            strategy=strategy,
+            model=model,
+            temperature=temperature,
+        ).document
+
+    def rewrite_artifact(
+        self,
+        document_text: str,
+        query: str,
+        strategy: str,
+        model: str,
+        temperature: float,
+    ) -> RewriteArtifact:
         if strategy == "original":
-            return document_text
+            return RewriteArtifact(document_text, {"version": "rewrite-plan-v1", "operations": []})
 
         user_prompt = OFFICIAL_PROMPT_BUILDERS[strategy](document_text)
         cached = self._cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT)
 
         if cached is not None:
-            if self._is_complete_rewritten_document(document_text, cached, strategy):
+            cached_document = cached.get("document") if isinstance(cached, dict) else cached
+            cached_plan = cached.get("plan") if isinstance(cached, dict) else None
+            if isinstance(cached_document, str) and self._is_complete_rewritten_document(document_text, cached_document, strategy):
                 if strategy == "faq":
-                    validate_faq_rewrite(document_text, cached)
-                return cached
+                    validate_faq_rewrite(document_text, cached_document)
+                return RewriteArtifact(
+                    cached_document,
+                    cached_plan or {"version": "legacy-full-document-v1", "operations": []},
+                )
 
-        rewritten = self._generate_with_official_retry(user_prompt)
-        processed = self._get_summary(rewritten)
+        operation_prompt = self._operation_prompt(user_prompt)
+        rewritten = self._generate_with_official_retry(operation_prompt)
+        plan = self._parse_operation_plan(rewritten)
+        if plan is None:
+            repair_prompt = (
+                f"{operation_prompt}\n\n"
+                "Your previous response did not follow the structured operation contract. "
+                "Return valid JSON containing executable exact-anchor replacement operations."
+            )
+            plan = self._parse_operation_plan(
+                self._generate_with_official_retry(repair_prompt)
+            )
+            if plan is None:
+                raise RewriteOutputError(
+                    "Rewrite operation plan is required for a new treatment"
+                )
+        processed = self._apply_operation_plan(document_text, plan)
         if not self._is_complete_rewritten_document(document_text, processed, strategy):
             repair_prompt = (
-                f"{user_prompt}\n\n"
+                f"{operation_prompt}\n\n"
                 "Your previous response was an edit plan rather than the rewritten document. "
-                "Return only the complete rewritten source document. Do not return instructions, "
-                "a change list, analysis, or placeholders."
+                "Return valid JSON containing executable exact-anchor replacement operations."
             )
-            processed = self._get_summary(self._generate_with_official_retry(repair_prompt))
+            repaired = self._generate_with_official_retry(repair_prompt)
+            repaired_plan = self._parse_operation_plan(repaired)
+            if repaired_plan is None:
+                raise RewriteOutputError(
+                    "Rewrite operation plan is required for a new treatment"
+                )
+            plan = repaired_plan
+            processed = self._apply_operation_plan(document_text, plan)
         if not self._is_complete_rewritten_document(document_text, processed, strategy):
             raise RewriteOutputError(
                 f"{strategy} rewrite did not return a complete transformed document"
             )
         if strategy == "faq":
             validate_faq_rewrite(document_text, processed)
-        self._store_cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT, processed)
-        return processed
+        artifact = RewriteArtifact(processed, plan)
+        self._store_cached_rewrite(
+            user_prompt,
+            COMMON_SYSTEM_PROMPT,
+            {"document": artifact.document, "plan": artifact.plan},
+        )
+        return artifact
+
+    @staticmethod
+    def _operation_prompt(strategy_prompt: str) -> str:
+        return (
+            f"{strategy_prompt}\n\n"
+            "RESPONSE CONTRACT: Return only JSON with this shape: "
+            '{"version":"rewrite-plan-v1","operations":['
+            '{"anchor":"exact text copied from the source",'
+            '"replacement":"complete replacement text"}]}. '
+            "Every anchor must occur exactly once in the original source. Keep operations minimal. "
+            "Do not return the full document, prose instructions, markdown, or placeholders."
+        )
+
+    @staticmethod
+    def _parse_operation_plan(raw: str) -> dict | None:
+        candidate = raw.strip()
+        if candidate.startswith("```"):
+            candidate = re.sub(r"^```(?:json)?\s*", "", candidate, flags=re.IGNORECASE)
+            candidate = re.sub(r"\s*```$", "", candidate)
+        if not candidate.startswith("{"):
+            return None
+        try:
+            plan = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            raise RewriteOutputError("Rewrite operation plan is malformed JSON") from exc
+        operations = plan.get("operations")
+        if plan.get("version") != "rewrite-plan-v1" or not isinstance(operations, list):
+            raise RewriteOutputError("Rewrite operation plan has an unsupported schema")
+        if not operations or len(operations) > 20:
+            raise RewriteOutputError("Rewrite operation plan must contain 1 to 20 operations")
+        for operation in operations:
+            if not isinstance(operation, dict):
+                raise RewriteOutputError("Every rewrite operation must be an object")
+            if not isinstance(operation.get("anchor"), str) or not operation["anchor"]:
+                raise RewriteOutputError("Every rewrite operation requires a non-empty anchor")
+            if not isinstance(operation.get("replacement"), str) or not operation["replacement"]:
+                raise RewriteOutputError("Every rewrite operation requires a non-empty replacement")
+        return {"version": "rewrite-plan-v1", "operations": operations}
+
+    @staticmethod
+    def _apply_operation_plan(source: str, plan: dict) -> str:
+        document = source
+        for index, operation in enumerate(plan["operations"], start=1):
+            anchor = operation["anchor"]
+            count = document.count(anchor)
+            if count != 1:
+                raise RewriteAnchorError(
+                    f"Rewrite operation {index} anchor matched {count} times; expected exactly once"
+                )
+            document = document.replace(anchor, operation["replacement"], 1)
+        return document
 
     @staticmethod
     def _is_complete_rewritten_document(source: str, rewritten: str, strategy: str) -> bool:
@@ -530,7 +639,7 @@ class GeoRewriter:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
 
-    def _cached_rewrite(self, user_prompt: str, system_prompt: str) -> str | None:
+    def _cached_rewrite(self, user_prompt: str, system_prompt: str) -> str | dict | None:
         if os.environ.get("GEO_DISABLE_REWRITE_CACHE") == "True":
             return None
 
@@ -546,7 +655,7 @@ class GeoRewriter:
         self,
         user_prompt: str,
         system_prompt: str,
-        processed: str,
+        processed: str | dict,
     ):
         if os.environ.get("GEO_DISABLE_REWRITE_CACHE") == "True":
             return

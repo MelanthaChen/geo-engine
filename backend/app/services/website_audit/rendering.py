@@ -66,6 +66,13 @@ def extract_audit_pages(
         apply_duplicate_detection(http_pages)
         return http_pages
 
+    # A normal server-rendered crawl must not touch the browser runtime at all.
+    # This keeps HTTP-only audits independent from Playwright installation and
+    # browser startup failures.
+    if not candidates and not suspicious_clusters:
+        apply_duplicate_detection(http_pages)
+        return http_pages
+
     renderer = renderer or BrowserRenderer()
     confirmed_shell_urls: list[str] = []
     confirmed_cluster_urls: set[str] = set()

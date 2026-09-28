@@ -182,7 +182,8 @@ def test_generic_provider_freezes_once_per_context_and_records_injected_target(m
         assert evidence["target_retrieval_status"] == "injected_for_controlled_experiment"
         assert evidence["source_order"] == [item["url"] for item in entry["documents"]]
         assert evidence["target_index"] == 0
-        assert all(item["retrieval_provider"] == "exa" for item in entry["documents"])
+        assert entry["documents"][0]["retrieval_provider"] == "injected_for_controlled_experiment"
+        assert all(item["retrieval_provider"] == "exa" for item in entry["documents"][1:])
 
 
 def test_target_provenance_records_real_provider_result(monkeypatch):

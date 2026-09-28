@@ -56,7 +56,11 @@ def extract(responses, renderer=None, *, limit=10):
     )
 
 
-def test_static_ssr_and_prerendered_html_remain_http_only():
+def test_static_ssr_and_prerendered_html_remain_http_only(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.website_audit.rendering.BrowserRenderer",
+        lambda: (_ for _ in ()).throw(AssertionError("browser runtime was initialized")),
+    )
     pages = extract([
         response("https://example.test/static", meaningful_html("Static")),
         response("https://example.test/ssr", meaningful_html("SSR")),
