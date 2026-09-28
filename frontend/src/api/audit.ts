@@ -65,6 +65,7 @@ export type PageEvidence = {
     canonical_url?: string | null;
     path_family?: string | null;
     extraction_method?: string;
+    browser_fallback_reason?: string;
     http_html_accepted?: boolean;
   };
   metadata?: { robots_directives?: string[] };

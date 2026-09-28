@@ -6,6 +6,7 @@ from app.services.website_audit.rendering import (
     extract_audit_pages,
     needs_browser_render,
 )
+from app.services.website_audit.importance import select_geo_important_pages
 
 
 def response(url: str, html: str) -> CrawlResponse:
@@ -176,6 +177,84 @@ def test_fallback_only_receives_selected_responses_and_honors_total_limit():
     assert renderer.calls[0][0] == urls[:2]
     assert pages[2].extraction_method == "failed"
     assert "limit reached" in pages[2].extraction_failure_reason
+
+
+def test_large_meaningful_shared_shell_is_verified_and_expands_to_sample_limit():
+    urls = [
+        f"https://example.test/{family}/route-{index}"
+        for index in range(140)
+        for family in (["guide", "comparison", "resources"][index % 3],)
+    ]
+    shared_words = " ".join(f"shared-{index}" for index in range(328))
+    shared_html = (
+        "<html><head><title>Shared application</title></head><body>"
+        f"<div id='root'><h1>Shared application</h1><p>{shared_words}</p></div>"
+        "<script src='/application.js'></script></body></html>"
+    )
+    rendered = {
+        url: render_result(url, meaningful_html(f"Rendered route {index}", 80))
+        for index, url in enumerate(urls)
+    }
+    renderer = FakeRenderer(rendered)
+
+    pages = extract_audit_pages(
+        [response(url, shared_html) for url in urls],
+        browser_enabled=True,
+        browser_timeout_ms=4_000,
+        browser_concurrency=2,
+        browser_fallback_limit=10,
+        shared_shell_browser_limit=30,
+        renderer=renderer,
+    )
+
+    browser_pages = [page for page in pages if page.extraction_method == "browser"]
+    assert sum(len(call[0]) for call in renderer.calls) == 30
+    assert len(browser_pages) == 30
+    assert len({page.content_sha256 for page in browser_pages}) == 30
+    assert all(
+        page.evidence["identity"]["browser_fallback_reason"] == "shared_http_shell"
+        for page in browser_pages
+    )
+    assert sum(page.extraction_method == "failed" for page in pages) == 110
+
+    selected = select_geo_important_pages(
+        pages,
+        audited_url=urls[0],
+        homepage_url="https://example.test/",
+        homepage_links=set(),
+        sitemap_urls=set(urls),
+        limit=30,
+    )
+    assert len(selected) == 30
+    assert not any(page.is_duplicate for page in selected)
+
+
+def test_browser_probe_keeps_genuinely_identical_aliases_as_duplicates():
+    urls = [
+        "https://example.test/guide/alias",
+        "https://example.test/comparison/alias",
+        "https://example.test/resources/alias",
+    ]
+    shared_words = " ".join(f"shared-{index}" for index in range(328))
+    shared_html = f"<html><body><h1>Shared</h1><p>{shared_words}</p></body></html>"
+    rendered_html = meaningful_html("Same rendered destination", 80)
+    renderer = FakeRenderer({
+        url: render_result(url, rendered_html) for url in urls
+    })
+
+    pages = extract_audit_pages(
+        [response(url, shared_html) for url in urls],
+        browser_enabled=True,
+        browser_timeout_ms=4_000,
+        browser_concurrency=2,
+        browser_fallback_limit=10,
+        shared_shell_browser_limit=30,
+        renderer=renderer,
+    )
+
+    assert len(renderer.calls) == 1
+    assert all(page.extraction_method == "http" for page in pages)
+    assert sum(page.is_duplicate for page in pages) == 2
 
 
 def test_bounded_runner_respects_concurrency():

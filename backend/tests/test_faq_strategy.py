@@ -87,6 +87,36 @@ def test_faq_grounding_guard_rejects_unsupported_facts_and_claims():
         validate_faq_rewrite(source, fabricated)
 
 
+def test_faq_grounding_accepts_supported_paraphrase():
+    source = "Our software checks resumes for ATS compatibility and highlights missing keywords."
+    paraphrase = (
+        "How does the software help with ATS compatibility?\n\n"
+        "It checks resumes for ATS compatibility and identifies missing keywords."
+    )
+
+    validate_faq_rewrite(source, paraphrase)
+
+
+@pytest.mark.parametrize(
+    "unsupported",
+    [
+        "It checks resumes for ATS compatibility with 95% accuracy and highlights missing keywords.",
+        "It checks resumes for ATS compatibility for $19 and highlights missing keywords.",
+        "It checks resumes for ATS compatibility for free and highlights missing keywords.",
+        "It checks resumes for ATS compatibility and guarantees customer success while highlighting missing keywords.",
+        "According to Harvard Research [1], it checks resumes for ATS compatibility and highlights missing keywords.",
+        "It checks resumes, highlights missing keywords, and exports polished PDF cover letters.",
+    ],
+    ids=["accuracy", "numeric-price", "free-price", "guarantee", "citation", "capability"],
+)
+def test_faq_grounding_rejects_specific_unsupported_claim_types(unsupported):
+    source = "Our software checks resumes for ATS compatibility and highlights missing keywords."
+    treatment = f"How does the software help?\n\n{unsupported}"
+
+    with pytest.raises(FAQGroundingError):
+        validate_faq_rewrite(source, treatment)
+
+
 def test_faq_runs_through_the_existing_rewriter_pipeline_without_paid_calls(monkeypatch):
     source = "Our software checks resumes for ATS compatibility and highlights missing keywords."
     treatment = (

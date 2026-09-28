@@ -140,6 +140,9 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
   const opportunities = audit.optimization_opportunities || [];
   const evidence = buildAuditEvidence(audit);
   const analyzedCount = evidence.pages.length;
+  const sharedShellRenderingUsed = (audit.pages || []).some(
+    (page) => page.evidence?.identity?.browser_fallback_reason === "shared_http_shell",
+  );
 
   return <>
       <section>
@@ -162,6 +165,7 @@ export function AuditResults({ audit }: { audit: AuditResult }) {
           <EvidenceMetric label="Inventory source" value={formatInventorySource(coverage?.inventory_source)} />
         </div>
         {coverage && <CoverageNotice coverage={coverage} />}
+        {sharedShellRenderingUsed && <p className="mt-3 rounded-lg border border-blue-950 bg-blue-950/20 px-4 py-3 text-sm text-blue-200">JavaScript rendering was used because multiple distinct routes returned identical initial HTML.</p>}
       </section>
 
       {analyzedCount > 0 && <>

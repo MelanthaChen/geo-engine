@@ -40,6 +40,7 @@ def run_website_audit(
         browser_timeout_ms=settings.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS,
         browser_concurrency=settings.WEBSITE_AUDIT_BROWSER_CONCURRENCY,
         browser_fallback_limit=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT,
+        shared_shell_browser_limit=settings.WEBSITE_AUDIT_SAMPLE_PAGES,
     )
     crawl_result.coverage.candidate_extraction_successes = sum(
         page.status_code is not None
@@ -48,7 +49,9 @@ def run_website_audit(
         for page in candidate_pages
     )
     crawl_result.coverage.candidate_duplicate_fallbacks = sum(
-        page.is_duplicate for page in candidate_pages
+        page.is_duplicate
+        or "shared HTTP shell" in (page.extraction_failure_reason or "")
+        for page in candidate_pages
     )
     pages = select_geo_important_pages(
         candidate_pages,

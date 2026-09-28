@@ -44,6 +44,7 @@ import {
 import { TermHelp } from "@/components/TermHelp";
 import { strategyTermKey } from "@/data/terminology";
 import { searchProviderLabel } from "@/lib/searchProviders";
+import { validationRepetitionLabel } from "@/lib/experimentProgress";
 
 const pipelineSteps = [
   {
@@ -323,7 +324,7 @@ export function GeoPredictor() {
         <SectionHeader title="Teacher Validation" description="The existing Princeton experiment is running in the background. No Experiment Lab interaction or worker command is required." />
         <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Experiment #{experimentId}</p><p className={`mt-2 text-xl font-semibold ${validation?.status === "completed" ? "text-emerald-300" : validation?.status === "failed" ? "text-red-300" : "text-blue-300"}`}>{validation ? validation.status[0].toUpperCase() + validation.status.slice(1) : "Loading"}</p><p className="mt-2 text-sm text-zinc-500">{validation?.currentStrategy ? `${validation.currentStrategy} • sample ${validation.currentSample}/${validation.totalSamples}` : "Waiting for progress"}</p></div>
+            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Experiment #{experimentId}</p><p className={`mt-2 text-xl font-semibold ${validation?.status === "completed" ? "text-emerald-300" : validation?.status === "failed" ? "text-red-300" : "text-blue-300"}`}>{validation ? validation.status[0].toUpperCase() + validation.status.slice(1) : "Loading"}</p><p className="mt-2 text-sm text-zinc-500">{validation?.currentStrategy ? validationRepetitionLabel(validation.currentStrategy, validation.currentSample, validation.totalSamples) : "Waiting for progress"}</p></div>
             {validation?.status === "completed" && <Button onClick={() => navigate(`/teacher-pipeline?experiment_id=${experimentId}&audit_id=${audit?.id || requestedAuditId}&strategy=${selectedStrategy || "authoritative"}`)}>View Training Dataset</Button>}
           </div>
           {(validation?.status === "queued" || validation?.status === "running") && <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-900"><div className="h-full bg-blue-500 transition-all" style={{ width: `${validationProgress(validation)}%` }} /></div>}

@@ -191,7 +191,7 @@ def faq_optimization(summary: str) -> str:
 Grounding requirements:
 1. Identify important user-facing questions that are already answerable from the source.
 2. Answer every question using only information stated in the source.
-3. Preserve all important original facts and meaning. Every answer must copy one contiguous sentence or passage verbatim from the source; only the questions may reframe that evidence.
+3. Preserve all important original facts and meaning. Answers may paraphrase, shorten, combine, and reorganize source statements when they remain factually grounded in the source.
 4. Do not invent or infer prices, statistics, customer claims, guarantees, capabilities, citations, policies, or any other unsupported claim.
 5. Do not add outside knowledge or cite external material.
 6. Use multiple Q&A pairs only when the source supports them. Do not merely append an FAQ heading.
@@ -216,16 +216,6 @@ def validate_faq_rewrite(source: str, rewritten: str) -> None:
     if not answers:
         raise FAQGroundingError("FAQ treatment must contain at least one grounded answer.")
 
-    normalized_source = normalize_grounding_text(source)
-    unsupported_answers = [
-        answer for answer in answers
-        if normalize_grounding_text(answer) not in normalized_source
-    ]
-    if unsupported_answers:
-        raise FAQGroundingError(
-            "FAQ answers must use contiguous wording from the original source."
-        )
-
     source_terms = content_terms(source)
     safe_question_terms = {
         "answer", "about", "information", "source", "explain", "help",
@@ -243,9 +233,24 @@ def validate_faq_rewrite(source: str, rewritten: str) -> None:
 
     rewritten_terms = content_terms(rewritten)
     retained = len(source_terms & rewritten_terms) / len(source_terms) if source_terms else 1.0
-    if retained < 0.75:
+    if retained < 0.5:
         raise FAQGroundingError(
             "FAQ treatment did not retain enough of the original source information."
+        )
+
+    answer_terms = content_terms(" ".join(answers))
+    unsupported_answer_terms = answer_terms - source_terms
+    allowed_novel_terms = max(2, int(len(source_terms) * 0.2))
+    source_support = (
+        len(answer_terms & source_terms) / len(answer_terms)
+        if answer_terms else 1.0
+    )
+    if (
+        source_support < 0.6
+        or len(unsupported_answer_terms) > allowed_novel_terms
+    ):
+        raise FAQGroundingError(
+            "FAQ treatment introduced answer concepts that are not sufficiently supported by the original source."
         )
 
     source_facts = protected_facts(source)
@@ -260,15 +265,43 @@ def validate_faq_rewrite(source: str, rewritten: str) -> None:
     rewritten_lower = rewritten.lower()
     unsupported_claim_markers = [
         marker for marker in (
-            "guarantee", "customers say", "according to", "study shows",
-            "research shows", "clinically proven",
+            "guarantee", "guaranteed", "customers say", "customer success",
+            "customers report", "users report", "according to", "study shows",
+            "research shows", "evidence shows", "clinically proven",
+            "certified", "licensed", "accredited", "award-winning",
+            "phd", "doctorate",
+            "free", "no cost", "subscription", "per month", "per year",
         )
-        if marker in rewritten_lower and marker not in source_lower
+        if contains_phrase(rewritten_lower, marker)
+        and not contains_phrase(source_lower, marker)
     ]
     if unsupported_claim_markers:
         raise FAQGroundingError(
             "FAQ treatment introduced unsupported claim language: "
             + ", ".join(unsupported_claim_markers)
+        )
+
+    capability_terms = {
+        "create", "creates", "download", "downloads", "export", "exports",
+        "generate", "generates", "integrate", "integrates", "rank", "ranks",
+        "scan", "scans", "score", "scores", "submit", "submits", "track",
+        "tracks", "upload", "uploads",
+    }
+    unsupported_capabilities = (
+        content_terms(rewritten) - content_terms(source)
+    ) & capability_terms
+    if unsupported_capabilities:
+        raise FAQGroundingError(
+            "FAQ treatment introduced unsupported capabilities: "
+            + ", ".join(sorted(unsupported_capabilities))
+        )
+
+    unsupported_entities = named_entities(rewritten) - named_entities(source)
+    unsupported_entities -= {"FAQ", "Q&A"}
+    if unsupported_entities:
+        raise FAQGroundingError(
+            "FAQ treatment introduced unsupported named entities or product terms: "
+            + ", ".join(sorted(unsupported_entities))
         )
 
 
@@ -283,16 +316,36 @@ def content_terms(value: str) -> set[str]:
     }
 
 
-def normalize_grounding_text(value: str) -> str:
-    return " ".join(value.lower().split()).strip(" .")
-
-
 def protected_facts(value: str) -> set[str]:
     without_list_numbers = re.sub(r"(?m)^\s*\d+[.)]\s+", "", value)
     facts = set(re.findall(r"[$€£¥]?\d[\d,.]*%?", without_list_numbers))
     facts.update(re.findall(r"https?://\S+|[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}", value))
     facts.update(re.findall(r"\[\d+\]", value))
+    facts.update(re.findall(
+        r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,\s*\d{4})?\b",
+        value,
+        re.IGNORECASE,
+    ))
     return facts
+
+
+def named_entities(value: str) -> set[str]:
+    """Conservative deterministic entity markers used by the FAQ safety gate."""
+    acronyms = set(re.findall(r"\b[A-Z][A-Z0-9&.-]{1,}\b", value))
+    titled = set(re.findall(
+        r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b",
+        value,
+    ))
+    ignored = {
+        "A", "An", "Are", "Can", "Do", "Does", "FAQ", "How", "Is", "It",
+        "Our", "The", "This", "What", "When", "Where", "Which", "Who", "Why",
+    }
+    capitalized = set(re.findall(r"\b[A-Z][a-z]{2,}\b", value)) - ignored
+    return acronyms | titled | capitalized
+
+
+def contains_phrase(value: str, phrase: str) -> bool:
+    return bool(re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", value))
 
 
 OFFICIAL_PROMPT_BUILDERS = {
