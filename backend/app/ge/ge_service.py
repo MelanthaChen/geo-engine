@@ -83,11 +83,21 @@ class GenerativeEngineService:
                 temperature=temperature,
             )
             modified_document_text = rewrite_artifact.document
+            source_char_limits = {
+                document.rank: (
+                    self.LIVE_TARGET_SOURCE_CHARS
+                    if document.rank == selected_document.rank
+                    else self.LIVE_REFERENCE_SOURCE_CHARS
+                )
+                for document in documents
+            }
+
             prompt = self.prompt_builder.build(
                 query=query,
                 documents=documents,
                 selected_rank=selected_document.rank,
                 modified_document_text=modified_document_text,
+                source_char_limits=source_char_limits,
             )
 
             for sample_index in range(sample_count):
@@ -109,6 +119,8 @@ class GenerativeEngineService:
                     model=model,
                     temperature=temperature,
                     top_p=self.PAPER_TOP_P,
+                    max_tokens=self.LIVE_ANSWER_MAX_TOKENS,
+                    purpose="answer_generation",
                 )
                 latency_ms = int((time.perf_counter() - started_at) * 1000)
                 strategy_outputs.append(
