@@ -8,6 +8,7 @@ import pytest
 from app.ge.geo_rewriter import GeoRewriter
 from app.teacher_pipeline.router import export_latest_dataset
 from app.teacher_pipeline.dataset_writer import DatasetWriter
+from app.teacher_pipeline.provenance import _target_page_id
 from app.teacher_pipeline.sample_builder import TrainingSampleBuilder
 from app.teacher_pipeline.teacher_pipeline import TeacherPipeline
 
@@ -110,6 +111,15 @@ def test_dataset_membership_grouping_is_keyed_by_context_not_sample_id():
     assert [sample.sample_id for sample in contexts[0][1]] == [
         f"sample-{index}" for index in range(5)
     ]
+
+
+def test_target_page_id_resolves_from_the_source_audit_without_fabrication():
+    audit = SimpleNamespace(pages=[
+        SimpleNamespace(id=44, url="https://Target.Example/page/"),
+    ])
+
+    assert _target_page_id(audit, "http://target.example/page", {}) == 44
+    assert _target_page_id(audit, "https://unrelated.example", {}) is None
 
 
 @pytest.mark.parametrize(
