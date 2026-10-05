@@ -133,8 +133,8 @@ def test_valid_recommendation_evidence_page_is_injected_when_not_retrieved():
     assert status == "injected_for_controlled_experiment"
 
 
-def test_no_retrieved_or_explicit_evidence_page_has_no_target():
-    pages = [page(8, "https://example.com/revuelto", "Revuelto")]
+def test_no_retrieved_or_relevant_asset_has_no_target():
+    pages = [page(8, "https://example.com/careers", "Careers and hiring")]
     audit_row, recommendation = audit(pages, evidence_url=None)
     builder = NewWebsiteValidationBuilder(DB(audit_row))
 
@@ -144,7 +144,7 @@ def test_no_retrieved_or_explicit_evidence_page_has_no_target():
 
     assert selected is None
     assert rank is None
-    assert status is None
+    assert status == "content_gap"
     assert audit_row.base_url != "https://example.com/revuelto"
 
 
@@ -185,12 +185,13 @@ def test_build_preserves_raw_retrieval_before_same_domain_reference_filter(monke
     ]
 
 
-def test_build_fails_without_a_real_target(monkeypatch):
-    pages = [page(8, "https://example.com/revuelto", "Revuelto")]
+def test_build_returns_content_gap_without_a_real_target(monkeypatch):
+    pages = [page(8, "https://example.com/careers", "Careers and hiring")]
     audit_row, recommendation = audit(pages)
     provider = Provider([candidate(index, f"https://other{index}.example/source") for index in range(1, 11)])
 
-    with pytest.raises(NewWebsiteValidationError, match="did not identify an audited target page"):
-        NewWebsiteValidationBuilder(DB(audit_row), provider).build(
-            property_id=7, audit_id=4, opportunity_id=9
-        )
+    result = NewWebsiteValidationBuilder(DB(audit_row), provider).build(
+        property_id=7, audit_id=4, opportunity_id=9
+    )
+    assert result["metadata"]["status"] == "content_gap"
+    assert result["documents"] == []

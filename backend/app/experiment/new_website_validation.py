@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.url_identity import canonical_url_identity
 from app.ge.search_provider import (
     provider_id,
     retrieval_result_ledger,
@@ -26,6 +25,7 @@ from app.experiment.demo_reference_pack import (
 from app.models.website_audit import WebsiteAudit
 from app.services.website_audit.crawler import fetch_page
 from app.services.website_audit.extractor import extract_page
+from app.teacher_pipeline.query_contexts import resolve_audited_target
 
 
 QUERY_POLICY_VERSION = "audit-evidence-query-v1"
@@ -87,14 +87,11 @@ class NewWebsiteValidationBuilder:
             retrieved_at,
         )
 
-        target_page, target_rank, target_status = self._select_target_page(
-            audit, recommendation, candidates
+        target_page, target_rank, target_status = resolve_audited_target(
+            audit, query, candidates, recommendation
         )
         if target_page is None:
-            raise NewWebsiteValidationError(
-                "The retrieval results did not identify an audited target page, "
-                "and the audit opportunity has no valid evidence page to inject."
-            )
+            return self._content_gap_result(audit, recommendation, query, evidence, candidates)
         target_url = target_page.url
         target = extract_page(fetch_page(target_url, timeout_seconds=20))
         if target.status_code != 200 or not target.body_text.strip():
@@ -253,35 +250,34 @@ class NewWebsiteValidationBuilder:
         }
 
     @staticmethod
-    def _select_target_page(audit, recommendation, candidates):
-        eligible_pages = {
-            canonical_url_identity(page.url): page
-            for page in audit.pages
-            if page.status_code == 200
-            and not page.is_duplicate
-            and page.word_count > 0
-            and canonical_url_identity(page.url)
+    def _content_gap_result(audit, recommendation, query, evidence, candidates):
+        return {
+            "query": query,
+            "documents": [],
+            "metadata": {
+                "workflow": "princeton-style-new-website-validation-v1",
+                "status": "content_gap",
+                "target_retrieval_status": "content_gap",
+                "source_audit_id": audit.id,
+                "recommendation_id": recommendation.id,
+                "supporting_evidence": {
+                    **evidence,
+                    "retrieval_results": retrieval_result_ledger(candidates),
+                    "status": "content_gap",
+                },
+            },
         }
-        matches = [
-            (candidate.rank, eligible_pages[canonical_url_identity(candidate.url)])
-            for candidate in candidates
-            if canonical_url_identity(candidate.url) in eligible_pages
-        ]
-        if matches:
-            rank, page = min(matches, key=lambda item: item[0])
-            return page, rank, "retrieved_by_provider"
 
-        evidence_identity = canonical_url_identity(recommendation.evidence_url or "")
-        page = eligible_pages.get(evidence_identity)
-        if page is not None:
-            return page, None, "injected_for_controlled_experiment"
-        return None, None, None
+    @staticmethod
+    def _select_target_page(audit, recommendation, candidates):
+        """Compatibility wrapper for focused callers; resolution remains query-first."""
+        return resolve_audited_target(audit, NewWebsiteValidationBuilder._query(audit, recommendation)[0], candidates, recommendation)
 
     @staticmethod
     def _query(audit, recommendation) -> tuple[str, dict]:
         brand = (audit.property.brand_name or audit.property.name).strip()
         topic = (
-            audit.product_summary
+            getattr(audit, "product_summary", None)
             or recommendation.title
             or brand
         ).strip().rstrip(".?!")

@@ -7,12 +7,11 @@ from urllib.parse import urlparse
 from app.ge.search_provider import (
     provider_id,
     retrieval_result_ledger,
-    target_retrieval_status,
 )
 from app.ge.search_provider_factory import build_search_provider
 from app.services.website_audit.crawler import fetch_page
 from app.services.website_audit.extractor import extract_page
-from app.teacher_pipeline.query_contexts import QUERY_POLICY_VERSION
+from app.teacher_pipeline.query_contexts import QUERY_POLICY_VERSION, resolve_audited_target
 
 
 class TrainingContextBuildError(ValueError):
@@ -23,23 +22,28 @@ class TrainingContextBuilder:
     def __init__(self, search_provider=None):
         self.search_provider = search_provider or build_search_provider()
 
-    def freeze(self, contexts: list, *, on_progress=None) -> list[dict]:
+    def freeze(self, contexts: list, *, audit=None, on_progress=None) -> list[dict]:
         target_cache = {}
         entries = []
         for context in contexts:
-            target = target_cache.get(context.target_url)
-            if target is None:
-                target = extract_page(fetch_page(context.target_url, timeout_seconds=20))
-                if target.status_code != 200 or not target.body_text.strip():
-                    raise TrainingContextBuildError(
-                        f"Target page could not be snapshotted: {context.target_url}"
-                    )
-                target_cache[context.target_url] = target
-
             retrieved_at = datetime.now(timezone.utc)
             candidates = self.search_provider.search(query=context.query, top_k=10)
             retrieval_provider = provider_id(self.search_provider, candidates)
-            target_status = target_retrieval_status(target.url, candidates)
+            target_page, target_rank, target_status = resolve_audited_target(
+                audit, context.query, candidates
+            )
+            if target_page is None:
+                if on_progress:
+                    on_progress(len(entries), len(contexts), context.query)
+                continue
+            target = target_cache.get(target_page.url)
+            if target is None:
+                target = extract_page(fetch_page(target_page.url, timeout_seconds=20))
+                if target.status_code != 200 or not target.body_text.strip():
+                    raise TrainingContextBuildError(
+                        f"Target page could not be snapshotted: {target_page.url}"
+                    )
+                target_cache[target_page.url] = target
             retrieved_at = next(
                 (item.retrieved_at for item in candidates if item.retrieved_at),
                 retrieved_at,
@@ -97,6 +101,8 @@ class TrainingContextBuilder:
                 "retrieval_query": context.query,
                 "retrieval_results": retrieval_result_ledger(candidates),
                 "target_retrieval_status": target_status,
+                "target_page_id": target_page.id,
+                "target_retrieval_rank": target_rank,
                 "source_order": [document["url"] for document in documents],
                 "source_snapshot_hashes": [
                     document["content_sha256"] for document in documents

@@ -78,12 +78,29 @@ class DatasetWriter:
 
     @staticmethod
     def _training_eligible(provenance):
-        if "training_eligible" in provenance:
-            return bool(provenance["training_eligible"])
-        return not any(
-            "frozen" in (source.get("retrieval_provider") or "")
-            for source in provenance.get("source_set", [])
-        )
+        if provenance.get("source_mode") == "frozen_demo":
+            return False
+        experiment = provenance.get("experiment", {})
+        query = provenance.get("query", {})
+        target = provenance.get("selected_document", {})
+        sources = provenance.get("source_set", [])
+        plan = provenance.get("rewrite_plan") or {}
+        optimized = provenance.get("optimized_target_content")
+        if not experiment.get("completed_at") or not query.get("text"):
+            return False
+        if not target.get("page_id") or not target.get("url"):
+            return False
+        if len(sources) != 5 or not any(source.get("is_target") for source in sources):
+            return False
+        if plan.get("version") != "rewrite-plan-v1" or not plan.get("operations"):
+            return False
+        if not isinstance(optimized, str) or len(optimized.strip()) < 20:
+            return False
+        if provenance.get("baseline_answer") is None or provenance.get("treatment_answer") is None:
+            return False
+        if not provenance.get("aggregate_metrics"):
+            return False
+        return bool(provenance.get("training_eligible", True))
 
     @staticmethod
     def _group_by_context(samples):
@@ -93,6 +110,6 @@ class DatasetWriter:
             fingerprint = provenance.get("context_fingerprint") or f"legacy:{sample.sample_id}"
             grouped.setdefault(fingerprint, []).append(sample)
         return [
-            (fingerprint, sorted(rows, key=lambda sample: (str(sample.created_at or ""), sample.sample_id)))
+            (fingerprint, sorted(rows, key=lambda sample: (str(sample.created_at or ""), sample.sample_id), reverse=True))
             for fingerprint, rows in sorted(grouped.items())
         ]

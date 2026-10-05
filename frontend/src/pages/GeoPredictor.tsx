@@ -180,15 +180,6 @@ export function GeoPredictor() {
     return () => { mounted = false; if (timer) window.clearTimeout(timer); };
   }, [experimentId]);
 
-  useEffect(() => {
-    if (validation?.status !== "completed" || !experimentId) return;
-    const timer = window.setTimeout(
-      () => navigate(`/teacher-pipeline?experiment_id=${experimentId}&audit_id=${audit?.id || requestedAuditId}&strategy=${selectedStrategy || "authoritative"}`),
-      1500,
-    );
-    return () => window.clearTimeout(timer);
-  }, [audit?.id, experimentId, navigate, requestedAuditId, selectedStrategy, validation?.status]);
-
   async function handleValidateAudit() {
     if (!audit) return;
     const opportunity = selectedOpportunity;
@@ -320,8 +311,8 @@ export function GeoPredictor() {
         </CardContent></Card>
       </section>}
 
-      {experimentId > 0 && <section>
-        <SectionHeader title="Teacher Validation" description="The existing Princeton experiment is running in the background. No Experiment Lab interaction or worker command is required." />
+      {(experimentId > 0 || validation?.status === "content_gap") && <section>
+        <SectionHeader title={validation?.status === "content_gap" ? "Content Gap" : "Teacher Validation"} description={validation?.status === "content_gap" ? "No eligible audited target was found for this query; no controlled experiment was performed." : "The existing Princeton experiment is running in the background. No Experiment Lab interaction or worker command is required."} />
         <Card className="border-zinc-800 bg-zinc-950"><CardContent className="p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Experiment #{experimentId}</p><p className={`mt-2 text-xl font-semibold ${validation?.status === "completed" ? "text-emerald-300" : validation?.status === "failed" ? "text-red-300" : "text-blue-300"}`}>{validation ? validation.status[0].toUpperCase() + validation.status.slice(1) : "Loading"}</p><p className="mt-2 text-sm text-zinc-500">{validation?.currentStrategy ? validationRepetitionLabel(validation.currentStrategy, validation.currentSample, validation.totalSamples) : "Waiting for progress"}</p></div>
@@ -329,6 +320,7 @@ export function GeoPredictor() {
           </div>
           {(validation?.status === "queued" || validation?.status === "running") && <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-900"><div className="h-full bg-blue-500 transition-all" style={{ width: `${validationProgress(validation)}%` }} /></div>}
           {validation?.status === "failed" && <p className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{validation.errorMessage || "The Princeton experiment failed."}</p>}
+          {validation?.status === "completed" && <ValidationResult validation={validation} />}
           {validationError && <p className="mt-4 text-sm text-red-300">{validationError}</p>}
         </CardContent></Card>
       </section>}
@@ -596,6 +588,42 @@ export function GeoPredictor() {
       </section>
     </Page>
   );
+}
+
+function ValidationResult({ validation }: { validation: ExperimentRun }) {
+  const result = validation.queryResults?.[0];
+  const evidence = result?.evidence;
+  const treatment = evidence?.strategyDetails?.find((item) => item.strategy !== "original");
+  const baseline = evidence?.strategyDetails?.find((item) => item.strategy === "original");
+  const raw = evidence?.rawRetrievalResults || [];
+  const controlled = evidence?.topDocuments || [];
+  return <div className="mt-6 space-y-5 border-t border-zinc-800 pt-5">
+    <p className="text-lg font-semibold text-zinc-100">Validation Result</p>
+    {result ? <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoRow label="Query" value={result.query} />
+        <InfoRow label="Intent / source" value={`${evidence?.queryIntent || "Unavailable"} · ${evidence?.querySource || "Unavailable"}`} />
+        <InfoRow label="Target title" value={controlled.find((item) => item.isSelected)?.title || "Unavailable"} />
+        <InfoRow label="Target URL" value={controlled.find((item) => item.isSelected)?.url || "Unavailable"} />
+        <InfoRow label="Target page ID" value={String(evidence?.targetPageId ?? "Unavailable")} />
+        <InfoRow label="Target retrieval" value={`${evidence?.targetRetrievalStatus || "Unavailable"}${evidence?.targetRetrievalRank ? ` · raw rank ${evidence.targetRetrievalRank}` : ""}`} />
+      </div>
+      <ResultSources title="Raw Retrieval Results" sources={raw.map((item) => ({ rank: item.rank, title: item.title, url: item.url, role: "Raw result" }))} />
+      <ResultSources title="Controlled Experiment Source Set" sources={controlled.map((item) => ({ rank: item.rank, title: item.title, url: item.url, role: item.isSelected ? "Target" : "Reference" }))} />
+      {(baseline || treatment) && <div className="grid gap-4 lg:grid-cols-2">
+        {baseline && <ResultAnswer title="Baseline answer" answer={baseline.generatedAnswer} metrics={baseline.metrics} />}
+        {treatment && <ResultAnswer title={`Treatment answer (${treatment.strategy})`} answer={treatment.generatedAnswer} metrics={treatment.metrics} />}
+      </div>}
+    </> : <p className="text-sm text-zinc-400">Experiment completed without a query result payload.</p>}
+  </div>;
+}
+
+function ResultSources({ title, sources }: { title: string; sources: Array<{ rank: number; title: string | null; url: string; role: string }> }) {
+  return <div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{title}</p><div className="space-y-2">{sources.map((source) => <div className={`rounded-lg border p-3 ${source.role === "Target" ? "border-blue-700 bg-blue-950/20" : "border-zinc-800 bg-black"}`} key={`${title}-${source.rank}-${source.url}`}><p className="text-xs text-zinc-300">Rank {source.rank} · {source.role} · {source.title || "Untitled"}</p><p className="mt-1 break-all text-xs text-zinc-500">{source.url}</p></div>)}</div></div>;
+}
+
+function ResultAnswer({ title, answer, metrics }: { title: string; answer: string; metrics: { visibilityScore: number; pawc: number; citationCount: number } }) {
+  return <details className="rounded-lg border border-zinc-800 bg-black p-4"><summary className="cursor-pointer text-sm font-medium text-zinc-200">{title}</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-400">{answer}</p><p className="mt-3 text-xs text-zinc-500">Visibility {metrics.visibilityScore} · PAWC {metrics.pawc} · Citations {metrics.citationCount}</p></details>;
 }
 
 function FieldList({ title, fields }: { title: string; fields: string[] }) {

@@ -168,6 +168,36 @@ def start_new_website_teacher_validation(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except NewWebsiteValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if frozen.get("metadata", {}).get("status") == "content_gap":
+        metadata = frozen["metadata"]
+        evidence = metadata.get("supporting_evidence", {})
+        return {
+            "id": None,
+            "status": "content_gap",
+            "currentQuery": frozen["query"],
+            "currentStrategy": request.strategy,
+            "currentSample": 0,
+            "totalSamples": 0,
+            "completedQueries": 0,
+            "totalQueries": 1,
+            "estimatedRemainingTime": "No experiment performed",
+            "overall": {"visibilityScore": 0, "citationCount": 0, "pawc": 0},
+            "strategyResults": [],
+            "queryResults": [{
+                "id": "content-gap",
+                "query": frozen["query"],
+                "responses": {},
+                "evaluationResult": "No eligible audited target",
+                "winnerStrategy": "original",
+                "evidence": {
+                    "queryIntent": evidence.get("query_intent"),
+                    "querySource": evidence.get("query_source"),
+                    "rawRetrievalResults": evidence.get("retrieval_results", []),
+                    "topDocuments": [],
+                    "strategyDetails": [],
+                },
+            }],
+        }
 
     dataset_documents = [
         {"query": frozen["query"], **document}

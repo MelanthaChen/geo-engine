@@ -1,4 +1,4 @@
-export type ExperimentStatus = "queued" | "running" | "completed" | "failed";
+export type ExperimentStatus = "queued" | "running" | "completed" | "failed" | "content_gap";
 
 export type StrategyId =
   | "original"
@@ -70,6 +70,12 @@ export type QueryEvidence = {
   selectedDocumentRank: number | null;
   originalDocument: string;
   strategyDetails: StrategyEvidence[];
+  queryIntent?: string | null;
+  querySource?: string | null;
+  targetPageId?: number | null;
+  targetRetrievalStatus?: string | null;
+  targetRetrievalRank?: number | null;
+  rawRetrievalResults?: Array<{ rank: number; title: string | null; url: string }>;
 };
 
 export type StrategyEvidence = {

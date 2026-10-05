@@ -144,7 +144,7 @@ def prepare_and_execute_dataset_generation(experiment_id: int, audit_id: int):
                 experiment.estimated_remaining_time = f"{total - completed} source sets to freeze"
                 db.commit()
 
-            entries = TrainingContextBuilder().freeze(contexts, on_progress=progress)
+            entries = TrainingContextBuilder().freeze(contexts, audit=audit, on_progress=progress)
             experiment.benchmark_queries_json = json.dumps(entries)
             experiment.completed_queries = 0
             experiment.status = "queued"

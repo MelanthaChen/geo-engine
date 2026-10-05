@@ -809,6 +809,7 @@ class ExperimentRepository:
                 ),
                 None,
             )
+            supporting_evidence = json.loads(query.supporting_evidence_json or "{}")
             query_results.append(
                 {
                     "id": str(query.id),
@@ -837,6 +838,13 @@ class ExperimentRepository:
                             )
                         ],
                         "selectedDocumentRank": query.selected_document_rank,
+                        "queryIntent": supporting_evidence.get("query_intent"),
+                        "querySource": supporting_evidence.get("query_source"),
+                        "targetPageId": supporting_evidence.get("target_page_id"),
+                        "targetRetrievalStatus": supporting_evidence.get("target_retrieval_status"),
+                        "targetRetrievalRank": supporting_evidence.get("target_retrieval_rank"),
+                        "rawRetrievalResults": supporting_evidence.get("retrieval_results", []),
+                        "supportingEvidence": supporting_evidence,
                         "originalDocument": (
                             selected_document.plain_text
                             if selected_document
