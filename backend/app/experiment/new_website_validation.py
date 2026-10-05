@@ -6,10 +6,10 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.url_identity import canonical_url_identity
 from app.ge.search_provider import (
     provider_id,
     retrieval_result_ledger,
-    target_retrieval_status,
 )
 from app.ge.search_provider_factory import build_search_provider
 from app.experiment.demo_reference_pack import (
@@ -24,7 +24,6 @@ from app.experiment.demo_reference_pack import (
     load_demo_reference_documents,
 )
 from app.models.website_audit import WebsiteAudit
-from app.models.website_audit_recommendation import WebsiteAuditRecommendation
 from app.services.website_audit.crawler import fetch_page
 from app.services.website_audit.extractor import extract_page
 
@@ -79,7 +78,24 @@ class NewWebsiteValidationBuilder:
 
         search_provider = self.search_provider or build_search_provider()
 
-        target_url = self._target_url(audit, recommendation)
+        query, evidence = self._query(audit, recommendation)
+        retrieved_at = datetime.now(timezone.utc)
+        candidates = search_provider.search(query=query, top_k=10)
+        retrieval_provider = provider_id(search_provider, candidates)
+        retrieved_at = next(
+            (item.retrieved_at for item in candidates if item.retrieved_at),
+            retrieved_at,
+        )
+
+        target_page, target_rank, target_status = self._select_target_page(
+            audit, recommendation, candidates
+        )
+        if target_page is None:
+            raise NewWebsiteValidationError(
+                "The retrieval results did not identify an audited target page, "
+                "and the audit opportunity has no valid evidence page to inject."
+            )
+        target_url = target_page.url
         target = extract_page(fetch_page(target_url, timeout_seconds=20))
         if target.status_code != 200 or not target.body_text.strip():
             raise NewWebsiteValidationError(
@@ -87,15 +103,11 @@ class NewWebsiteValidationBuilder:
                 f"(HTTP {target.status_code or 'unavailable'})."
             )
 
-        query, evidence = self._query(audit, recommendation, target)
-        retrieved_at = datetime.now(timezone.utc)
-        candidates = search_provider.search(query=query, top_k=10)
-        retrieval_provider = provider_id(search_provider, candidates)
-        target_status = target_retrieval_status(target.url, candidates)
-        retrieved_at = next(
-            (item.retrieved_at for item in candidates if item.retrieved_at),
-            retrieved_at,
-        )
+        evidence.update({
+            "target_page_id": target_page.id,
+            "target_page_url": target_page.url,
+            "target_retrieval_rank": target_rank,
+        })
         target_host = self._host(target.url)
         references = []
         seen_urls = {target.url.rstrip("/")}
@@ -150,6 +162,8 @@ class NewWebsiteValidationBuilder:
             "retrieval_query": query,
             "retrieval_results": retrieval_result_ledger(candidates),
             "target_retrieval_status": target_status,
+            "target_page_id": target_page.id,
+            "target_retrieval_rank": target_rank,
             "source_order": [document["url"] for document in documents],
             "source_snapshot_hashes": [
                 document["content_sha256"] for document in documents
@@ -175,6 +189,8 @@ class NewWebsiteValidationBuilder:
                 "retrieval_query": query,
                 "retrieval_results": retrieval_result_ledger(candidates),
                 "target_retrieval_status": target_status,
+                "target_page_id": target_page.id,
+                "target_retrieval_rank": target_rank,
             },
         }
 
@@ -237,26 +253,37 @@ class NewWebsiteValidationBuilder:
         }
 
     @staticmethod
-    def _target_url(audit, recommendation: WebsiteAuditRecommendation) -> str:
-        successful_urls = {
-            page.url for page in audit.pages if page.status_code == 200
+    def _select_target_page(audit, recommendation, candidates):
+        eligible_pages = {
+            canonical_url_identity(page.url): page
+            for page in audit.pages
+            if page.status_code == 200
+            and not page.is_duplicate
+            and page.word_count > 0
+            and canonical_url_identity(page.url)
         }
-        if recommendation.evidence_url in successful_urls:
-            return recommendation.evidence_url
-        if audit.base_url in successful_urls:
-            return audit.base_url
-        if successful_urls:
-            return sorted(successful_urls)[0]
-        return audit.base_url
+        matches = [
+            (candidate.rank, eligible_pages[canonical_url_identity(candidate.url)])
+            for candidate in candidates
+            if canonical_url_identity(candidate.url) in eligible_pages
+        ]
+        if matches:
+            rank, page = min(matches, key=lambda item: item[0])
+            return page, rank, "retrieved_by_provider"
+
+        evidence_identity = canonical_url_identity(recommendation.evidence_url or "")
+        page = eligible_pages.get(evidence_identity)
+        if page is not None:
+            return page, None, "injected_for_controlled_experiment"
+        return None, None, None
 
     @staticmethod
-    def _query(audit, recommendation, target) -> tuple[str, dict]:
+    def _query(audit, recommendation) -> tuple[str, dict]:
         brand = (audit.property.brand_name or audit.property.name).strip()
         topic = (
-            target.h1
-            or target.page_title
-            or audit.product_summary
+            audit.product_summary
             or recommendation.title
+            or brand
         ).strip().rstrip(".?!")
         query = f"What should someone know about {topic} from {brand}?"
         evidence = {
@@ -266,8 +293,6 @@ class NewWebsiteValidationBuilder:
             "recommendation_title": recommendation.title,
             "recommendation_description": recommendation.description,
             "recommendation_evidence_url": recommendation.evidence_url,
-            "target_page_title": target.page_title,
-            "target_page_h1": target.h1,
             "brand": brand,
         }
         return query, evidence
