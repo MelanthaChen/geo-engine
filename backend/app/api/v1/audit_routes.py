@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
+from app.models.website_audit import WebsiteAudit
 from app.services.property_service import get_property
 from app.services.website_audit.audit_service import (
     latest_website_audit,
@@ -65,6 +66,23 @@ def get_latest_audit(
         audit=audit,
         property_record=property_record,
     )
+
+
+@router.get("/history")
+def get_audit_history(
+    property_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    property_record = get_property(db, property_id)
+    if not property_record:
+        raise HTTPException(status_code=404, detail="Property not found")
+    audits = (
+        db.query(WebsiteAudit)
+        .filter(WebsiteAudit.property_id == property_id)
+        .order_by(WebsiteAudit.completed_at.desc(), WebsiteAudit.id.desc())
+        .all()
+    )
+    return [serialize_audit(audit=audit, property_record=property_record) for audit in audits]
 
 
 @router.get("/{audit_id}")

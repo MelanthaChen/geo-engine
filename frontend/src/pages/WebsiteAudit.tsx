@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AlertCircle, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileSearch } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "../../@/components/ui/button";
 import { Card, CardContent } from "../../@/components/ui/card";
 import {
   fetchLatestWebsiteAudit,
+  fetchWebsiteAudit,
+  fetchWebsiteAuditHistory,
   runWebsiteAudit,
   type AuditFinding,
   type AuditResult,
@@ -20,9 +22,10 @@ import { buildAuditEvidence, formatAbsentSignal, pageExclusionReason } from "@/l
 
 export function WebsiteAudit() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { activeProperty, activePropertyId } = useProperty();
   const [audit, setAudit] = useState<AuditResult | null>(null);
-  const [previousAudit, setPreviousAudit] = useState<AuditResult | null>(null);
+  const [previousAudits, setPreviousAudits] = useState<AuditResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -30,21 +33,28 @@ export function WebsiteAudit() {
     let isMounted = true;
     async function loadLatestAudit() {
       setAudit(null);
-      setPreviousAudit(null);
+      setPreviousAudits([]);
       setMessage("");
       if (!activePropertyId) {
         return;
       }
       try {
-        const result = await fetchLatestWebsiteAudit(activePropertyId);
-        if (isMounted) setPreviousAudit(result);
+        const selectedAuditId = Number(searchParams.get("audit_id") || 0);
+        const [result, history] = await Promise.all([
+          selectedAuditId ? fetchWebsiteAudit(activePropertyId, selectedAuditId) : fetchLatestWebsiteAudit(activePropertyId),
+          fetchWebsiteAuditHistory(activePropertyId),
+        ]);
+        if (isMounted) {
+          setAudit(result);
+          setPreviousAudits(history.filter((item) => item.id !== result?.id));
+        }
       } catch (error) {
         console.error(error);
       }
     }
     void loadLatestAudit();
     return () => { isMounted = false; };
-  }, [activePropertyId]);
+  }, [activePropertyId, searchParams]);
 
   async function handleAnalyzeWebsite() {
     if (!activePropertyId) {
@@ -56,6 +66,7 @@ export function WebsiteAudit() {
       setMessage("");
       const result = await runWebsiteAudit(activePropertyId);
       setAudit(result);
+      setSearchParams({ audit_id: String(result.id) }, { replace: true });
     } catch (error) {
       console.error(error);
       setMessage("Website audit failed.");
@@ -78,6 +89,28 @@ export function WebsiteAudit() {
           website_url: audit.website_url,
           website_features: audit.website_features || {},
           optimization_opportunities: audit.optimization_opportunities || [],
+        },
+      },
+    });
+  }
+
+  function openHistoricalAudit(selected: AuditResult) {
+    setAudit(selected);
+    setSearchParams({ audit_id: String(selected.id) }, { replace: true });
+    setMessage("");
+  }
+
+  function continueSelectedAudit(selected: AuditResult) {
+    openHistoricalAudit(selected);
+    navigate(`/predictor?website_id=${selected.property_id}&audit_id=${selected.id}`, {
+      state: {
+        audit: {
+          website_id: selected.property_id,
+          audit_id: selected.id,
+          property_name: selected.property_name,
+          website_url: selected.website_url,
+          website_features: selected.website_features || {},
+          optimization_opportunities: selected.optimization_opportunities || [],
         },
       },
     });
@@ -121,14 +154,13 @@ export function WebsiteAudit() {
 
       {audit && <AuditResults audit={audit} />}
 
-      {previousAudit && <details className="group rounded-xl border border-zinc-800 bg-zinc-950">
+      {previousAudits.length > 0 && <details className="group rounded-xl border border-zinc-800 bg-zinc-950">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 [&::-webkit-details-marker]:hidden">
           <div><h2 className="text-lg font-semibold text-zinc-50">Previous audits</h2><p className="mt-1 text-sm text-zinc-500">Stored history is available for reference and is never treated as the current demo run.</p></div>
           <ChevronDown className="h-5 w-5 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-8 border-t border-zinc-800 p-5">
-          <div className="rounded-lg border border-zinc-800 bg-black px-4 py-3"><p className="text-sm font-medium text-zinc-200">Audit #{previousAudit.id}</p><p className="mt-1 text-xs text-zinc-500">Completed {new Date(previousAudit.last_audit).toLocaleString()}. Historical results cannot continue to Optimization.</p></div>
-          <AuditResults audit={previousAudit} />
+          {previousAudits.map((historicalAudit) => <div className="rounded-lg border border-zinc-800 bg-black p-4" key={historicalAudit.id}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-zinc-200">Audit #{historicalAudit.id}</p><p className="mt-1 text-xs text-zinc-500">Completed {new Date(historicalAudit.last_audit).toLocaleString()}</p></div><div className="flex gap-2"><Button variant="outline" onClick={() => openHistoricalAudit(historicalAudit)}>Open audit</Button><Button onClick={() => continueSelectedAudit(historicalAudit)}>Improve / Continue</Button></div></div><details className="mt-4"><summary className="cursor-pointer text-xs text-zinc-500">View evidence</summary><div className="mt-4"><AuditResults audit={historicalAudit} /></div></details></div>)}
         </div>
       </details>}
     </Page>

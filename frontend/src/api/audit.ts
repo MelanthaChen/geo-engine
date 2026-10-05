@@ -212,6 +212,13 @@ export async function fetchLatestWebsiteAudit(propertyId: number) {
   return response.data;
 }
 
+export async function fetchWebsiteAuditHistory(propertyId: number) {
+  const response = await apiClient.get<AuditResult[]>("/api/v1/audit/history", {
+    params: { property_id: propertyId },
+  });
+  return response.data;
+}
+
 export async function fetchWebsiteAudit(propertyId: number, auditId: number) {
   const response = await apiClient.get<AuditResult>(
     `/api/v1/audit/${auditId}`,
