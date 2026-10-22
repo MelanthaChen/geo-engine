@@ -38,6 +38,11 @@ external/MediaCrawler/
 
 # Database
 *.sqlite3
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+backend/tmp_reddit_profile/
 
 # Official benchmark cache
 backend/experiment_dataset/
