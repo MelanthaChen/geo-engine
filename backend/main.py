@@ -49,6 +49,7 @@ from app.api.v1.provider_routes import (
 )
 from app.predictor.router import router as predictor_router
 from app.teacher_pipeline.router import router as teacher_pipeline_router
+from app.api.v1.integration_routes import router as integration_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -135,3 +136,4 @@ app.include_router(benchmark_router)
 app.include_router(provider_router)
 app.include_router(predictor_router)
 app.include_router(teacher_pipeline_router)
+app.include_router(integration_router)

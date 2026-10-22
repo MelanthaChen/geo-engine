@@ -3,6 +3,12 @@ __pycache__/
 *.pyc
 .env
 .env.local
+.env.*
+!.env.local.example
+*.pem
+*.key
+credentials/
+secrets/
 .local/
 venv/
 
