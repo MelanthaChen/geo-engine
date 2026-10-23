@@ -60,7 +60,17 @@ def run_research_pipeline(
 
     def run_audit(db_session, property_record):
         nonlocal audit_object
-        audit_object = (audit_runner or run_website_audit)(db_session, property_record)
+        if audit_runner:
+            audit_object = audit_runner(db_session, property_record)
+        else:
+            # Render Free staging does not guarantee a Chromium executable.
+            # Controlled fixtures remain bounded and evidence-based through
+            # the HTTP-first audit path; production audit policy is unchanged.
+            audit_object = run_website_audit(
+                db_session,
+                property_record,
+                browser_fallback_enabled=not allow_controlled_fixture,
+            )
         return audit_object
 
     audit = adapter.run_read_only_audit(profile, audit_runner=run_audit)

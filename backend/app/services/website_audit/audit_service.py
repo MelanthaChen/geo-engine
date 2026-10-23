@@ -26,6 +26,8 @@ from app.services.website_audit.profile import (
 def run_website_audit(
     db: Session,
     property_record: Property,
+    *,
+    browser_fallback_enabled: bool | None = None,
 ) -> WebsiteAudit:
     base_url = normalize_base_url(property_record.domain)
     crawl_result = crawl_website(
@@ -36,7 +38,11 @@ def run_website_audit(
     )
     candidate_pages = extract_audit_pages(
         crawl_result.responses,
-        browser_enabled=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED,
+        browser_enabled=(
+            settings.WEBSITE_AUDIT_BROWSER_FALLBACK_ENABLED
+            if browser_fallback_enabled is None
+            else browser_fallback_enabled
+        ),
         browser_timeout_ms=settings.WEBSITE_AUDIT_BROWSER_TIMEOUT_MS,
         browser_concurrency=settings.WEBSITE_AUDIT_BROWSER_CONCURRENCY,
         browser_fallback_limit=settings.WEBSITE_AUDIT_BROWSER_FALLBACK_LIMIT,
