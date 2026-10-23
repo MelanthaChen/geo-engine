@@ -17,6 +17,8 @@ from app.integration.contracts import (
 from app.integration.store import AppendOnlyJsonlStore
 from app.integration.lifecycle import question_set, now, MonitoringPlan, LIFECYCLE
 from app.models.property import Property
+from app.models.query import Query
+from app.models.experiment import Experiment
 from app.services.property_service import create_property
 from app.services.website_audit.audit_service import run_website_audit, serialize_audit
 
@@ -177,4 +179,86 @@ class GeoResearchIntegrationAdapter:
         # Duplicate receipts are retained as a replay-safe no-op at the adapter boundary.
         if not any(item.get("record_id") == record["record_id"] for item in self.store.records("deployment_receipt")):
             self.store.append("deployment_receipt", record)
+        return record
+
+    def create_query_universe(self, *, profile: dict[str, Any], questions: list[str]) -> dict[str, Any]:
+        """Persist a deterministic query universe without invoking a provider."""
+        property_id = profile.get("property_id")
+        query_ids = []
+        for text in questions:
+            existing = self.db.query(Query).filter(Query.query_text == text).first()
+            if existing is None:
+                existing = Query(
+                    property_id=property_id,
+                    category=profile.get("official_name", "company"),
+                    niche=profile.get("official_name", "company"),
+                    query_text=text,
+                    query_type="controlled_fixture",
+                )
+                self.db.add(existing)
+                self.db.flush()
+            query_ids.append(existing.id)
+        self.db.commit()
+        record = {
+            "contract_version": "geo-research-integration/v1",
+            "record_type": "query_universe_reference",
+            "schema_version": "geo-research-integration/v1",
+            "record_id": f"query-universe:{profile['source_profile_id']}:{profile['source_profile_version']}",
+            "source_profile_id": profile["source_profile_id"],
+            "source_profile_version": profile["source_profile_version"],
+            "property_id": property_id,
+            "query_ids": query_ids,
+            "queries": questions,
+            "status": "READY",
+            "created_at": utc_now(),
+            "provenance": {"source_system": "geo-engine", "provider": "CONTROLLED_FIXTURE"},
+        }
+        if not any(item.get("record_id") == record["record_id"] for item in self.store.records("query_universe_reference")):
+            self.store.append("query_universe_reference", record)
+        return record
+
+    def record_baseline(self, *, profile: dict[str, Any], experiment_id: int | str, results: dict[str, Any]) -> dict[str, Any]:
+        """Persist a baseline reference; provider results are supplied by the caller."""
+        record = {
+            "contract_version": "geo-research-integration/v1",
+            "record_type": "baseline_experiment_reference",
+            "schema_version": "geo-research-integration/v1",
+            "record_id": f"baseline:{profile['source_profile_id']}:{experiment_id}",
+            "source_profile_id": profile["source_profile_id"],
+            "source_profile_version": profile["source_profile_version"],
+            "property_id": profile.get("property_id"),
+            "experiment_id": experiment_id,
+            "status": "COMPLETED",
+            "results_present": bool(results),
+            "results": results,
+            "created_at": utc_now(),
+            "provenance": {"source_system": "geo-engine", "provider": results.get("provider", "CONTROLLED_FIXTURE")},
+        }
+        if not any(item.get("record_id") == record["record_id"] for item in self.store.records("baseline_experiment_reference")):
+            self.store.append("baseline_experiment_reference", record)
+        return record
+
+    def export_research_result(self, *, profile: dict[str, Any], audit_reference: dict[str, Any], strategies: dict[str, Any], question_set_reference: dict[str, Any] | None, baseline_reference: dict[str, Any] | None, post_deployment_reference: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Persist the complete result envelope for authenticated Outreach retrieval."""
+        record = {
+            "contract_version": "geo-research-integration/v1",
+            "record_type": "research_result_export",
+            "schema_version": "geo-research-integration/v1",
+            "record_id": f"research-result:{profile['source_profile_id']}:{profile['source_profile_version']}",
+            "source_profile_id": profile["source_profile_id"],
+            "source_profile_version": profile["source_profile_version"],
+            "property_id": profile.get("property_id"),
+            "audit_reference": audit_reference,
+            "strategies": strategies.get("strategies", [])[:3],
+            "question_set_reference": question_set_reference,
+            "baseline_reference": baseline_reference,
+            "post_deployment_reference": post_deployment_reference,
+            "exported_at": utc_now(),
+            "provenance": {"source_system": "geo-engine", "research_scope": "public_website_analysis"},
+        }
+        validate_record("research_result_export", record)
+        existing = next((item for item in self.store.records("research_result_export") if item.get("record_id") == record["record_id"]), None)
+        if existing:
+            return existing
+        self.store.append("research_result_export", record)
         return record

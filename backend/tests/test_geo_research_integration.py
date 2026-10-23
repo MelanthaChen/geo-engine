@@ -8,8 +8,11 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401
 from app.core.database import Base
 from app.integration.adapter import GeoResearchIntegrationAdapter
+from app.integration.research_pipeline import run_research_pipeline
 from app.integration.contracts import normalize_profile_import, validate_record
 from app.models.property import Property
+from app.models.query import Query
+from app.models.experiment import Experiment
 
 
 def session():
@@ -119,5 +122,56 @@ def test_duplicate_deployment_receipts_are_not_appended_twice(tmp_path):
                   "baseline_experiment_reference":None, "post_deployment_experiment_reference":None}
         adapter.record_deployment(**fields); adapter.record_deployment(**fields)
         assert len(adapter.store.records("deployment_receipt")) == 1
+    finally:
+        db.close(); engine.dispose()
+
+
+def test_controlled_research_pipeline_persists_all_stages_and_is_idempotent(tmp_path, monkeypatch):
+    engine, db = session()
+    try:
+        adapter_profile = profile("controlled-pipeline", "owner_controlled_test", "https://pipeline.example")
+
+        class FakePage:
+            id = 8
+            url = "https://pipeline.example/"
+            content_sha256 = "fixture-page-hash"
+            extraction_failure_reason = None
+
+        class FakeRecommendation:
+            id = 22
+            priority = "high"
+            affected_page_count = 1
+            suggested_strategy = "entity_clarity"
+            category = "entity_clarity"
+            title = "Clarify the entity"
+            evidence_url = "https://pipeline.example/"
+            observed_evidence = "Observed fixture evidence"
+
+        class FakeAudit:
+            id = 12
+            property_id = 1
+            status = "completed"
+            base_url = "https://pipeline.example"
+            pages = [FakePage()]
+            recommendations = [FakeRecommendation()]
+
+        def audit_runner(_db, property_record):
+            FakeAudit.property_id = property_record.id
+            return FakeAudit()
+
+        monkeypatch.setattr("app.integration.adapter.serialize_audit", lambda audit, prop: {
+            "id": audit.id, "property_id": prop.id, "website_url": audit.base_url,
+            "status": audit.status, "pages": [{"id": 8, "url": FakePage.url, "content_sha256": FakePage.content_sha256, "extraction_failure_reason": None}],
+        })
+        first = run_research_pipeline(db, profile=adapter_profile, store_root=str(tmp_path), audit_runner=audit_runner, allow_controlled_fixture=True)
+        second = run_research_pipeline(db, profile=adapter_profile, store_root=str(tmp_path), audit_runner=audit_runner, allow_controlled_fixture=True)
+        assert first["status"] == "COMPLETED"
+        assert first["idempotent"] is False
+        assert second["idempotent"] is True
+        assert first["property_id"] == second["result"]["property_id"]
+        assert db.query(Property).count() == 1
+        assert db.query(Query).count() == 4
+        assert db.query(Experiment).count() == 1
+        assert len(GeoResearchIntegrationAdapter(db, tmp_path).store.records("research_result_export")) == 1
     finally:
         db.close(); engine.dispose()
