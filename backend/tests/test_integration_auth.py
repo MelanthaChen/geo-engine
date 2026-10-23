@@ -13,7 +13,7 @@ def test_integration_auth_accepts_bearer_or_proxy_safe_header(monkeypatch):
     assert client.get(path, headers={"X-GEO-Engine-Handoff-Token": "test-secret"}).status_code == 404
 
 
-def test_integration_auth_does_not_accept_malformed_proxy_header(monkeypatch):
+def test_integration_auth_accepts_bearer_value_in_proxy_header(monkeypatch):
     monkeypatch.setenv("GEO_ENGINE_HANDOFF_TOKEN", "test-secret")
     client = TestClient(app)
     response = client.get(
