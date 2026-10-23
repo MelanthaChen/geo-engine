@@ -80,7 +80,11 @@ def normalize_profile_import(source: dict[str, Any], received_at: str | None = N
     valid_until = consent.get("valid_until")
     if valid_until and datetime.fromisoformat(str(valid_until).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
         raise ConsentError("research consent is expired")
-    canonical_url = CANONICAL_GEOAIRESUME_URL if entity_type == "owner_controlled_test" else official_url.rstrip("/")
+    # Owner-controlled fixtures may represent different isolated demo sites.
+    # Preserve the supplied URL so one fixture cannot be silently mapped to
+    # another fixture's Property. GeoAIResume remains unchanged when supplied
+    # as the source URL.
+    canonical_url = official_url.rstrip("/")
     classifications = source.get("classifications") or []
     cohort = source.get("cohort_membership") or source.get("cohort_memberships") or {}
     if isinstance(cohort, dict):

@@ -84,6 +84,19 @@ def test_owner_controlled_test_is_excluded_and_canonical_demo_is_not_duplicated(
         db.close(); engine.dispose()
 
 
+def test_owner_controlled_fixture_preserves_noncanonical_demo_domain(tmp_path):
+    engine, db = session()
+    try:
+        result = GeoResearchIntegrationAdapter(db, tmp_path).import_profile(
+            profile("whisker-demo", "owner_controlled_test", "https://whisker-haven-demo.vercel.app/"))
+        assert result["formal_cohort_memberships"] == []
+        assert result["property_domain"] == "whisker-haven-demo.vercel.app"
+        assert db.query(Property).count() == 1
+        assert db.query(Property).first().domain == "whisker-haven-demo.vercel.app"
+    finally:
+        db.close(); engine.dispose()
+
+
 def test_audit_failure_is_saved_with_missing_evidence_state(tmp_path):
     engine, db = session()
     try:
