@@ -119,6 +119,8 @@ def run_owner_research_pipeline(
     store_root: str,
     audit_id: int,
     opportunity_id: int,
+    durable_store=None,
+    resume_incomplete: bool = False,
 ) -> dict[str, Any]:
     """Run real model research against an existing, consented Audit opportunity.
 
@@ -141,7 +143,7 @@ def run_owner_research_pipeline(
     consent = profile.get("consent") or {}
     if str(consent.get("status", "")).upper() != "VERIFIED":
         raise ResearchPipelineBlocked("research pipeline requires verified consent")
-    adapter = GeoResearchIntegrationAdapter(db, store_root)
+    adapter = GeoResearchIntegrationAdapter(db, store_root, store=durable_store)
     imported = adapter.import_profile(profile)
     if int(imported["property_id"]) != int(profile.get("property_id") or 0):
         raise ResearchPipelineBlocked("consented profile does not map to its handed-off GEO property")
@@ -208,6 +210,17 @@ def run_owner_research_pipeline(
     if prior_experiment:
         if prior_experiment.status == "completed" and prior_experiment.run_count:
             experiment = prior_experiment
+        elif prior_experiment.status in {"queued", "running", "failed"} and resume_incomplete:
+            # The durable caller holds a cross-process advisory lock. Resume the
+            # SAME experiment after an interrupted request; never create another.
+            service = ExperimentService(repository=repository)
+            if int(prior_experiment.run_count or 0) >= 2:
+                repository.mark_completed(prior_experiment)
+                experiment = prior_experiment
+            elif not prior_experiment.runs:
+                experiment = service.execute_experiment(prior_experiment.id)
+            else:
+                raise ResearchPipelineBlocked("Partial model records require reconciliation; no duplicate model runs were created")
         elif prior_experiment.status in {"queued", "running"}:
             return {"status": "RUNNING", "property_id": imported["property_id"], "experiment_id": prior_experiment.id, "idempotent": True}
         else:

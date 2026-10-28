@@ -119,3 +119,39 @@ async def run_controlled_research(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except (NewWebsiteValidationError, SearchProviderError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get('/outreach-capabilities')
+def outreach_capabilities(authorization: str | None = Header(default=None)):
+    if not _authorized(authorization):
+        raise HTTPException(status_code=401,detail='authenticated service token required')
+    return {'contract':'outreach-durable/v1','durable_jobs':True,'real_model_research':True}
+
+
+@router.post('/outreach-jobs')
+def create_outreach_job(profile: dict, authorization: str | None = Header(default=None), idempotency_key: str = Header(alias='Idempotency-Key')):
+    if not _authorized(authorization):
+        raise HTTPException(status_code=401,detail='authenticated service token required')
+    from app.integration.durable_outreach import submit
+    try:
+        with SessionLocal() as db:return submit(db,idempotency_key,profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
+
+
+@router.get('/outreach-jobs/{job_key:path}')
+def read_outreach_job(job_key: str, authorization: str | None = Header(default=None)):
+    if not _authorized(authorization):
+        raise HTTPException(status_code=401,detail='authenticated service token required')
+    from app.integration.durable_outreach import get_job
+    with SessionLocal() as db:result=get_job(db,job_key)
+    if result is None:raise HTTPException(status_code=404,detail='research job not found')
+    return result
+
+
+@router.post('/outreach-advance/{job_key:path}')
+def advance_outreach_job(job_key: str, authorization: str | None = Header(default=None)):
+    if not _authorized(authorization):
+        raise HTTPException(status_code=401,detail='authenticated service token required')
+    from app.integration.durable_outreach import advance
+    with SessionLocal() as db:return advance(db,job_key)

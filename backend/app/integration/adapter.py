@@ -24,9 +24,9 @@ from app.services.website_audit.audit_service import run_website_audit, serializ
 
 
 class GeoResearchIntegrationAdapter:
-    def __init__(self, db: Session, store_root: str | Path):
+    def __init__(self, db: Session, store_root: str | Path, *, store=None):
         self.db = db
-        self.store = AppendOnlyJsonlStore(store_root)
+        self.store = store if store is not None else AppendOnlyJsonlStore(store_root)
 
     def import_profile(self, source_profile: dict[str, Any]) -> dict[str, Any]:
         normalized = normalize_profile_import(source_profile)
