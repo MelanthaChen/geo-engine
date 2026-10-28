@@ -9,6 +9,7 @@ from app.integration.adapter import GeoResearchIntegrationAdapter
 from app.integration.research_pipeline import ResearchPipelineBlocked, run_owner_research_pipeline
 from app.ge.search_provider import SearchProviderError
 from app.experiment.new_website_validation import NewWebsiteValidationError
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/integration", tags=["Integration"])
 
@@ -125,7 +126,25 @@ async def run_controlled_research(
 def outreach_capabilities(authorization: str | None = Header(default=None)):
     if not _authorized(authorization):
         raise HTTPException(status_code=401,detail='authenticated service token required')
-    return {'contract':'outreach-durable/v1','durable_jobs':True,'real_model_research':True}
+    search_provider = settings.SEARCH_PROVIDER
+    search_credentials = {
+        'exa': bool(settings.EXA_API_KEY),
+        'brave': bool(settings.BRAVE_SEARCH_API_KEY),
+        'google': bool(settings.GOOGLE_SEARCH_API_KEY and settings.GOOGLE_SEARCH_ENGINE_ID),
+    }.get(search_provider, False)
+    model_credentials = bool(settings.OPENAI_API_KEY)
+    enabled = os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED', '').lower() == 'true'
+    return {
+        'contract': 'outreach-durable/v1',
+        'durable_jobs': True,
+        'research_execution_enabled': enabled,
+        'model_provider': 'openai',
+        'model_credentials_configured': model_credentials,
+        'search_provider': search_provider,
+        'search_credentials_configured': search_credentials,
+        'provider_connectivity_verified': False,
+        'research_ready': enabled and model_credentials and search_credentials,
+    }
 
 
 @router.post('/outreach-jobs')

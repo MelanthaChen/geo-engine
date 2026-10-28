@@ -34,3 +34,22 @@ def test_durable_results_do_not_depend_on_files_or_old_profile_versions(db):
     assert len(DurableStore(db).records('research_result_export'))==1
     assert store.find_profile('fresh-owner','old-invitation') is None
     assert get_job(db,'unknown') is None
+
+def test_capability_status_does_not_claim_a_paid_research_run(monkeypatch):
+    monkeypatch.setenv('APP_ENV', 'test')
+    monkeypatch.setenv('DATABASE_URL', 'sqlite://')
+    monkeypatch.setenv('OPENAI_API_KEY', 'configured-but-not-tested')
+    from app.api.v1.integration_routes import outreach_capabilities
+    from app.core.config import settings
+    monkeypatch.setenv('GEO_ENGINE_HANDOFF_TOKEN', 'test-service-token')
+    monkeypatch.delenv('GEO_OUTREACH_RESEARCH_ENABLED', raising=False)
+    monkeypatch.setattr(settings, 'OPENAI_API_KEY', 'configured-but-not-tested')
+    monkeypatch.setattr(settings, 'SEARCH_PROVIDER', 'exa')
+    monkeypatch.setattr(settings, 'EXA_API_KEY', 'configured-but-not-tested')
+    status = outreach_capabilities('Bearer test-service-token')
+    assert status['durable_jobs'] is True
+    assert status['model_credentials_configured'] is True
+    assert status['search_credentials_configured'] is True
+    assert status['provider_connectivity_verified'] is False
+    assert status['research_execution_enabled'] is False
+    assert status['research_ready'] is False
