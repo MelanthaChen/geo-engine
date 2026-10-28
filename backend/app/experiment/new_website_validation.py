@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.url_identity import canonical_url_identity
 from app.ge.search_provider import (
     provider_id,
     retrieval_result_ledger,
@@ -45,7 +46,14 @@ class NewWebsiteValidationBuilder:
         # ruled out.
         self.search_provider = search_provider
 
-    def build(self, *, property_id: int, audit_id: int, opportunity_id: int) -> dict:
+    def build(
+        self,
+        *,
+        property_id: int,
+        audit_id: int,
+        opportunity_id: int,
+        use_frozen_demo_pack: bool = True,
+    ) -> dict:
         audit = (
             self.db.query(WebsiteAudit)
             .options(
@@ -73,7 +81,7 @@ class NewWebsiteValidationBuilder:
                 "The requested optimization opportunity does not belong to this audit."
             )
 
-        if is_demo_property(audit.property):
+        if use_frozen_demo_pack and is_demo_property(audit.property):
             return self._build_demo_pack(audit, recommendation)
 
         search_provider = self.search_provider or build_search_provider()
@@ -87,21 +95,27 @@ class NewWebsiteValidationBuilder:
             retrieved_at,
         )
 
-        target_page, target_rank, target_status = resolve_audited_target(
-            audit, query, candidates, recommendation
-        )
+        natural = self._resolve_natural_target(audit, candidates)
+        if natural is not None:
+            target_page, target, target_rank, target_status = natural
+        else:
+            target_page, target_rank, target_status = resolve_audited_target(
+                audit, query, candidates, recommendation
+            )
+            target = None
         if target_page is None:
             return self._content_gap_result(audit, recommendation, query, evidence, candidates)
         target_url = target_page.url
-        target = extract_page(fetch_page(target_url, timeout_seconds=20))
-        if target.status_code != 200 or not target.body_text.strip():
-            raise NewWebsiteValidationError(
-                f"Audited target page could not be snapshotted: {target_url} "
-                f"(HTTP {target.status_code or 'unavailable'})."
-            )
+        if target is None:
+            target = extract_page(fetch_page(target_url, timeout_seconds=20))
+            if target.status_code != 200 or not target.body_text.strip():
+                raise NewWebsiteValidationError(
+                    f"Audited target page could not be snapshotted: {target_url} "
+                    f"(HTTP {target.status_code or 'unavailable'})."
+                )
 
         evidence.update({
-            "target_page_id": target_page.id,
+            "target_page_id": getattr(target_page, "id", None),
             "target_page_url": target_page.url,
             "target_retrieval_rank": target_rank,
         })
@@ -141,7 +155,11 @@ class NewWebsiteValidationBuilder:
             "source_role": "audited_target",
             "content_sha256": self._sha256(target.body_text),
             **common,
-            "retrieval_provider": "injected_for_controlled_experiment",
+            "retrieval_provider": (
+                retrieval_provider
+                if target_status == "retrieved_by_provider"
+                else "injected_for_controlled_experiment"
+            ),
         }]
         documents.extend({
             "rank": index,
@@ -159,7 +177,7 @@ class NewWebsiteValidationBuilder:
             "retrieval_query": query,
             "retrieval_results": retrieval_result_ledger(candidates),
             "target_retrieval_status": target_status,
-            "target_page_id": target_page.id,
+            "target_page_id": getattr(target_page, "id", None),
             "target_retrieval_rank": target_rank,
             "source_order": [document["url"] for document in documents],
             "source_snapshot_hashes": [
@@ -186,7 +204,7 @@ class NewWebsiteValidationBuilder:
                 "retrieval_query": query,
                 "retrieval_results": retrieval_result_ledger(candidates),
                 "target_retrieval_status": target_status,
-                "target_page_id": target_page.id,
+                "target_page_id": getattr(target_page, "id", None),
                 "target_retrieval_rank": target_rank,
             },
         }
@@ -268,6 +286,26 @@ class NewWebsiteValidationBuilder:
             },
         }
 
+    def _resolve_natural_target(self, audit, candidates):
+        target_host = self._host(audit.property.domain or audit.base_url)
+        pages_by_url = {
+            canonical_url_identity(page.url): page
+            for page in audit.pages
+        }
+        for candidate in sorted(candidates, key=lambda item: item.rank):
+            if self._host(candidate.url) != target_host:
+                continue
+            snapshot = extract_page(fetch_page(candidate.url, timeout_seconds=20))
+            if snapshot.status_code is None or not 200 <= snapshot.status_code < 300:
+                continue
+            if not snapshot.body_text.strip():
+                continue
+            page = pages_by_url.get(canonical_url_identity(candidate.url))
+            if page is None:
+                page = type("RetrievedTargetPage", (), {"id": None, "url": candidate.url})()
+            return page, snapshot, candidate.rank, "retrieved_by_provider"
+        return None
+
     @staticmethod
     def _select_target_page(audit, recommendation, candidates):
         """Compatibility wrapper for focused callers; resolution remains query-first."""
@@ -295,7 +333,9 @@ class NewWebsiteValidationBuilder:
 
     @staticmethod
     def _host(url: str) -> str:
-        return urlparse(url).netloc.lower().removeprefix("www.")
+        value = url.strip()
+        parsed = urlparse(value if "://" in value else f"https://{value}")
+        return (parsed.hostname or "").lower().removeprefix("www.")
 
     @staticmethod
     def _sha256(text: str) -> str:

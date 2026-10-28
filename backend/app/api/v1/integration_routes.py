@@ -1,8 +1,4 @@
-"""Authenticated, registration-only integration endpoint.
-
-This endpoint deliberately calls only ``GeoResearchIntegrationAdapter.import_profile``.
-It never starts audits, experiments, citation tests, deployments, or monitoring.
-"""
+"""Authenticated property handoff and owner-consented GEO research integration."""
 
 import hmac
 import os
@@ -10,9 +6,26 @@ import os
 from fastapi import APIRouter, Header, HTTPException, Query
 from app.core.database import SessionLocal
 from app.integration.adapter import GeoResearchIntegrationAdapter
-from app.integration.research_pipeline import ResearchPipelineBlocked, run_research_pipeline
+from app.integration.research_pipeline import ResearchPipelineBlocked, run_owner_research_pipeline
+from app.ge.search_provider import SearchProviderError
+from app.experiment.new_website_validation import NewWebsiteValidationError
 
 router = APIRouter(prefix="/api/v1/integration", tags=["Integration"])
+
+OWNER_RESEARCH_TARGETS = {
+    "geoairesume-owner-test-v1": {
+        "hostname": "geo-ai-resume.vercel.app",
+        "property_id": 2,
+        "audit_id": 7,
+        "opportunity_id": 3,
+    },
+    "whisker-haven-owner-demo-20261023-v1": {
+        "hostname": "whisker-haven-demo.vercel.app",
+        "property_id": 3,
+        "audit_id": 6,
+        "opportunity_id": 1,
+    },
+}
 
 
 def _authorized(authorization: str | None, handoff_token: str | None = None) -> bool:
@@ -73,29 +86,36 @@ async def run_controlled_research(
     authorization: str | None = Header(default=None),
     handoff_token: str | None = Header(default=None, alias="X-GEO-Engine-Handoff-Token"),
 ):
-    """Run the existing controlled fixture pipeline for an owner-approved site.
-
-    This route is intentionally authenticated and requires an explicit
-    ``controlled_fixture`` flag.  It does not accept provider credentials,
-    start paid evaluations, deploy content, or enable monitoring.  The route
-    exists so a staging acceptance runner can exercise the same persisted GEO
-    Engine pipeline used by local integration tests.
-    """
+    """Run live GEO research for one of the exact handed-off owner fixtures."""
     if not _authorized(authorization, handoff_token):
         raise HTTPException(status_code=401, detail="authenticated research token required")
-    if profile.get("profile_type") != "owner_controlled_test" or profile.get("controlled_fixture") is not True:
-        raise HTTPException(status_code=403, detail="controlled fixture execution required")
+    if profile.get("profile_type") != "owner_controlled_test" or profile.get("controlled_fixture") is True:
+        raise HTTPException(status_code=403, detail="an owner-controlled profile without fixture mode is required")
     if str(os.environ.get("APP_ENV", "")).lower() not in {"test", "staging", "development"}:
-        raise HTTPException(status_code=403, detail="controlled research route is not enabled in production")
-    profile.pop("controlled_fixture", None)
+        raise HTTPException(status_code=403, detail="owner research execution is not enabled in production")
+    target = OWNER_RESEARCH_TARGETS.get(str(profile.get("profile_id") or ""))
+    identity = profile.get("identity") or {}
+    from urllib.parse import urlparse
+    hostname = (urlparse(str(identity.get("website") or "")).hostname or "").lower()
+    if not target or hostname != target["hostname"]:
+        raise HTTPException(status_code=403, detail="profile is outside the owner-research allowlist")
+    if int(profile.get("property_id") or 0) != target["property_id"]:
+        raise HTTPException(status_code=403, detail="handed-off GEO property does not match the owner-research allowlist")
+    if int(profile.get("audit_id") or 0) != target["audit_id"] or int(profile.get("opportunity_id") or 0) != target["opportunity_id"]:
+        raise HTTPException(status_code=403, detail="Audit and Opportunity must match the verified owner fixture records")
+    if str((profile.get("consent") or {}).get("status") or "").upper() != "VERIFIED":
+        raise HTTPException(status_code=403, detail="verified owner consent is required")
     store_root = os.environ.get("GEO_ENGINE_INTEGRATION_STORE", ".integration-data")
     try:
         with SessionLocal() as db:
-            return run_research_pipeline(
+            return run_owner_research_pipeline(
                 db,
                 profile=profile,
                 store_root=store_root,
-                allow_controlled_fixture=True,
+                audit_id=target["audit_id"],
+                opportunity_id=target["opportunity_id"],
             )
     except ResearchPipelineBlocked as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (NewWebsiteValidationError, SearchProviderError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

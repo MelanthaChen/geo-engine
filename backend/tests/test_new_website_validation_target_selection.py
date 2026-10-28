@@ -82,7 +82,7 @@ def audit(pages, evidence_url=None):
         base_url="https://example.com/",
         brand_summary="Example",
         product_summary="Revuelto SV",
-        property=SimpleNamespace(name="Example", brand_name="Example"),
+        property=SimpleNamespace(name="Example", brand_name="Example", domain="example.com"),
         pages=pages,
         recommendations=[recommendation],
     ), recommendation
@@ -183,6 +183,43 @@ def test_build_preserves_raw_retrieval_before_same_domain_reference_filter(monke
         "https://reference-three.example/source",
         "https://reference-four.example/source",
     ]
+
+
+def test_natural_target_not_in_audit_inventory_is_fetched_and_kept(monkeypatch):
+    pages = [page(8, "https://example.com/home", "Homepage")]
+    audit_row, recommendation = audit(pages)
+    candidates = [
+        candidate(1, "https://example.com/revuelto-sv", "Revuelto SV"),
+        candidate(2, "https://other.example/reference"),
+    ]
+    snapshots = {
+        "https://example.com/revuelto-sv": SimpleNamespace(
+            status_code=200, body_text="Revuelto SV details", page_title="Revuelto SV", h1="Revuelto SV", url="https://example.com/revuelto-sv"
+        )
+    }
+    monkeypatch.setattr("app.experiment.new_website_validation.fetch_page", lambda url, **_kwargs: url)
+    monkeypatch.setattr("app.experiment.new_website_validation.extract_page", lambda response: snapshots[response])
+    result = NewWebsiteValidationBuilder(DB(audit_row), Provider(candidates + [candidate(3, "https://ref-three.example/source"), candidate(4, "https://ref-four.example/source"), candidate(5, "https://ref-five.example/source")] )).build(property_id=7, audit_id=4, opportunity_id=9)
+    assert result["metadata"]["target_url"] == "https://example.com/revuelto-sv"
+    assert result["metadata"]["target_retrieval_status"] == "retrieved_by_provider"
+    assert result["metadata"]["target_retrieval_rank"] == 1
+    assert result["metadata"]["target_page_id"] is None
+
+
+def test_failed_rank_one_target_uses_next_valid_same_domain_result(monkeypatch):
+    audit_row, _ = audit([page(8, "https://example.com/home", "Homepage")])
+    candidates = [candidate(1, "https://example.com/broken"), candidate(2, "https://example.com/revuelto-sv")]
+    valid = SimpleNamespace(status_code=200, body_text="Revuelto SV details", page_title="Revuelto SV", h1="Revuelto SV", url="https://example.com/revuelto-sv")
+    def fetch(url, **_kwargs):
+        return url
+    def extract(url):
+        return valid if url.endswith("revuelto-sv") else SimpleNamespace(status_code=404, body_text="", page_title=None, h1=None, url=url)
+    monkeypatch.setattr("app.experiment.new_website_validation.fetch_page", fetch)
+    monkeypatch.setattr("app.experiment.new_website_validation.extract_page", extract)
+    provider = Provider(candidates + [candidate(3, "https://one.example/source"), candidate(4, "https://two.example/source"), candidate(5, "https://three.example/source"), candidate(6, "https://four.example/source")])
+    result = NewWebsiteValidationBuilder(DB(audit_row), provider).build(property_id=7, audit_id=4, opportunity_id=9)
+    assert result["metadata"]["target_url"] == "https://example.com/revuelto-sv"
+    assert result["metadata"]["target_retrieval_rank"] == 2
 
 
 def test_build_returns_content_gap_without_a_real_target(monkeypatch):

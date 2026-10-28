@@ -238,7 +238,7 @@ class GeoResearchIntegrationAdapter:
             self.store.append("baseline_experiment_reference", record)
         return record
 
-    def export_research_result(self, *, profile: dict[str, Any], audit_reference: dict[str, Any], strategies: dict[str, Any], question_set_reference: dict[str, Any] | None, baseline_reference: dict[str, Any] | None, post_deployment_reference: dict[str, Any] | None = None) -> dict[str, Any]:
+    def export_research_result(self, *, profile: dict[str, Any], audit_reference: dict[str, Any], strategies: dict[str, Any], question_set_reference: dict[str, Any] | None, baseline_reference: dict[str, Any] | None, post_deployment_reference: dict[str, Any] | None = None, research_details: dict[str, Any] | None = None) -> dict[str, Any]:
         """Persist the complete result envelope for authenticated Outreach retrieval."""
         record = {
             "contract_version": "geo-research-integration/v1",
@@ -256,6 +256,7 @@ class GeoResearchIntegrationAdapter:
             "exported_at": utc_now(),
             "provenance": {"source_system": "geo-engine", "research_scope": "public_website_analysis"},
         }
+        record.update(research_details or {})
         validate_record("research_result_export", record)
         existing = next((item for item in self.store.records("research_result_export") if item.get("record_id") == record["record_id"]), None)
         if existing:
