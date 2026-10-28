@@ -73,6 +73,7 @@ def advance(db,key):
     from app.models.website_audit import WebsiteAudit
     from app.models.property import Property
     from app.services.website_audit.audit_service import run_website_audit
+    from app.experiment.token_usage_profiler import ProviderBudgetBlocked
     if db.bind.dialect.name!='postgresql':raise RuntimeError('Live research requires PostgreSQL advisory locks')
     lock=int.from_bytes(hashlib.sha256(key.encode()).digest()[:8],'big',signed=True)
     with db.bind.connect() as guard:
@@ -81,8 +82,11 @@ def advance(db,key):
             row=db.execute(select(job_table).where(job_table.c.id==key)).mappings().first()
             if not row:raise LookupError('Research job not found')
             if row['status']=='COMPLETED':return public(row)
-            if os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED')!='true':
-                update(db,key,status='BLOCKED_CONFIGURATION',error='Unattended read-only GEO research is not enabled');return get_job(db,key)
+            exact_test_key='outreach-v2:inv-45e793f424654bb4a1b744cd25e95855'
+            if (key!=exact_test_key
+                or os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED')!='true'
+                or os.environ.get('GEO_OUTREACH_RESEARCH_JOB_ID')!=exact_test_key):
+                update(db,key,status='BLOCKED_CONFIGURATION',error='Single-job GEO execution is disabled or the exact job allowlist does not match');return get_job(db,key)
             profile=json.loads(row['profile']);store=DurableStore(db)
             update(db,key,status='RUNNING',error=None)
             # Property creation and durable profile mapping are serialized by website
@@ -100,13 +104,16 @@ def advance(db,key):
             if audit_time and audit_time.tzinfo is None:audit_time=audit_time.replace(tzinfo=timezone.utc)
             if not audit or not audit_time or audit_time<cutoff or urlparse(audit.base_url).hostname!=urlparse(profile['identity']['website']).hostname:
                 prop=db.get(Property,property_id)
-                audit=run_website_audit(db,prop,browser_fallback_enabled=False)
+                audit=run_website_audit(db,prop,browser_fallback_enabled=False,
+                    max_pages=10,candidate_pages=10,sample_pages=10)
             if audit.status!='completed':raise RuntimeError('Website audit did not complete')
             opportunities=sorted([r for r in audit.recommendations if r.observed_evidence],key=lambda r:r.id)
             if not opportunities:raise ResearchPipelineBlocked('No evidence-backed optimization opportunity is available')
             opportunity=opportunities[0];update(db,key,audit_id=audit.id,opportunity_id=opportunity.id)
-            outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',
-                audit_id=audit.id,opportunity_id=opportunity.id,durable_store=store,resume_incomplete=True)
+            from app.experiment.token_usage_profiler import OutreachProviderBudget
+            with OutreachProviderBudget(store,key):
+                outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',
+                    audit_id=audit.id,opportunity_id=opportunity.id,durable_store=store,resume_incomplete=True)
             if outcome.get('status')=='COMPLETED':
                 result=outcome['result'];baseline=result.get('baseline') or {}
                 if not baseline.get('results') or int(baseline.get('model_calls') or 0)<2 or str(baseline.get('provider','')).lower() in {'','mock','controlled_fixture'}:
@@ -114,6 +121,8 @@ def advance(db,key):
                 update(db,key,status='COMPLETED',result=encoded(result),experiment_id=outcome.get('experiment_id'),error=None)
             else:update(db,key,status='RUNNING',experiment_id=outcome.get('experiment_id'))
         except ResearchPipelineBlocked as exc:
+            db.rollback();update(db,key,status='BLOCKED_CONFIGURATION',error=str(exc)[:400])
+        except ProviderBudgetBlocked as exc:
             db.rollback();update(db,key,status='BLOCKED_CONFIGURATION',error=str(exc)[:400])
         except Exception as exc:
             db.rollback();update(db,key,status='RETRY_PENDING',error=type(exc).__name__+' during GEO research; existing job preserved')

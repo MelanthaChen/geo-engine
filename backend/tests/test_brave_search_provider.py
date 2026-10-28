@@ -62,7 +62,7 @@ def test_brave_preserves_result_order_and_request_contract(monkeypatch):
     assert captured["headers"]["X-Subscription-Token"] == "test-key"
     assert captured["params"] == {
         "q": "controlled query",
-        "count": 10,
+        "count": 3,
         "country": "US",
         "search_lang": "en",
     }

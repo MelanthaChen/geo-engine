@@ -181,7 +181,19 @@ def run_owner_research_pipeline(
     if opportunity is None:
         raise ResearchPipelineBlocked("the specified Optimization Opportunity does not belong to the completed Audit")
 
-    frozen = NewWebsiteValidationBuilder(db).build(
+    from app.experiment.token_usage_profiler import active_outreach_budget
+    from app.ge.search_provider_factory import build_search_provider
+
+    budget = active_outreach_budget()
+    model_for_run = "gpt-6-luna" if budget is not None else "gpt-3.5-turbo"
+    search_provider = build_search_provider()
+    if budget is not None:
+        if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:
+            raise ResearchPipelineBlocked("The configured search provider has no approved one-job price or credential configuration")
+        search_provider = _BudgetedSearchProvider(search_provider, budget)
+    validation_builder = NewWebsiteValidationBuilder(db, search_provider=search_provider)
+    validation_builder.result_limit = 5 if budget is not None else 10
+    frozen = validation_builder.build(
         property_id=imported["property_id"],
         audit_id=audit_id,
         opportunity_id=opportunity_id,
@@ -234,7 +246,7 @@ def run_owner_research_pipeline(
             name=experiment_name,
             description=f"Live website research grounded in Audit #{audit_id}, Opportunity #{opportunity_id}.",
             provider="chatgpt",
-            llm_model="gpt-3.5-turbo",
+            llm_model=model_for_run,
             dataset_name="outreach_owner_website_research",
             queries=[frozen["query"]],
             dataset_documents=[{"query": frozen["query"], **document} for document in documents],
@@ -359,3 +371,20 @@ def run_owner_research_pipeline(
         "opportunity_id": opportunity.id,
         "result": result,
     }
+
+
+class _BudgetedSearchProvider:
+    """One priced search request for the single durable outreach job."""
+
+    def __init__(self, provider, budget):
+        self.provider = provider
+        self.budget = budget
+        self.provider_id = getattr(provider, "provider_id", "unknown")
+
+    def search(self, query: str, top_k: int = 5):
+        if top_k > 5:
+            raise RuntimeError("The outreach search result cap is five documents")
+        self.budget.reserve_search(self.provider_id)
+        results = self.provider.search(query=query, top_k=min(top_k, 5))
+        self.budget.settle_search(self.provider_id, len(results))
+        return results

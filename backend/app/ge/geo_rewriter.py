@@ -408,6 +408,11 @@ class GeoRewriter:
         if strategy == "original":
             return RewriteArtifact(document_text, {"version": "rewrite-plan-v1", "operations": []})
 
+        outreach_luna = model == "gpt-6-luna"
+        if outreach_luna:
+            # Keep this outreach-only context bounded; historical experiments
+            # retain their original full-text and retry behavior.
+            document_text = document_text[:6000]
         user_prompt = OFFICIAL_PROMPT_BUILDERS[strategy](document_text)
         cached = self._cached_rewrite(user_prompt, COMMON_SYSTEM_PROMPT)
 
@@ -423,7 +428,7 @@ class GeoRewriter:
                 )
 
         operation_prompt = self._operation_prompt(user_prompt)
-        rewritten = self._generate_with_official_retry(operation_prompt)
+        rewritten = self._generate_with_official_retry(operation_prompt, model=model)
         plan = self._parse_operation_plan(rewritten)
         if plan is None:
             repair_prompt = (
@@ -432,7 +437,7 @@ class GeoRewriter:
                 "Return valid JSON containing executable exact-anchor replacement operations."
             )
             plan = self._parse_operation_plan(
-                self._generate_with_official_retry(repair_prompt)
+                self._generate_with_official_retry(repair_prompt, model=model)
             )
             if plan is None:
                 raise RewriteOutputError(
@@ -445,7 +450,7 @@ class GeoRewriter:
                 "Your previous response was an edit plan rather than the rewritten document. "
                 "Return valid JSON containing executable exact-anchor replacement operations."
             )
-            repaired = self._generate_with_official_retry(repair_prompt)
+            repaired = self._generate_with_official_retry(repair_prompt, model=model)
             repaired_plan = self._parse_operation_plan(repaired)
             if repaired_plan is None:
                 raise RewriteOutputError(
@@ -541,18 +546,19 @@ class GeoRewriter:
         minimum_retention = 0.35 if strategy == "faq" else 0.45
         return retained_ratio >= minimum_retention and len(candidate) >= max(20, int(len(source) * 0.25))
 
-    def _generate_with_official_retry(self, user_prompt: str) -> str:
+    def _generate_with_official_retry(self, user_prompt: str, *, model: str | None = None) -> str:
         prompt = user_prompt
-
-        for attempt in range(10):
+        outreach_luna = model == "gpt-6-luna"
+        attempts = 1 if outreach_luna else 10
+        for attempt in range(attempts):
             try:
                 return self.llm_runner.generate(
                     system_prompt=COMMON_SYSTEM_PROMPT,
                     user_prompt=prompt,
-                    model=OFFICIAL_REWRITE_MODEL,
+                    model=model if outreach_luna else OFFICIAL_REWRITE_MODEL,
                     temperature=OFFICIAL_REWRITE_TEMPERATURE,
                     top_p=OFFICIAL_REWRITE_TOP_P,
-                    max_tokens=OFFICIAL_REWRITE_MAX_TOKENS,
+                    max_tokens=640 if outreach_luna else OFFICIAL_REWRITE_MAX_TOKENS,
                     purpose="strategy_rewrite",
                 )
             except Exception as exc:
@@ -562,10 +568,11 @@ class GeoRewriter:
                 if attempt > 5:
                     prompt = prompt[:-1000]
 
-                if attempt == 9:
+                if attempt == attempts - 1:
                     raise
 
-                time.sleep(15)
+                if not outreach_luna:
+                    time.sleep(15)
 
         return prompt
 

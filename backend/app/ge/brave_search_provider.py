@@ -41,7 +41,7 @@ class BraveSearchProvider:
         if not self.api_key:
             raise BraveRetrievalError("Brave Search API is not configured.")
 
-        count = min(20, self.result_count)
+        count = min(20, top_k, self.result_count)
         try:
             response = requests.get(
                 self.endpoint,

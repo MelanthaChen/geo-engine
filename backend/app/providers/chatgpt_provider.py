@@ -109,7 +109,27 @@ class ChatGPTProvider:
             request["max_tokens"] = max_tokens
 
         started = time.perf_counter()
-        response = self.client.chat.completions.create(**request)
+        client = self.client
+        budget = None
+        reservation = None
+        if model == "gpt-6-luna":
+            # GPT-6 Luna supports Chat Completions.  Pin reasoning off so the
+            # documented sampling controls are supported, use the current
+            # completion-token parameter, and disable SDK retries so an
+            # outreach attempt cannot silently multiply billable calls.
+            request["reasoning_effort"] = "none"
+            if max_tokens is not None:
+                request.pop("max_tokens", None)
+                request["max_completion_tokens"] = max_tokens
+            client = self.client.with_options(max_retries=0)
+            from app.experiment.token_usage_profiler import active_outreach_budget
+            budget = active_outreach_budget()
+            if budget is not None:
+                reservation = budget.reserve_model(model, messages, int(max_tokens or 0))
+
+        response = client.chat.completions.create(**request)
+        if budget is not None:
+            budget.settle_model(reservation, response.model, response.usage)
         record_provider_usage(
             purpose=purpose,
             requested_model=model,

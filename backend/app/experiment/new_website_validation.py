@@ -45,6 +45,7 @@ class NewWebsiteValidationBuilder:
         # Resolve the configured provider only after the demo path has been
         # ruled out.
         self.search_provider = search_provider
+        self.result_limit = 10
 
     def build(
         self,
@@ -88,7 +89,7 @@ class NewWebsiteValidationBuilder:
 
         query, evidence = self._query(audit, recommendation)
         retrieved_at = datetime.now(timezone.utc)
-        candidates = search_provider.search(query=query, top_k=10)
+        candidates = search_provider.search(query=query, top_k=self.result_limit)
         retrieval_provider = provider_id(search_provider, candidates)
         retrieved_at = next(
             (item.retrieved_at for item in candidates if item.retrieved_at),

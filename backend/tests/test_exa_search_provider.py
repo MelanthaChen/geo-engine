@@ -62,7 +62,7 @@ def test_exa_preserves_order_and_uses_official_request_contract(monkeypatch):
     assert captured["headers"]["x-api-key"] == "test-key"
     assert captured["json"] == {
         "query": "controlled query",
-        "numResults": 10,
+        "numResults": 3,
         "type": "auto",
     }
     assert [item.rank for item in documents] == [1, 2, 3]

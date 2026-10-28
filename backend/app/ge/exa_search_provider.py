@@ -50,7 +50,7 @@ class ExaSearchProvider:
                 },
                 json={
                     "query": query,
-                    "numResults": self.result_count,
+                    "numResults": min(top_k, self.result_count),
                     "type": "auto",
                 },
                 timeout=self.timeout_seconds,
@@ -107,7 +107,7 @@ class ExaSearchProvider:
 
         retrieved_at = datetime.now(timezone.utc)
         documents = []
-        for row in rows[: self.result_count]:
+        for row in rows[: min(top_k, self.result_count)]:
             page = extract_page(
                 fetch_page(row["url"], timeout_seconds=self.timeout_seconds)
             )
