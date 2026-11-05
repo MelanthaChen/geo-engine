@@ -1,5 +1,6 @@
 import hashlib
 import pytest
+from decimal import Decimal
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import Session
 from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job,AUTHORIZED_TEST_JOB_ID,AUTHORIZED_TEST_WEBSITE
@@ -111,19 +112,101 @@ def test_outreach_budget_fails_closed_on_oversized_inputs_and_outputs(db):
         budget.reserve_model('gpt-6-luna',[{'role':'user','content':'short'}],budget.MAX_OUTPUT_TOKENS_PER_CALL+1)
 
 
-def test_budget_tracks_cost_without_monetary_cap_but_preserves_provider_call_limits(db):
+def test_budget_tracks_cost_and_preserves_provider_call_limits(db):
     budget=OutreachProviderBudget(DurableStore(db),'outreach-v2:inv-clean')
     budget.reserve_search('exa')
     with pytest.raises(RuntimeError,match='only search request'):
         budget.reserve_search('exa')
+    budget.settle_search('exa',5)
     for _ in range(budget.MAX_MODEL_CALLS):
-        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
+        sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
+        budget.settle_model(sequence,'gpt-6-luna',type('Usage',(),{'prompt_tokens':1,'completion_tokens':1})())
     with pytest.raises(RuntimeError,match='five model-call allowance'):
         budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
     records=DurableStore(db).records('outreach_provider_budget')
     assert len([r for r in records if r['event']=='reserve_model'])==5
     assert len([r for r in records if r['event']=='reserve_search'])==1
     assert budget.committed_and_reserved_cost > 0
+
+
+def test_unresolved_search_reservation_blocks_model_provider_call(db):
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-uncertain-search')
+    budget.reserve_search('exa')
+    with pytest.raises(RuntimeError,match='search request has an unresolved billable outcome'):
+        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    assert len(store.records('outreach_provider_budget'))==1
+
+
+def test_budget_cap_blocks_reservation_using_settled_and_reserved_cost(db, monkeypatch):
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-cap')
+    monkeypatch.setattr(OutreachProviderBudget,'MAX_CUMULATIVE_COST_USD',Decimal('0.010'))
+    budget.reserve_search('exa')
+    budget.settle_search('exa',5)
+    with pytest.raises(RuntimeError,match='budget would be exceeded'):
+        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'short'}],512)
+    records=store.records('outreach_provider_budget')
+    assert [record['event'] for record in records]==['reserve_search','settle_search']
+    assert budget.committed_and_reserved_cost==pytest.approx(0.007)
+
+
+def test_model_settlement_accounts_for_cached_input_and_cache_writes(db):
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-cache')
+    sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    details=type('PromptDetails',(),{'cached_tokens':200,'cache_write_tokens':300})()
+    usage=type('Usage',(),{'prompt_tokens':1000,'completion_tokens':100,'prompt_tokens_details':details})()
+    budget.settle_model(sequence,'gpt-6-luna',usage)
+    entry=store.records('outreach_provider_budget')[-1]
+    assert entry['cached_input_tokens']==200
+    assert entry['cache_write_tokens']==300
+    assert entry['cache_write_usage_reported'] is True
+    assert entry['actual_cost_usd']==pytest.approx(0.0001395)
+    assert budget.committed_and_reserved_cost==pytest.approx(0.0001395)
+
+
+def test_unknown_cache_write_breakdown_is_reserved_conservatively(db):
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-cache-unknown')
+    sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    usage=type('Usage',(),{'prompt_tokens':1000,'completion_tokens':100})()
+    budget.settle_model(sequence,'gpt-6-luna',usage)
+    entry=store.records('outreach_provider_budget')[-1]
+    assert entry['cache_write_tokens']==1000
+    assert entry['cache_write_usage_reported'] is False
+    assert entry['actual_cost_usd']==pytest.approx(0.000175)
+
+
+def test_unresolved_model_reservation_blocks_any_retry(db):
+    store=DurableStore(db)
+    initial=OutreachProviderBudget(store,'outreach-v2:inv-uncertain')
+    initial.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    resumed=OutreachProviderBudget(store,'outreach-v2:inv-uncertain')
+    with pytest.raises(RuntimeError,match='unresolved billable outcome'):
+        resumed.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    assert len(store.records('outreach_provider_budget'))==1
+
+
+def test_cumulative_budget_counts_existing_legacy_settlements_conservatively(db,monkeypatch):
+    store=DurableStore(db)
+    key='outreach-v2:inv-legacy-budget'
+    store.append('outreach_provider_budget',{
+        'record_id':f'outreach-budget:{key}:model:1:reserve','event':'reserve_model',
+        'job_key':key,'sequence':1,'model':'gpt-6-luna','input_token_limit':48000,
+        'output_token_limit':1024,'worst_case_cost_usd':0.006512,
+    })
+    store.append('outreach_provider_budget',{
+        'record_id':f'outreach-budget:{key}:model:1:settle','event':'settle_model',
+        'job_key':key,'sequence':1,'model':'gpt-6-luna','prompt_tokens':40000,
+        'completion_tokens':100,'actual_cost_usd':0.00405,
+    })
+    budget=OutreachProviderBudget(store,key)
+    # Old entries have no cache breakdown; count non-cached input at write rate.
+    assert budget.committed_and_reserved_cost==pytest.approx(0.00505)
+    monkeypatch.setattr(OutreachProviderBudget,'MAX_CUMULATIVE_COST_USD',Decimal('0.005'))
+    with pytest.raises(RuntimeError,match='budget would be exceeded'):
+        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],128)
 
 
 def test_single_job_guard_requires_exact_key_verified_yes_yes_and_exact_website():
