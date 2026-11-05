@@ -2,7 +2,7 @@ import hashlib
 import pytest
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import Session
-from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded
+from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job,AUTHORIZED_TEST_JOB_ID,AUTHORIZED_TEST_WEBSITE
 from app.experiment.token_usage_profiler import OutreachProviderBudget
 
 @pytest.fixture
@@ -111,9 +111,32 @@ def test_outreach_budget_fails_closed_on_oversized_inputs_and_outputs(db):
         budget.reserve_model('gpt-6-luna',[{'role':'user','content':'short'}],budget.MAX_OUTPUT_TOKENS_PER_CALL+1)
 
 
-def test_outreach_budget_refuses_provider_use_that_would_exceed_cap(db):
+def test_budget_tracks_cost_without_monetary_cap_but_preserves_provider_call_limits(db):
     budget=OutreachProviderBudget(DurableStore(db),'outreach-v2:inv-clean')
-    budget.MAX_COST_USD=.001
-    with pytest.raises(RuntimeError,match='remaining worst-case provider spend'):
+    budget.reserve_search('exa')
+    with pytest.raises(RuntimeError,match='only search request'):
         budget.reserve_search('exa')
-    assert db.scalar(select(func.count()).select_from(record_table))==0
+    for _ in range(budget.MAX_MODEL_CALLS):
+        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
+    with pytest.raises(RuntimeError,match='five model-call allowance'):
+        budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
+    records=DurableStore(db).records('outreach_provider_budget')
+    assert len([r for r in records if r['event']=='reserve_model'])==5
+    assert len([r for r in records if r['event']=='reserve_search'])==1
+    assert budget.committed_and_reserved_cost > 0
+
+
+def test_single_job_guard_requires_exact_key_verified_yes_yes_and_exact_website():
+    profile={
+        'profile_type':'owner_controlled_test','controlled_fixture':False,
+        'identity':{'website':AUTHORIZED_TEST_WEBSITE},
+        'consent':{'status':'VERIFIED','research_interest':'YES','research_authorization':'YES',
+                   'scope_website':AUTHORIZED_TEST_WEBSITE,'submission_id':'existing-consent',
+                   'invitation_reference':'existing-invitation'},
+    }
+    assert authorized_single_job(AUTHORIZED_TEST_JOB_ID,profile,True,AUTHORIZED_TEST_JOB_ID)
+    assert not authorized_single_job('outreach-v2:inv-other',profile,True,AUTHORIZED_TEST_JOB_ID)
+    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,profile,False,AUTHORIZED_TEST_JOB_ID)
+    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,{**profile,'identity':{'website':'https://other.example/'}},True,AUTHORIZED_TEST_JOB_ID)
+    bad_consent={**profile,'consent':{**profile['consent'],'research_authorization':'NO'}}
+    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,bad_consent,True,AUTHORIZED_TEST_JOB_ID)

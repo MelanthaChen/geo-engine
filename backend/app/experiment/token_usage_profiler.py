@@ -49,12 +49,11 @@ class ProviderBudgetBlocked(RuntimeError):
 class OutreachProviderBudget:
     """Append-only provider budget ledger scoped to one durable outreach job."""
 
-    MAX_COST_USD = 0.25
     MAX_MODEL_CALLS = 5
     MAX_INPUT_BYTES_PER_CALL = 48000
     MAX_INPUT_TOKENS_PER_CALL = MAX_INPUT_BYTES_PER_CALL
     MAX_OUTPUT_TOKENS_PER_CALL = 1024
-    SEARCH_COST_USD = {"exa": 0.007, "brave": 0.005}
+    SEARCH_COST_USD = {"exa": 0.007}
 
     def __init__(self, durable_store, job_key: str):
         self.store = durable_store
@@ -101,12 +100,11 @@ class OutreachProviderBudget:
 
     def reserve_search(self, provider_name: str):
         provider = provider_name.lower()
-        if provider not in self.SEARCH_COST_USD:
-            raise ProviderBudgetBlocked("The one-job budget has no verified price for this search provider")
+        if provider != "exa":
+            raise ProviderBudgetBlocked("The single authorized job is restricted to one Exa search request")
         if self.search_reserved:
             raise ProviderBudgetBlocked("This durable job has already reserved its only search request")
         cost = self.SEARCH_COST_USD[provider]
-        self._check_budget(cost)
         self.store.append("outreach_provider_budget", {
             "record_id": f"outreach-budget:{self.job_key}:search", "event": "reserve_search",
             "job_key": self.job_key, "provider": provider, "worst_case_cost_usd": cost,
@@ -137,7 +135,6 @@ class OutreachProviderBudget:
             raise ProviderBudgetBlocked("Model input exceeds the one-job token cap")
         input_rate, output_rate = MODEL_PRICING[model]
         worst = self.MAX_INPUT_TOKENS_PER_CALL / 1_000_000 * input_rate + max_output_tokens / 1_000_000 * output_rate
-        self._check_budget(worst)
         sequence = max([int(r["sequence"]) for r in self.reservations] or [0]) + 1
         self.store.append("outreach_provider_budget", {
             "record_id": f"outreach-budget:{self.job_key}:model:{sequence}:reserve",
@@ -168,11 +165,6 @@ class OutreachProviderBudget:
             "actual_cost_usd": cost,
         })
         self.settlements[sequence] = {"actual_cost_usd": cost}
-
-    def _check_budget(self, next_cost: float):
-        if self.committed_and_reserved_cost + next_cost > self.MAX_COST_USD:
-            raise ProviderBudgetBlocked("The remaining worst-case provider spend would exceed the $0.25 job cap")
-
 
 def active_outreach_budget():
     return _ACTIVE_OUTREACH_BUDGET.get()

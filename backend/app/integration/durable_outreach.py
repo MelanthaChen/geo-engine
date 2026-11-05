@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 from sqlalchemy import MetaData,Table,Column,String,Text,Integer,select,text
 
 metadata=MetaData()
+AUTHORIZED_TEST_JOB_ID = "outreach-v2:inv-9880a65388184eafa7c1075f7bbadb83"
+AUTHORIZED_TEST_WEBSITE = "https://geo-ai-resume.vercel.app/"
 job_table=Table('outreach_research_jobs',metadata,
     Column('id',String,primary_key=True),Column('request_hash',String,nullable=False),Column('profile',Text,nullable=False),
     Column('status',String,nullable=False),Column('property_id',Integer),Column('audit_id',Integer),Column('opportunity_id',Integer),
@@ -39,6 +41,22 @@ def public(row):
             'opportunity_ids':[row['opportunity_id']] if row['opportunity_id'] else [],'experiment_id':row['experiment_id'],
             'result':json.loads(row['result']) if row['result'] else None,'error':row['error'],'created_at':row['created_at'],'updated_at':row['updated_at']}
 
+def authorized_single_job(key, profile, enabled, allowed_key):
+    """Fail closed unless the exact consented GeoAIResume job is enabled."""
+    identity=profile.get('identity') or {}; consent=profile.get('consent') or {}
+    return bool(
+        enabled and allowed_key==AUTHORIZED_TEST_JOB_ID and key==allowed_key
+        and identity.get('website')==AUTHORIZED_TEST_WEBSITE
+        and profile.get('profile_type')=='owner_controlled_test'
+        and profile.get('controlled_fixture') is False
+        and consent.get('status')=='VERIFIED'
+        and consent.get('research_interest')=='YES'
+        and consent.get('research_authorization')=='YES'
+        and consent.get('scope_website')==AUTHORIZED_TEST_WEBSITE
+        and bool(consent.get('submission_id') or consent.get('consent_id'))
+        and bool(consent.get('invitation_reference'))
+    )
+
 def get_job(db,key):
     row=db.execute(select(job_table).where(job_table.c.id==key)).mappings().first()
     return public(row) if row else None
@@ -51,7 +69,10 @@ def submit(db,key,profile):
     parsed=urlparse(url)
     if parsed.scheme!='https' or not parsed.hostname:raise ValueError('An authorized HTTPS website is required')
     if profile.get('controlled_fixture') is not False:raise ValueError('Synthetic execution is not accepted')
-    if consent.get('research_interest')!='YES' or consent.get('research_authorization')!='YES' or consent.get('scope_website')!=url:
+    if (consent.get('status')!='VERIFIED'
+        or consent.get('research_interest')!='YES'
+        or consent.get('research_authorization')!='YES'
+        or consent.get('scope_website')!=url):
         raise ValueError('Independent interest, authorization and exact website scope are required')
     payload=encoded(profile);digest=hashlib.sha256(payload.encode()).hexdigest()
     insert_once(db,job_table,dict(id=key,request_hash=digest,profile=payload,status='QUEUED',created_at=now(),updated_at=now()))
@@ -82,12 +103,12 @@ def advance(db,key):
             row=db.execute(select(job_table).where(job_table.c.id==key)).mappings().first()
             if not row:raise LookupError('Research job not found')
             if row['status']=='COMPLETED':return public(row)
-            exact_test_key='outreach-v2:inv-45e793f424654bb4a1b744cd25e95855'
-            if (key!=exact_test_key
-                or os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED')!='true'
-                or os.environ.get('GEO_OUTREACH_RESEARCH_JOB_ID')!=exact_test_key):
+            allowed_key=os.environ.get('GEO_OUTREACH_RESEARCH_JOB_ID','').strip()
+            enabled=os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED','').strip().lower()=='true'
+            profile=json.loads(row['profile'])
+            if not authorized_single_job(key,profile,enabled,allowed_key):
                 update(db,key,status='BLOCKED_CONFIGURATION',error='Single-job GEO execution is disabled or the exact job allowlist does not match');return get_job(db,key)
-            profile=json.loads(row['profile']);store=DurableStore(db)
+            store=DurableStore(db)
             update(db,key,status='RUNNING',error=None)
             # Property creation and durable profile mapping are serialized by website
             # identity as well, so concurrent invitations cannot create two properties.
