@@ -146,18 +146,49 @@ def test_every_treatment_uses_application_path_and_persists_complete_document(
     assert treatment["modified_document_text"] in treatment["prompt"]
 
 
-def test_malformed_operation_plan_is_actionable(monkeypatch):
+def test_malformed_operation_plan_uses_one_bounded_repair(monkeypatch):
     monkeypatch.setenv("GEO_DISABLE_REWRITE_CACHE", "True")
 
     class Runner:
+        def __init__(self):
+            self.calls = 0
         def generate(self, **_request):
-            return '{"version":"rewrite-plan-v1","operations":['
+            self.calls += 1
+            if self.calls == 1:
+                return '{"version":"rewrite-plan-v1","operations":['
+            return json.dumps({"version":"rewrite-plan-v1","operations":[
+                {"anchor": ANCHOR, "replacement": ANCHOR[:-1] + " with clearer wording."}
+            ]})
 
-    with pytest.raises(RewriteOutputError, match="malformed JSON"):
-        GenerativeEngineService(
+    runner = Runner()
+    result = GenerativeEngineService(
             search_provider=SimpleNamespace(search=lambda **_kwargs: frozen_documents()),
-            llm_runner=Runner(),
+            llm_runner=runner,
         ).rewriter.rewrite_artifact(SOURCE, "query", "citation", "model", 0.5)
+    assert runner.calls == 2
+    assert result.document != SOURCE
+
+
+@pytest.mark.parametrize("malformed", [
+    '{"version":"rewrite-plan-v1","operations":[',
+    '{"version":"rewrite-plan-v1","operations":[{"anchor":"x","replacement":"quote: "bad""}]}',
+    '{"version":"rewrite-plan-v1","operations":[{"anchor":"x","replacement":"bad \\x escape"}]}',
+])
+def test_truncated_and_incorrectly_escaped_plans_are_repairable(malformed):
+    from app.ge.geo_rewriter import GeoRewriter
+    assert GeoRewriter._parse_operation_plan(malformed) is None
+
+
+def test_unsupported_operation_plan_schema_is_rejected():
+    from app.ge.geo_rewriter import GeoRewriter
+    with pytest.raises(RewriteOutputError, match="unsupported schema"):
+        GeoRewriter._parse_operation_plan(json.dumps({"version": "rewrite-plan-v2", "operations": []}))
+
+
+def test_valid_operation_plan_is_parsed_without_relaxing_anchor_contract():
+    from app.ge.geo_rewriter import GeoRewriter
+    plan = {"version": "rewrite-plan-v1", "operations": [{"anchor": ANCHOR, "replacement": "A grounded replacement sentence."}]}
+    assert GeoRewriter._parse_operation_plan(json.dumps(plan)) == plan
 
 
 def test_missing_operation_anchor_is_actionable(monkeypatch):

@@ -9,8 +9,10 @@ production callers must explicitly provide an approved execution policy.
 from __future__ import annotations
 
 import json
+import hashlib
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,100 @@ from app.services.website_audit.audit_service import run_website_audit
 
 class ResearchPipelineBlocked(PermissionError):
     pass
+
+
+def _recover_frozen_experiment_documents(experiment, *, audit, website: str, official_name: str,
+                                        property_id: int, opportunity_id: int, strategy: str):
+    """Validate and reuse an existing experiment's frozen, provenance-linked input.
+
+    This is deliberately limited to a failed zero-run outreach experiment. It
+    never treats a partial run, mismatched audit, changed content, or synthetic
+    document pack as recoverable evidence.
+    """
+    if (experiment.status != "failed" or int(experiment.run_count or 0) != 0
+            or int(experiment.property_id or 0) != int(property_id)
+            or experiment.llm_model != "gpt-6-luna"
+            or experiment.dataset_name != "outreach_owner_website_research"
+            or not experiment.benchmark_queries_json):
+        return None
+    try:
+        entries = json.loads(experiment.benchmark_queries_json)
+        strategies = json.loads(experiment.strategies_json or "[]")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(entries, list) or len(entries) != 1 or strategies != ["original", strategy]:
+        return None
+    entry = entries[0]
+    query = entry.get("query") if isinstance(entry, dict) else None
+    docs = entry.get("documents") if isinstance(entry, dict) else None
+    if not isinstance(query, str) or official_name.casefold() not in query.casefold():
+        return None
+    if not isinstance(docs, list) or len(docs) != 5:
+        return None
+    targets = [item for item in docs if isinstance(item, dict) and item.get("source_role") == "audited_target"]
+    references = [item for item in docs if isinstance(item, dict) and item.get("source_role") == "reference"]
+    if len(targets) != 1 or len(references) != 4:
+        return None
+    target = targets[0]
+    parsed_target = urlparse(str(target.get("url") or ""))
+    if (target.get("url") != website or audit.base_url != website or parsed_target.scheme != "https"
+            or target.get("retrieval_provider") != "injected_for_controlled_experiment"
+            or int(target.get("source_audit_id") or 0) != int(audit.id)
+            or int(target.get("rank") or 0) != 1):
+        return None
+    audit_page = next((page for page in audit.pages if page.url == website), None)
+    target_evidence = target.get("supporting_evidence") or {}
+    ranks = [int(item.get("rank") or 0) for item in docs if isinstance(item, dict)]
+    if (not audit_page or target.get("content_sha256") != audit_page.content_sha256
+            or int(target_evidence.get("target_page_id") or 0) != int(audit_page.id)
+            or sorted(ranks) != [1, 2, 3, 4, 5]):
+        return None
+    for item in docs:
+        if (not isinstance(item, dict) or int(item.get("source_audit_id") or 0) != int(audit.id)
+                or not str(item.get("content") or "").strip()):
+            return None
+        digest = hashlib.sha256(str(item["content"]).encode("utf-8")).hexdigest()
+        if digest != item.get("content_sha256"):
+            return None
+    for item in references:
+        parsed = urlparse(str(item.get("url") or ""))
+        if (parsed.scheme != "https" or not parsed.hostname
+                or item.get("retrieval_provider") != "exa"):
+            return None
+    evidence = target.get("supporting_evidence") or {}
+    if (int(evidence.get("audit_id") or 0) != int(audit.id)
+            or int(evidence.get("recommendation_id") or 0) != int(opportunity_id)
+            or evidence.get("target_page_url") != website):
+        return None
+    source_order = evidence.get("source_order")
+    snapshot_hashes = evidence.get("source_snapshot_hashes")
+    if (source_order != [item.get("url") for item in docs]
+            or snapshot_hashes != [item.get("content_sha256") for item in docs]):
+        return None
+    retrieval_results = evidence.get("retrieval_results")
+    if not isinstance(retrieval_results, list) or len(retrieval_results) < 4:
+        return None
+    exa_urls = [item.get("url") for item in retrieval_results[:4] if isinstance(item, dict)]
+    exa_request_ids = {
+        (item.get("provider_metadata") or {}).get("request_id")
+        for item in retrieval_results if isinstance(item, dict)
+    }
+    if (exa_urls != [item.get("url") for item in references]
+            or len(exa_request_ids) != 1 or not next(iter(exa_request_ids))):
+        return None
+    timestamps = {item.get("retrieved_at") for item in docs}
+    if len(timestamps) != 1 or not next(iter(timestamps)):
+        return None
+    return {
+        "query": query,
+        "documents": docs,
+        "metadata": {
+            "status": "recovered_persisted",
+            "retrieval_provider": "persisted_exa_and_audit_evidence",
+            "retrieved_at": next(iter(timestamps)),
+            "source_experiment_id": experiment.id,
+        },
+    }
 
 
 def run_research_pipeline(
@@ -181,31 +277,6 @@ def run_owner_research_pipeline(
     if opportunity is None:
         raise ResearchPipelineBlocked("the specified Optimization Opportunity does not belong to the completed Audit")
 
-    from app.experiment.token_usage_profiler import active_outreach_budget
-    from app.ge.search_provider_factory import build_search_provider
-
-    budget = active_outreach_budget()
-    model_for_run = "gpt-6-luna" if budget is not None else "gpt-3.5-turbo"
-    search_provider = build_search_provider()
-    if budget is not None:
-        if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:
-            raise ResearchPipelineBlocked("The configured search provider has no approved one-job price or credential configuration")
-        search_provider = _BudgetedSearchProvider(search_provider, budget)
-    validation_builder = NewWebsiteValidationBuilder(db, search_provider=search_provider)
-    validation_builder.result_limit = 5 if budget is not None else 10
-    frozen = validation_builder.build(
-        property_id=imported["property_id"],
-        audit_id=audit_id,
-        opportunity_id=opportunity_id,
-        use_frozen_demo_pack=False,
-    )
-    if frozen.get("metadata", {}).get("status") == "content_gap":
-        raise NewWebsiteValidationError("live retrieval could not select the audited target page")
-    documents = frozen.get("documents") or []
-    target = next((item for item in documents if item.get("source_role") == "audited_target"), None)
-    if not target or not target.get("content", "").strip() or target.get("retrieval_provider") == "frozen-production-page-snapshot":
-        raise ResearchPipelineBlocked("live audited target content was not retrieved")
-
     evidence_json = opportunity.evidence_json or {}
     strategy = str(evidence_json.get("suggested_strategy") or "faq").strip()
     if strategy not in STRATEGY_LABELS or strategy == "original":
@@ -219,7 +290,54 @@ def run_owner_research_pipeline(
         .order_by(Experiment.id.desc())
         .first()
     )
+    from app.experiment.token_usage_profiler import active_outreach_budget
+    from app.ge.search_provider_factory import build_search_provider
+    from app.models.experiment import ExperimentDocument, ExperimentQuery, ExperimentRun, ExperimentStrategyResult
+
+    budget = active_outreach_budget()
+    model_for_run = "gpt-6-luna" if budget is not None else "gpt-3.5-turbo"
+    frozen = None
+    if (prior_experiment is not None and resume_incomplete and budget is not None
+            and budget.search_reserved and budget.search_settled):
+        child_counts = (
+            db.query(
+                db.query(ExperimentRun.id).filter(ExperimentRun.experiment_id == prior_experiment.id).exists(),
+                db.query(ExperimentQuery.id).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
+                db.query(ExperimentDocument.id).join(ExperimentQuery).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
+                db.query(ExperimentStrategyResult.id).join(ExperimentQuery).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
+            ).one()
+        )
+        if not any(child_counts):
+            frozen = _recover_frozen_experiment_documents(
+                prior_experiment, audit=audit, website=profile["identity"]["website"],
+                official_name=imported["official_name"], property_id=imported["property_id"],
+                opportunity_id=opportunity_id, strategy=strategy,
+            )
+
+    if frozen is None:
+        search_provider = build_search_provider()
+        if budget is not None:
+            if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:
+                raise ResearchPipelineBlocked("The configured search provider has no approved one-job price or credential configuration")
+            search_provider = _BudgetedSearchProvider(search_provider, budget)
+        validation_builder = NewWebsiteValidationBuilder(db, search_provider=search_provider)
+        validation_builder.result_limit = 5 if budget is not None else 10
+        frozen = validation_builder.build(
+            property_id=imported["property_id"],
+            audit_id=audit_id,
+            opportunity_id=opportunity_id,
+            use_frozen_demo_pack=False,
+        )
+        if frozen.get("metadata", {}).get("status") == "content_gap":
+            raise NewWebsiteValidationError("live retrieval could not select the audited target page")
+    documents = frozen.get("documents") or []
+    target = next((item for item in documents if item.get("source_role") == "audited_target"), None)
+    if not target or not target.get("content", "").strip() or target.get("retrieval_provider") == "frozen-production-page-snapshot":
+        raise ResearchPipelineBlocked("live audited target content was not retrieved")
+
     if prior_experiment:
+        if budget is not None:
+            budget.experiment_id = prior_experiment.id
         if prior_experiment.status == "completed" and prior_experiment.run_count:
             experiment = prior_experiment
         elif prior_experiment.status in {"queued", "running", "failed"} and resume_incomplete:
@@ -257,6 +375,8 @@ def run_owner_research_pipeline(
             temperature=0.2,
             repetitions_per_context=1,
         )
+        if budget is not None:
+            budget.experiment_id = experiment.id
         experiment = service.execute_experiment(experiment.id)
 
     experiment = repository.get_run(experiment.id)

@@ -1,6 +1,8 @@
 import csv
+import hashlib
 import json
 import statistics
+import uuid
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from decimal import Decimal
@@ -76,6 +78,12 @@ class OutreachProviderBudget:
     def __init__(self, durable_store, job_key: str):
         self.store = durable_store
         self.job_key = job_key
+        # A fresh identity for each durable advance attempt. It is stored with
+        # every response before control returns to parsing code.
+        self.attempt_id = str(uuid.uuid4())
+        self.last_response_sequence = None
+        self.experiment_id = None
+        self.replayed_response_ids = set()
         self._token = None
         self.reservations = []
         self.settlements = {}
@@ -350,8 +358,118 @@ class OutreachProviderBudget:
         })
         self.settlements[sequence] = {"actual_cost_usd": float(cost)}
 
+    @staticmethod
+    def request_fingerprint(model: str, messages: list[dict], purpose: str, parameters=None) -> str:
+        material = json.dumps({"model": model, "messages": messages, "purpose": purpose,
+                               "parameters": parameters or {}},
+                              ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+    def replay_model_response(self, model: str, messages: list[dict], purpose: str, count: int = 1, parameters=None):
+        """Return an exact prior response for this experiment without provider spend."""
+        if self.experiment_id is None:
+            return None
+        fingerprint = self.request_fingerprint(model, messages, purpose, parameters)
+        _, reservations, settlements, _, _ = self._load_ledger()
+        records = sorted(
+            (row for row in self.store.records("outreach_model_response")
+             if row.get("job_key") == self.job_key
+             and row.get("experiment_id") == self.experiment_id
+             and row.get("request_fingerprint") == fingerprint
+             and row.get("purpose") == purpose
+             and row.get("model") == model
+             and row.get("attempt_id") != self.attempt_id
+             and row.get("record_id") not in self.replayed_response_ids
+             and int(row.get("reservation_sequence", 0)) in reservations
+             and int(row.get("reservation_sequence", 0)) in settlements),
+            key=lambda row: int(row.get("reservation_sequence", 0)),
+        )
+        for row in records:
+            outputs = row.get("raw_outputs") or []
+            if len(outputs) == count:
+                self.replayed_response_ids.add(row["record_id"])
+                self.last_response_sequence = int(row["reservation_sequence"])
+                self.last_response_record = row
+                return outputs
+        return None
+
+    def persist_model_response(self, sequence: int, response, model: str, messages: list[dict], purpose: str, parameters=None):
+        """Archive provider output before parsing; unresolved archive writes fail closed."""
+        _, reservations, _, _, _ = self._load_ledger()
+        reservation = reservations.get(int(sequence))
+        if reservation is None or int(sequence) in self.settlements:
+            raise ProviderBudgetBlocked("Provider response has no unsettled model reservation")
+        choices = sorted(getattr(response, "choices", []) or [], key=lambda choice: choice.index)
+        outputs = [choice.message.content or "" for choice in choices]
+        usage = getattr(response, "usage", None)
+        usage_data = None
+        if usage is not None:
+            details = self._field(usage, "prompt_tokens_details", "input_tokens_details")
+            usage_data = {
+                "prompt_tokens": int(self._field(usage, "prompt_tokens") or 0),
+                "completion_tokens": int(self._field(usage, "completion_tokens") or 0),
+                "total_tokens": int(self._field(usage, "total_tokens") or 0),
+                "cached_input_tokens": int(self._field(details, "cached_tokens", "cached_input_tokens") or 0),
+                "cache_write_tokens": self._field(details, "cache_write_tokens", "cache_creation_tokens"),
+            }
+        request_id = getattr(response, "id", None)
+        response_record = {
+            "record_id": f"outreach-response:{self.job_key}:model:{sequence}",
+            "job_key": self.job_key,
+            "attempt_id": self.attempt_id,
+            "experiment_id": self.experiment_id,
+            "provider_request_id": request_id,
+            "request_fingerprint": self.request_fingerprint(model, messages, purpose, parameters),
+            "purpose": purpose,
+            "reservation_sequence": int(sequence),
+            "model": str(getattr(response, "model", None) or model),
+            "usage": usage_data,
+            "raw_outputs": outputs,
+            "parser_status": "pending",
+        }
+        self.store.append("outreach_model_response", response_record)
+        self.last_response_sequence = int(sequence)
+        self.last_response_record = response_record
+
+    def record_response_validation(self, status: str, *, result=None):
+        """Append parser/application outcome without duplicating raw provider text."""
+        sequence = self.last_response_sequence
+        if sequence is None:
+            return
+        from hashlib import sha256
+        raw = getattr(self, "last_response_record", None) or next((item for item in self.store.records("outreach_model_response")
+                    if item.get("job_key") == self.job_key
+                    and item.get("reservation_sequence") == sequence), None)
+        if raw is None:
+            raise ProviderBudgetBlocked("The durable provider response archive is missing")
+        result_text = None
+        result_digest = ""
+        if result is not None:
+            result_text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, sort_keys=True)
+            result_digest = sha256(result_text.encode("utf-8")).hexdigest()
+        payload = {
+            "record_id": f"outreach-response:{self.job_key}:model:{sequence}:validation:{self.attempt_id}:{status}:{result_digest}",
+            "job_key": self.job_key,
+            "attempt_id": self.attempt_id,
+            "source_attempt_id": raw["attempt_id"],
+            "provider_request_id": raw.get("provider_request_id"),
+            "reservation_sequence": sequence,
+            "raw_output_sha256": sha256("\n".join(raw.get("raw_outputs") or []).encode("utf-8")).hexdigest(),
+            "parser_status": status,
+        }
+        if result is not None:
+            payload["transformed_result"] = result_text
+            payload["transformed_result_sha256"] = result_digest
+        self.store.append("outreach_model_response_validation", payload)
+
 def active_outreach_budget():
     return _ACTIVE_OUTREACH_BUDGET.get()
+
+
+def record_active_provider_response_validation(status: str, *, result=None):
+    budget = active_outreach_budget()
+    if budget is not None:
+        budget.record_response_validation(status, result=result)
 
 
 class TokenUsageProfiler:

@@ -21,6 +21,7 @@ class ChatGPTProvider:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> str:
         messages = []
 
@@ -36,6 +37,7 @@ class ChatGPTProvider:
             top_p=top_p,
             max_tokens=max_tokens,
             purpose=purpose,
+            response_format=response_format,
         )
 
     def generate_texts(
@@ -49,6 +51,7 @@ class ChatGPTProvider:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> list[str]:
         messages = []
         if system_prompt:
@@ -62,6 +65,7 @@ class ChatGPTProvider:
             top_p=top_p,
             max_tokens=max_tokens,
             purpose=purpose,
+            response_format=response_format,
         )
 
     def generate_messages(
@@ -73,6 +77,7 @@ class ChatGPTProvider:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> str:
         return self.generate_messages_many(
             messages=messages,
@@ -82,6 +87,7 @@ class ChatGPTProvider:
             top_p=top_p,
             max_tokens=max_tokens,
             purpose=purpose,
+            response_format=response_format,
         )[0].removesuffix("\n")
 
     def generate_messages_many(
@@ -94,6 +100,7 @@ class ChatGPTProvider:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> list[str]:
         if count < 1:
             raise ValueError("count must be at least one")
@@ -107,6 +114,8 @@ class ChatGPTProvider:
 
         if max_tokens is not None:
             request["max_tokens"] = max_tokens
+        if response_format is not None:
+            request["response_format"] = response_format
 
         started = time.perf_counter()
         client = self.client
@@ -125,10 +134,26 @@ class ChatGPTProvider:
             from app.experiment.token_usage_profiler import active_outreach_budget
             budget = active_outreach_budget()
             if budget is not None:
+                replay = budget.replay_model_response(
+                    model, messages, purpose, count=count,
+                    parameters={"temperature": temperature, "top_p": top_p,
+                                "max_output_tokens": int(max_tokens or 0),
+                                "response_format": response_format},
+                )
+                if replay is not None:
+                    return [output + "\n" for output in replay]
                 reservation = budget.reserve_model(model, messages, int(max_tokens or 0))
 
         response = client.chat.completions.create(**request)
         if budget is not None:
+            # Archive the provider's raw output before settling or returning it
+            # to the GEO rewriter. A parser failure must not destroy paid work.
+            budget.persist_model_response(
+                reservation, response, response.model, messages, purpose,
+                parameters={"temperature": temperature, "top_p": top_p,
+                            "max_output_tokens": int(max_tokens or 0),
+                            "response_format": response_format},
+            )
             budget.settle_model(reservation, response.model, response.usage)
         record_provider_usage(
             purpose=purpose,

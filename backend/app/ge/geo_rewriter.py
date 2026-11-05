@@ -443,7 +443,11 @@ class GeoRewriter:
                 raise RewriteOutputError(
                     "Rewrite operation plan is required for a new treatment"
                 )
-        processed = self._apply_operation_plan(document_text, plan)
+        try:
+            processed = self._apply_operation_plan(document_text, plan)
+        except RewriteOutputError:
+            self._record_provider_validation("rejected_anchor")
+            raise
         if not self._is_complete_rewritten_document(document_text, processed, strategy):
             repair_prompt = (
                 f"{operation_prompt}\n\n"
@@ -457,13 +461,18 @@ class GeoRewriter:
                     "Rewrite operation plan is required for a new treatment"
                 )
             plan = repaired_plan
-            processed = self._apply_operation_plan(document_text, plan)
+            try:
+                processed = self._apply_operation_plan(document_text, plan)
+            except RewriteOutputError:
+                self._record_provider_validation("rejected_anchor")
+                raise
         if not self._is_complete_rewritten_document(document_text, processed, strategy):
             raise RewriteOutputError(
                 f"{strategy} rewrite did not return a complete transformed document"
             )
         if strategy == "faq":
             validate_faq_rewrite(document_text, processed)
+        self._record_provider_validation("accepted", result={"plan": plan, "document": processed})
         artifact = RewriteArtifact(processed, plan)
         self._store_cached_rewrite(
             user_prompt,
@@ -491,24 +500,51 @@ class GeoRewriter:
             candidate = re.sub(r"^```(?:json)?\s*", "", candidate, flags=re.IGNORECASE)
             candidate = re.sub(r"\s*```$", "", candidate)
         if not candidate.startswith("{"):
+            GeoRewriter._record_provider_validation("invalid_json")
             return None
         try:
             plan = json.loads(candidate)
-        except json.JSONDecodeError as exc:
-            raise RewriteOutputError("Rewrite operation plan is malformed JSON") from exc
+        except (json.JSONDecodeError, TypeError):
+            GeoRewriter._record_provider_validation("invalid_json")
+            # One bounded corrective model request is made by rewrite_artifact.
+            # No partial JSON is executed or silently salvaged.
+            return None
+        if not isinstance(plan, dict):
+            GeoRewriter._record_provider_validation("invalid_schema")
+            raise RewriteOutputError("Rewrite operation plan has an unsupported schema")
         operations = plan.get("operations")
         if plan.get("version") != "rewrite-plan-v1" or not isinstance(operations, list):
+            GeoRewriter._record_provider_validation("invalid_schema")
+            raise RewriteOutputError("Rewrite operation plan has an unsupported schema")
+        if set(plan) != {"version", "operations"}:
+            GeoRewriter._record_provider_validation("invalid_schema")
             raise RewriteOutputError("Rewrite operation plan has an unsupported schema")
         if not operations or len(operations) > 20:
             raise RewriteOutputError("Rewrite operation plan must contain 1 to 20 operations")
         for operation in operations:
             if not isinstance(operation, dict):
+                GeoRewriter._record_provider_validation("invalid_schema")
                 raise RewriteOutputError("Every rewrite operation must be an object")
+            if set(operation) != {"anchor", "replacement"}:
+                GeoRewriter._record_provider_validation("invalid_schema")
+                raise RewriteOutputError("Rewrite operation has unsupported fields")
             if not isinstance(operation.get("anchor"), str) or not operation["anchor"]:
+                GeoRewriter._record_provider_validation("invalid_schema")
                 raise RewriteOutputError("Every rewrite operation requires a non-empty anchor")
             if not isinstance(operation.get("replacement"), str) or not operation["replacement"]:
+                GeoRewriter._record_provider_validation("invalid_schema")
                 raise RewriteOutputError("Every rewrite operation requires a non-empty replacement")
+        GeoRewriter._record_provider_validation("valid_plan", result=plan)
         return {"version": "rewrite-plan-v1", "operations": operations}
+
+    @staticmethod
+    def _record_provider_validation(status: str, *, result=None):
+        try:
+            from app.experiment.token_usage_profiler import record_active_provider_response_validation
+            record_active_provider_response_validation(status, result=result)
+        except ImportError:
+            # Historical non-outreach tests and offline rewriting have no archive.
+            return
 
     @staticmethod
     def _apply_operation_plan(source: str, plan: dict) -> str:
@@ -560,6 +596,7 @@ class GeoRewriter:
                     top_p=OFFICIAL_REWRITE_TOP_P,
                     max_tokens=640 if outreach_luna else OFFICIAL_REWRITE_MAX_TOKENS,
                     purpose="strategy_rewrite",
+                    response_format={"type": "json_object"} if outreach_luna else None,
                 )
             except Exception as exc:
                 if "maximum context length" in str(exc):

@@ -1,5 +1,6 @@
 import hashlib
 import pytest
+from types import SimpleNamespace
 from decimal import Decimal
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import Session
@@ -136,6 +137,89 @@ def test_unresolved_search_reservation_blocks_model_provider_call(db):
     with pytest.raises(RuntimeError,match='search request has an unresolved billable outcome'):
         budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
     assert len(store.records('outreach_provider_budget'))==1
+
+
+def test_paid_model_response_is_durable_before_parser_status_and_keeps_attempt_identity(db):
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-clean')
+    sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'test prompt'}],512)
+    response=SimpleNamespace(
+        id='resp-test-123', model='gpt-6-luna',
+        usage=SimpleNamespace(prompt_tokens=10,completion_tokens=4,total_tokens=14),
+        choices=[SimpleNamespace(index=0,message=SimpleNamespace(content='{malformed}'))],
+    )
+    budget.persist_model_response(sequence,response,'gpt-6-luna',[{'role':'user','content':'test prompt'}],'strategy_rewrite')
+    archived=store.records('outreach_model_response')[0]
+    assert archived['raw_outputs']==['{malformed}']
+    assert archived['provider_request_id']=='resp-test-123'
+    assert archived['job_key']=='outreach-v2:inv-clean'
+    assert archived['attempt_id']==budget.attempt_id
+    assert archived['parser_status']=='pending'
+    budget.record_response_validation('invalid_json')
+    budget.record_response_validation('accepted',result={'document':'transformed document'})
+    validation=store.records('outreach_model_response_validation')[0]
+    assert validation['attempt_id']==budget.attempt_id
+    assert validation['parser_status']=='invalid_json'
+    accepted=next(r for r in store.records('outreach_model_response_validation') if r['parser_status']=='accepted')
+    assert accepted['transformed_result']=='{"document": "transformed document"}'
+    assert len(accepted['transformed_result_sha256'])==64
+
+
+def test_exact_prior_provider_response_can_be_replayed_without_reserving_another_call(db):
+    store=DurableStore(db)
+    first=OutreachProviderBudget(store,'outreach-v2:inv-clean')
+    first.experiment_id=6
+    messages=[{'role':'user','content':'exact frozen prompt'}]
+    params={'temperature':0,'top_p':1,'max_output_tokens':512,'response_format':{'type':'json_object'}}
+    sequence=first.reserve_model('gpt-6-luna',messages,512)
+    response=SimpleNamespace(id='resp-recoverable',model='gpt-6-luna',
+        usage=SimpleNamespace(prompt_tokens=10,completion_tokens=4,total_tokens=14),
+        choices=[SimpleNamespace(index=0,message=SimpleNamespace(content='{"recovered":true}'))])
+    first.persist_model_response(sequence,response,'gpt-6-luna',messages,'strategy_rewrite',params)
+    first.settle_model(sequence,'gpt-6-luna',response.usage)
+
+    retry=OutreachProviderBudget(store,'outreach-v2:inv-clean')
+    retry.experiment_id=6
+    assert retry.replay_model_response('gpt-6-luna',messages,'strategy_rewrite',parameters=params)==['{"recovered":true}']
+    assert retry.replay_model_response('gpt-6-luna',messages,'strategy_rewrite',parameters=params) is None
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_model'])==1
+
+
+def test_frozen_experiment_recovery_requires_hash_and_audit_provenance():
+    import json
+    from types import SimpleNamespace
+    from app.integration.research_pipeline import _recover_frozen_experiment_documents
+    website='https://geo-ai-resume.vercel.app/'
+    target_content='audited target content'
+    target_hash=hashlib.sha256(target_content.encode()).hexdigest()
+    docs=[{'rank':1,'source_role':'audited_target','retrieval_provider':'injected_for_controlled_experiment',
+           'url':website,'content':target_content,'content_sha256':target_hash,'source_audit_id':7,'retrieved_at':'2026-11-05T19:19:39Z'}]
+    for rank in range(2,6):
+        content=f'Exa reference {rank}'
+        docs.append({'rank':rank,'source_role':'reference','retrieval_provider':'exa',
+            'url':f'https://example{rank}.test/page','content':content,
+            'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'source_audit_id':7,
+            'retrieved_at':'2026-11-05T19:19:39Z'})
+    retrieval_results=[{'rank':i,'url':docs[i]['url'] if i<5 else 'https://extra.test/',
+        'provider_metadata':{'request_id':'exa-request-1'}} for i in range(1,6)]
+    evidence={'audit_id':7,'recommendation_id':3,'target_page_id':126,'target_page_url':website,
+        'source_order':[d['url'] for d in docs],'source_snapshot_hashes':[d['content_sha256'] for d in docs],
+        'retrieval_results':retrieval_results}
+    docs[0]['supporting_evidence']=evidence
+    for item in docs[1:]: item['supporting_evidence']=evidence
+    experiment=SimpleNamespace(status='failed',run_count=0,property_id=2,llm_model='gpt-6-luna',
+        dataset_name='outreach_owner_website_research',benchmark_queries_json=json.dumps([{
+            'query':'What should someone know about GeoAIResume?', 'documents':docs}]),
+        strategies_json='["original","faq"]',id=6)
+    audit=SimpleNamespace(id=7,base_url=website,pages=[SimpleNamespace(id=126,url=website,content_sha256=target_hash)])
+    recovered=_recover_frozen_experiment_documents(experiment,audit=audit,website=website,
+        official_name='GeoAIResume',property_id=2,opportunity_id=3,strategy='faq')
+    assert recovered and recovered['metadata']['status']=='recovered_persisted'
+    assert len(recovered['documents'])==5
+    docs[1]['content']='changed content'
+    experiment.benchmark_queries_json=json.dumps([{'query':'What should someone know about GeoAIResume?','documents':docs}])
+    assert _recover_frozen_experiment_documents(experiment,audit=audit,website=website,
+        official_name='GeoAIResume',property_id=2,opportunity_id=3,strategy='faq') is None
 
 
 def test_budget_cap_blocks_reservation_using_settled_and_reserved_cost(db, monkeypatch):

@@ -35,6 +35,7 @@ def test_gpt6_luna_chat_completion_uses_supported_bounded_parameters(monkeypatch
         messages=[{"role": "user", "content": "question"}],
         model="gpt-6-luna", temperature=0.2, top_p=1,
         max_tokens=640, purpose="strategy_rewrite",
+        response_format={"type": "json_object"},
     )
 
     assert result == "answer"
@@ -43,8 +44,34 @@ def test_gpt6_luna_chat_completion_uses_supported_bounded_parameters(monkeypatch
     assert fake.request["temperature"] == 0.2
     assert fake.request["top_p"] == 1
     assert fake.request["max_completion_tokens"] == 640
+    assert fake.request["response_format"] == {"type": "json_object"}
     assert "max_tokens" not in fake.request
     assert captured[0]["actual_model"] == "gpt-6-luna"
+
+
+def test_raw_response_is_archived_before_budget_settlement(monkeypatch):
+    events = []
+    class Budget:
+        def replay_model_response(self, *_args, **_kwargs):
+            return None
+        def reserve_model(self, *_args, **_kwargs):
+            events.append("reserve")
+            return 1
+        def persist_model_response(self, *_args, **_kwargs):
+            events.append("persist")
+        def settle_model(self, *_args, **_kwargs):
+            events.append("settle")
+
+    monkeypatch.setattr("app.experiment.token_usage_profiler.active_outreach_budget", lambda: Budget())
+    monkeypatch.setattr("app.providers.chatgpt_provider.record_provider_usage", lambda **_kwargs: None)
+    provider = object.__new__(ChatGPTProvider)
+    provider.client = FakeClient()
+    provider.generate_messages(
+        messages=[{"role": "user", "content": "question"}],
+        model="gpt-6-luna", temperature=0, max_tokens=32,
+        purpose="strategy_rewrite", response_format={"type": "json_object"},
+    )
+    assert events == ["reserve", "persist", "settle"]
 
 
 def test_outreach_rewrite_has_one_transport_attempt_and_640_token_cap():

@@ -13,6 +13,7 @@ class LLMRunner(Protocol):
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> str:
         ...
 
@@ -26,6 +27,7 @@ class LLMRunner(Protocol):
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> list[str]:
         ...
 
@@ -43,16 +45,20 @@ class OpenAILLMRunner:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> str:
-        return self.provider.run_experiment(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            model=model,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            purpose=purpose,
-        )
+        request = {
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "model": model,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "purpose": purpose,
+        }
+        if response_format is not None:
+            request["response_format"] = response_format
+        return self.provider.run_experiment(**request)
 
     def generate_many(
         self,
@@ -64,8 +70,9 @@ class OpenAILLMRunner:
         top_p: float = 1,
         max_tokens: int | None = None,
         purpose: str = "additional_evaluation",
+        response_format: dict | None = None,
     ) -> list[str]:
-        return self.provider.generate_texts(
+        request = dict(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             model=model,
@@ -75,3 +82,6 @@ class OpenAILLMRunner:
             max_tokens=max_tokens,
             purpose=purpose,
         )
+        if response_format is not None:
+            request["response_format"] = response_format
+        return self.provider.generate_texts(**request)
