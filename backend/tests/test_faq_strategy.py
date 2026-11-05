@@ -97,6 +97,49 @@ def test_faq_grounding_accepts_supported_paraphrase():
     validate_faq_rewrite(source, paraphrase)
 
 
+def test_geoairesume_archived_faq_wording_is_grounded_paraphrase():
+    # Regression for the archived Experiment 6 questions that were rejected
+    # solely because "made", "more", and "offer" were absent from source.
+    source = (
+        "An ATS-friendly resume is usually a readable resume. Use standard headings, "
+        "clear dates, plain job titles, and bullet points that explain real work. "
+        "Keyword alignment should be honest and should reflect actual experience. "
+        "Fictional GeoAIResume editorial guides explain common application questions "
+        "with concrete, careful advice. They are educational resources."
+    )
+    treatment = (
+        "How can a resume be made more ATS-friendly?\n"
+        "An ATS-friendly resume is usually a readable resume. Use standard headings, "
+        "clear dates, plain job titles, and bullet points that explain real work. "
+        "Keyword alignment should be honest and should reflect actual experience.\n"
+        "What are GeoAIResume’s editorial guides, and what do they offer?\n"
+        "Fictional GeoAIResume editorial guides explain common application questions "
+        "with concrete, careful advice. They are educational resources."
+    )
+
+    validate_faq_rewrite(source, treatment)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What mobile application does GeoAIResume provide?",
+        "How does GeoAIResume guarantee a 100% ATS match?",
+        "What certified hiring outcomes do GeoAIResume’s guides offer?",
+    ],
+    ids=["unsupported-product", "unsupported-number-and-guarantee", "unsupported-credential"],
+)
+def test_faq_grounding_rejects_unsupported_question_claims(question):
+    source = (
+        "GeoAIResume provides resume examples and ATS guidance. Editorial guides "
+        "explain common application questions with careful advice."
+    )
+    treatment = f"{question}\n{source}"
+
+    with pytest.raises(FAQGroundingError):
+        validate_faq_rewrite(source, treatment)
+
+
 @pytest.mark.parametrize(
     "unsupported",
     [

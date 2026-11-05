@@ -224,7 +224,7 @@ class RewriteArtifact:
 
 def validate_faq_rewrite(source: str, rewritten: str) -> None:
     lines = [line.strip().lstrip("-* ") for line in rewritten.splitlines() if line.strip()]
-    questions = [line for line in lines if line.endswith("?")]
+    questions = _faq_question_clauses(rewritten)
     answers = [line for line in lines if not line.endswith("?")]
     if not questions:
         raise FAQGroundingError("FAQ treatment must contain at least one explicit question.")
@@ -232,19 +232,27 @@ def validate_faq_rewrite(source: str, rewritten: str) -> None:
         raise FAQGroundingError("FAQ treatment must contain at least one grounded answer.")
 
     source_terms = content_terms(source)
-    safe_question_terms = {
-        "answer", "about", "information", "source", "explain", "help",
-        "question", "user", "reader", "work",
-    }
-    unsupported_question_terms = set().union(*(
-        content_terms(question) - source_terms - safe_question_terms
-        for question in questions
-    ))
-    if unsupported_question_terms:
-        raise FAQGroundingError(
-            "FAQ questions introduced concepts absent from the original source: "
-            + ", ".join(sorted(unsupported_question_terms))
-        )
+    # Questions commonly use verbs and degree words absent from the source
+    # ("made more ATS-friendly", "what do the guides offer?"). Treating every
+    # such token as a new factual concept rejects ordinary paraphrase. Instead,
+    # require each question to retain a substantial source-topic anchor; the
+    # answer, protected-fact, capability, claim-marker, and entity checks below
+    # remain responsible for rejecting unsupported assertions.
+    for question in questions:
+        question_terms = content_terms(question)
+        anchored_terms = question_terms & source_terms
+        anchor_ratio = len(anchored_terms) / len(question_terms) if question_terms else 0.0
+        if not anchored_terms or anchor_ratio < 0.5:
+            raise FAQGroundingError(
+                "FAQ question is not sufficiently anchored to source-supported topics."
+            )
+        fronted_terms = _fronted_question_concepts(question)
+        unsupported_fronted_terms = fronted_terms - source_terms
+        if unsupported_fronted_terms:
+            raise FAQGroundingError(
+                "FAQ question introduced unsupported fronted concepts: "
+                + ", ".join(sorted(unsupported_fronted_terms))
+            )
 
     rewritten_terms = content_terms(rewritten)
     retained = len(source_terms & rewritten_terms) / len(source_terms) if source_terms else 1.0
@@ -284,8 +292,11 @@ def validate_faq_rewrite(source: str, rewritten: str) -> None:
             "customers report", "users report", "according to", "study shows",
             "research shows", "evidence shows", "clinically proven",
             "certified", "licensed", "accredited", "award-winning",
-            "phd", "doctorate",
+            "phd", "doctorate", "credential", "credentials", "certification",
+            "certifications", "customer review", "customer reviews", "user count",
+            "number of users", "number of customers", "number of clients",
             "free", "no cost", "subscription", "per month", "per year",
+            "pricing", "price", "fee", "fees",
         )
         if contains_phrase(rewritten_lower, marker)
         and not contains_phrase(source_lower, marker)
@@ -331,6 +342,43 @@ def content_terms(value: str) -> set[str]:
     }
 
 
+def _faq_question_clauses(value: str) -> list[str]:
+    """Extract question clauses without treating preceding source prose as part of a question."""
+    clauses = []
+    for match in re.finditer(r"([^?\n]*\?)", value):
+        clause = match.group(1).strip()
+        prefix = clause[:-1]
+        last_boundary = max(prefix.rfind("."), prefix.rfind("!"), prefix.rfind("?"), prefix.rfind("\n"))
+        clause = prefix[last_boundary + 1:].strip() + "?"
+        starts = list(re.finditer(r"\b(?:what|how|why|when|where|who|which)\b", clause, re.IGNORECASE))
+        if not starts:
+            starts = list(re.finditer(
+                r"\b(?:can|could|would|should|will|does|do|did|is|are|has|have|had)\b",
+                clause,
+                re.IGNORECASE,
+            ))
+        if starts:
+            clause = clause[starts[0].start():]
+        clauses.append(clause)
+    return clauses
+
+
+def _fronted_question_concepts(question: str) -> set[str]:
+    """Return the wh-fronted noun/topic phrase before its first auxiliary."""
+    match = re.match(r"\s*(?:what|which|who|whom|whose|where|when)\b(.*)", question, re.I)
+    if not match:
+        return set()
+    remainder = match.group(1)
+    auxiliary = re.search(
+        r"\b(?:am|is|are|was|were|be|been|being|do|does|did|can|could|may|might|must|shall|should|will|would|has|have|had)\b",
+        remainder,
+        re.I,
+    )
+    if not auxiliary:
+        return set()
+    return content_terms(remainder[:auxiliary.start()])
+
+
 def protected_facts(value: str) -> set[str]:
     without_list_numbers = re.sub(r"(?m)^\s*\d+[.)]\s+", "", value)
     facts = set(re.findall(r"[$€£¥]?\d[\d,.]*%?", without_list_numbers))
@@ -347,16 +395,27 @@ def protected_facts(value: str) -> set[str]:
 def named_entities(value: str) -> set[str]:
     """Conservative deterministic entity markers used by the FAQ safety gate."""
     acronyms = set(re.findall(r"\b[A-Z][A-Z0-9&.-]{1,}\b", value))
-    titled = set(re.findall(
-        r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b",
-        value,
-    ))
+    camel_case = set(re.findall(r"\b[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+\b", value))
     ignored = {
         "A", "An", "Are", "Can", "Do", "Does", "FAQ", "How", "Is", "It",
         "Our", "The", "This", "What", "When", "Where", "Which", "Who", "Why",
     }
+    titled = set()
+    for match in re.finditer(r"\b(?:[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)\b", value):
+        words = match.group(0).split()
+        while words and words[-1] in ignored:
+            words.pop()
+        for start in range(len(words)):
+            for end in range(start + 2, len(words) + 1):
+                titled.add(" ".join(words[start:end]))
     capitalized = set(re.findall(r"\b[A-Z][a-z]{2,}\b", value)) - ignored
-    return acronyms | titled | capitalized
+    # A single capitalized word at a sentence/line start is usually normal
+    # prose (for example, "Topics include…"), not a named entity. Keep
+    # sentence-initial brands covered by acronym, camel-case, and multiword
+    # entity detection while avoiding false entity spans across FAQ line breaks.
+    sentence_initials = set(re.findall(r"(?:^|(?<=[.!?])\s+|\n\s*)([A-Z][a-z]{2,})", value))
+    capitalized -= sentence_initials
+    return acronyms | titled | camel_case | capitalized
 
 
 def contains_phrase(value: str, phrase: str) -> bool:
