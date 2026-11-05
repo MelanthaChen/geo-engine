@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.integration.adapter import GeoResearchIntegrationAdapter
 from app.integration.contracts import utc_now
+from app.ge.search_provider import _url_identity
 from app.models.experiment import Experiment
 from app.services.website_audit.audit_service import run_website_audit
 
@@ -34,80 +35,145 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
     never treats a partial run, mismatched audit, changed content, or synthetic
     document pack as recoverable evidence.
     """
-    if (experiment.status != "failed" or int(experiment.run_count or 0) != 0
+    def reject(reason: str):
+        raise ResearchPipelineBlocked(
+            f"Frozen Experiment {getattr(experiment, 'id', 'unknown')} recovery rejected: {reason}"
+        )
+
+    try:
+        if (experiment.status != "failed" or int(experiment.run_count or 0) != 0
             or int(experiment.property_id or 0) != int(property_id)
             or experiment.llm_model != "gpt-6-luna"
             or experiment.dataset_name != "outreach_owner_website_research"
             or not experiment.benchmark_queries_json):
-        return None
+            reject("experiment is not a failed, zero-run, matching outreach experiment")
+    except (TypeError, ValueError, AttributeError):
+        reject("experiment metadata is malformed")
     try:
         entries = json.loads(experiment.benchmark_queries_json)
         strategies = json.loads(experiment.strategies_json or "[]")
     except (TypeError, json.JSONDecodeError):
-        return None
+        reject("frozen query or strategy metadata is not valid JSON")
     if not isinstance(entries, list) or len(entries) != 1 or strategies != ["original", strategy]:
-        return None
+        reject("frozen query count or strategy selection does not match the authorized experiment")
     entry = entries[0]
     query = entry.get("query") if isinstance(entry, dict) else None
     docs = entry.get("documents") if isinstance(entry, dict) else None
-    if not isinstance(query, str) or official_name.casefold() not in query.casefold():
-        return None
+    property_name = getattr(getattr(audit, "property", None), "name", None)
+    if int(getattr(audit, "property_id", 0) or 0) != int(property_id):
+        reject("Audit does not belong to the authorized Property")
+    identities = [value.strip().casefold() for value in (official_name, property_name)
+                  if isinstance(value, str) and value.strip()]
+    if not isinstance(query, str) or not any(name in query.casefold() for name in identities):
+        reject("frozen query identity does not match the Outreach identity or audited Property name")
     if not isinstance(docs, list) or len(docs) != 5:
-        return None
+        reject("frozen document set must contain exactly one target and four references")
     targets = [item for item in docs if isinstance(item, dict) and item.get("source_role") == "audited_target"]
     references = [item for item in docs if isinstance(item, dict) and item.get("source_role") == "reference"]
     if len(targets) != 1 or len(references) != 4:
-        return None
+        reject("frozen document roles are incomplete or ambiguous")
     target = targets[0]
     parsed_target = urlparse(str(target.get("url") or ""))
     if (target.get("url") != website or audit.base_url != website or parsed_target.scheme != "https"
-            or target.get("retrieval_provider") != "injected_for_controlled_experiment"
             or int(target.get("source_audit_id") or 0) != int(audit.id)
             or int(target.get("rank") or 0) != 1):
-        return None
+        reject("audited target URL, rank, or Audit reference does not match")
     audit_page = next((page for page in audit.pages if page.url == website), None)
     target_evidence = target.get("supporting_evidence") or {}
-    ranks = [int(item.get("rank") or 0) for item in docs if isinstance(item, dict)]
-    if (not audit_page or target.get("content_sha256") != audit_page.content_sha256
+    try:
+        ranks = [int(item.get("rank") or 0) for item in docs if isinstance(item, dict)]
+    except (TypeError, ValueError):
+        reject("frozen document ranks are malformed")
+    if (not audit_page
             or int(target_evidence.get("target_page_id") or 0) != int(audit_page.id)
-            or sorted(ranks) != [1, 2, 3, 4, 5]):
-        return None
+            or ranks != [1, 2, 3, 4, 5]):
+        reject("target page link or frozen document ranks do not match the Audit")
+    retrieval_results = target_evidence.get("retrieval_results")
+    target_status = target_evidence.get("target_retrieval_status")
+    target_provider = target.get("retrieval_provider")
+    if target_status == "injected_for_controlled_experiment":
+        if (target_provider != "injected_for_controlled_experiment"
+                or target.get("content_sha256") != audit_page.content_sha256):
+            reject("injected target does not match the audited target-page snapshot")
+    elif target_status == "retrieved_by_provider":
+        if target_provider != "exa" or not isinstance(retrieval_results, list):
+            reject("provider-retrieved target lacks Exa retrieval provenance")
+        matching_target = [item for item in retrieval_results if isinstance(item, dict)
+                           and _url_identity(item.get("url")) == _url_identity(website)]
+        if (len(matching_target) != 1
+                or int(target_evidence.get("target_retrieval_rank") or 0)
+                != int(matching_target[0].get("rank") or 0)):
+            reject("provider-retrieved target does not match its recorded Exa rank")
+    else:
+        reject("target retrieval status is unsupported")
     for item in docs:
         if (not isinstance(item, dict) or int(item.get("source_audit_id") or 0) != int(audit.id)
                 or not str(item.get("content") or "").strip()):
-            return None
+            reject("a frozen document is missing content or its Audit provenance")
         digest = hashlib.sha256(str(item["content"]).encode("utf-8")).hexdigest()
         if digest != item.get("content_sha256"):
-            return None
+            reject("a frozen document content hash does not match")
     for item in references:
         parsed = urlparse(str(item.get("url") or ""))
         if (parsed.scheme != "https" or not parsed.hostname
                 or item.get("retrieval_provider") != "exa"):
-            return None
+            reject("a reference is not an HTTPS Exa document")
     evidence = target.get("supporting_evidence") or {}
     if (int(evidence.get("audit_id") or 0) != int(audit.id)
             or int(evidence.get("recommendation_id") or 0) != int(opportunity_id)
             or evidence.get("target_page_url") != website):
-        return None
+        reject("frozen Audit, Opportunity, or target URL links do not match")
     source_order = evidence.get("source_order")
     snapshot_hashes = evidence.get("source_snapshot_hashes")
     if (source_order != [item.get("url") for item in docs]
             or snapshot_hashes != [item.get("content_sha256") for item in docs]):
-        return None
-    retrieval_results = evidence.get("retrieval_results")
+        reject("frozen source ordering or snapshot hashes do not match the documents")
     if not isinstance(retrieval_results, list) or len(retrieval_results) < 4:
-        return None
-    exa_urls = [item.get("url") for item in retrieval_results[:4] if isinstance(item, dict)]
-    exa_request_ids = {
-        (item.get("provider_metadata") or {}).get("request_id")
-        for item in retrieval_results if isinstance(item, dict)
-    }
-    if (exa_urls != [item.get("url") for item in references]
-            or len(exa_request_ids) != 1 or not next(iter(exa_request_ids))):
-        return None
+        reject("frozen Exa retrieval ledger is missing")
+    exa_request_ids = set()
+    previous_rank = 0
+    retrieval_urls = []
+    for result in retrieval_results:
+        if not isinstance(result, dict):
+            reject("frozen Exa retrieval ledger contains a malformed entry")
+        try:
+            result_rank = int(result.get("rank") or 0)
+        except (TypeError, ValueError):
+            reject("frozen Exa retrieval ranks are malformed")
+        metadata = result.get("provider_metadata") or {}
+        request_id = metadata.get("request_id") if isinstance(metadata, dict) else None
+        if result_rank <= previous_rank or not isinstance(request_id, str) or not request_id:
+            reject("frozen Exa ranks or request identity are incomplete")
+        previous_rank = result_rank
+        exa_request_ids.add(request_id)
+        retrieval_urls.append(result.get("url"))
+    if len(exa_request_ids) != 1:
+        reject("frozen Exa documents do not share one provider request identity")
+    # The builder filters empty pages, duplicate URLs, the audited target and
+    # same-domain candidates before selecting references. Therefore selected
+    # sources are an ordered subsequence of the raw Exa ledger, not necessarily
+    # retrieval_results[:4]. Validate every chosen URL and ordering exactly.
+    ref_urls = [item.get("url") for item in references]
+    target_host = (parsed_target.hostname or "").lower().removeprefix("www.")
+    selected_positions = []
+    seen_ref_urls = set()
+    for ref_url in ref_urls:
+        parsed_ref = urlparse(str(ref_url or ""))
+        normalized = str(ref_url).rstrip("/")
+        ref_host = (parsed_ref.hostname or "").lower().removeprefix("www.")
+        if (parsed_ref.scheme != "https" or not ref_host or ref_host == target_host
+                or normalized in seen_ref_urls or ref_url not in retrieval_urls):
+            reject("selected Exa references do not match distinct external retrieval evidence")
+        seen_ref_urls.add(normalized)
+        selected_positions.append(retrieval_urls.index(ref_url))
+    if selected_positions != sorted(selected_positions):
+        reject("selected Exa references do not preserve retrieval order")
+    if target_status == "retrieved_by_provider" and _url_identity(website) not in {
+            _url_identity(url) for url in retrieval_urls if isinstance(url, str)}:
+        reject("provider-retrieved target is absent from the Exa ledger")
     timestamps = {item.get("retrieved_at") for item in docs}
     if len(timestamps) != 1 or not next(iter(timestamps)):
-        return None
+        reject("frozen documents do not share a valid retrieval timestamp")
     return {
         "query": query,
         "documents": docs,
@@ -297,8 +363,13 @@ def run_owner_research_pipeline(
     budget = active_outreach_budget()
     model_for_run = "gpt-6-luna" if budget is not None else "gpt-3.5-turbo"
     frozen = None
-    if (prior_experiment is not None and resume_incomplete and budget is not None
-            and budget.search_reserved and budget.search_settled):
+    if budget is not None and budget.search_reserved:
+        if not resume_incomplete:
+            raise ResearchPipelineBlocked("A prior Exa search is already reserved; settled evidence recovery is required and another search is forbidden")
+        if not budget.search_settled:
+            raise ResearchPipelineBlocked("Prior Exa search outcome is unresolved; another search is forbidden pending reconciliation")
+        if prior_experiment is None:
+            raise ResearchPipelineBlocked("A prior Exa search is settled but its original frozen Experiment is missing; another search is forbidden")
         child_counts = (
             db.query(
                 db.query(ExperimentRun.id).filter(ExperimentRun.experiment_id == prior_experiment.id).exists(),
@@ -307,14 +378,19 @@ def run_owner_research_pipeline(
                 db.query(ExperimentStrategyResult.id).join(ExperimentQuery).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
             ).one()
         )
-        if not any(child_counts):
-            frozen = _recover_frozen_experiment_documents(
-                prior_experiment, audit=audit, website=profile["identity"]["website"],
-                official_name=imported["official_name"], property_id=imported["property_id"],
-                opportunity_id=opportunity_id, strategy=strategy,
+        if any(child_counts):
+            raise ResearchPipelineBlocked(
+                f"Prior Exa search is settled but Experiment {prior_experiment.id} has partial child records; another search is forbidden pending reconciliation"
             )
+        frozen = _recover_frozen_experiment_documents(
+            prior_experiment, audit=audit, website=profile["identity"]["website"],
+            official_name=imported["official_name"], property_id=imported["property_id"],
+            opportunity_id=opportunity_id, strategy=strategy,
+        )
 
     if frozen is None:
+        if budget is not None and budget.search_reserved:
+            raise ResearchPipelineBlocked("Prior Exa search is already reserved; live search fallback is forbidden")
         search_provider = build_search_provider()
         if budget is not None:
             if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:

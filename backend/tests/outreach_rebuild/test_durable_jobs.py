@@ -185,41 +185,144 @@ def test_exact_prior_provider_response_can_be_replayed_without_reserving_another
     assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_model'])==1
 
 
-def test_frozen_experiment_recovery_requires_hash_and_audit_provenance():
+def _frozen_experiment_fixture():
     import json
     from types import SimpleNamespace
-    from app.integration.research_pipeline import _recover_frozen_experiment_documents
     website='https://geo-ai-resume.vercel.app/'
-    target_content='audited target content'
-    target_hash=hashlib.sha256(target_content.encode()).hexdigest()
-    docs=[{'rank':1,'source_role':'audited_target','retrieval_provider':'injected_for_controlled_experiment',
-           'url':website,'content':target_content,'content_sha256':target_hash,'source_audit_id':7,'retrieved_at':'2026-11-05T19:19:39Z'}]
-    for rank in range(2,6):
-        content=f'Exa reference {rank}'
-        docs.append({'rank':rank,'source_role':'reference','retrieval_provider':'exa',
-            'url':f'https://example{rank}.test/page','content':content,
-            'content_sha256':hashlib.sha256(content.encode()).hexdigest(),'source_audit_id':7,
-            'retrieved_at':'2026-11-05T19:19:39Z'})
-    retrieval_results=[{'rank':i,'url':docs[i]['url'] if i<5 else 'https://extra.test/',
-        'provider_metadata':{'request_id':'exa-request-1'}} for i in range(1,6)]
+    retrieved_at='2026-11-05T19:19:39.132333+00:00'
+    urls=[
+        website,
+        'https://aicareer.cloud/',
+        'https://buildairesume.com/',
+        'https://enhancv.com/blog/best-ai-resume-builders-reviewed/',
+        'https://huntr.co/blog/best-resume-builders',
+    ]
+    contents=['audited target content', 'reference one', 'reference two', 'reference three', 'reference four']
+    docs=[]
+    for rank,(url,content) in enumerate(zip(urls,contents),start=1):
+        docs.append({
+            'rank':rank,
+            'source_role':'audited_target' if rank==1 else 'reference',
+            'retrieval_provider':'injected_for_controlled_experiment' if rank==1 else 'exa',
+            'url':url,'content':content,'content_sha256':hashlib.sha256(content.encode()).hexdigest(),
+            'source_audit_id':7,'retrieved_at':retrieved_at,
+        })
+    retrieval_urls=urls[1:]+['https://www.handpickedai.com/best-ai-resume-builder/']
+    retrieval_results=[{'rank':i,'url':url,'provider_metadata':{'request_id':'exa-request-6'}}
+        for i,url in enumerate(retrieval_urls,start=1)]
     evidence={'audit_id':7,'recommendation_id':3,'target_page_id':126,'target_page_url':website,
+        'target_retrieval_status':'injected_for_controlled_experiment','target_retrieval_rank':None,
         'source_order':[d['url'] for d in docs],'source_snapshot_hashes':[d['content_sha256'] for d in docs],
         'retrieval_results':retrieval_results}
-    docs[0]['supporting_evidence']=evidence
-    for item in docs[1:]: item['supporting_evidence']=evidence
+    for item in docs: item['supporting_evidence']=evidence
+    query='What should someone know about Build Better Resumes Faster from GeoAIResume Cloud Acceptance Fixture?'
     experiment=SimpleNamespace(status='failed',run_count=0,property_id=2,llm_model='gpt-6-luna',
         dataset_name='outreach_owner_website_research',benchmark_queries_json=json.dumps([{
-            'query':'What should someone know about GeoAIResume?', 'documents':docs}]),
-        strategies_json='["original","faq"]',id=6)
-    audit=SimpleNamespace(id=7,base_url=website,pages=[SimpleNamespace(id=126,url=website,content_sha256=target_hash)])
-    recovered=_recover_frozen_experiment_documents(experiment,audit=audit,website=website,
-        official_name='GeoAIResume',property_id=2,opportunity_id=3,strategy='faq')
+            'query':query, 'documents':docs}]), strategies_json='["original","faq"]',id=6)
+    audit=SimpleNamespace(id=7,property_id=2,property=SimpleNamespace(name='GeoAIResume Cloud Acceptance Fixture'),
+        base_url=website,pages=[SimpleNamespace(id=126,url=website,content_sha256=docs[0]['content_sha256'])])
+    return experiment,audit,docs,evidence
+
+
+def _recover_fixture(experiment,audit):
+    from app.integration.research_pipeline import _recover_frozen_experiment_documents
+    return _recover_frozen_experiment_documents(experiment,audit=audit,
+        website='https://geo-ai-resume.vercel.app/',official_name='GeoAIResume — researcher-controlled E2E test',
+        property_id=2,opportunity_id=3,strategy='faq')
+
+
+def _write_frozen_docs(experiment,docs):
+    import json
+    payload=json.loads(experiment.benchmark_queries_json)
+    payload[0]['documents']=docs
+    experiment.benchmark_queries_json=json.dumps(payload)
+
+
+def test_actual_experiment_shape_recovers_audited_property_query_identity():
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    recovered=_recover_fixture(experiment,audit)
     assert recovered and recovered['metadata']['status']=='recovered_persisted'
+    assert recovered['metadata']['source_experiment_id']==6
     assert len(recovered['documents'])==5
-    docs[1]['content']='changed content'
-    experiment.benchmark_queries_json=json.dumps([{'query':'What should someone know about GeoAIResume?','documents':docs}])
-    assert _recover_frozen_experiment_documents(experiment,audit=audit,website=website,
-        official_name='GeoAIResume',property_id=2,opportunity_id=3,strategy='faq') is None
+    assert 'GeoAIResume Cloud Acceptance Fixture' in recovered['query']
+
+
+def test_filtered_exa_references_are_ordered_subsequence_not_first_four():
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    evidence['retrieval_results']=[
+        {'rank':1,'url':'https://geo-ai-resume.vercel.app/about','provider_metadata':{'request_id':'exa-request-6'}},
+        {'rank':2,'url':'https://aicareer.cloud/','provider_metadata':{'request_id':'exa-request-6'}},
+        {'rank':3,'url':'https://aicareer.cloud','provider_metadata':{'request_id':'exa-request-6'}},
+        {'rank':4,'url':'https://buildairesume.com/','provider_metadata':{'request_id':'exa-request-6'}},
+        {'rank':5,'url':'https://enhancv.com/blog/best-ai-resume-builders-reviewed/','provider_metadata':{'request_id':'exa-request-6'}},
+        {'rank':6,'url':'https://huntr.co/blog/best-resume-builders','provider_metadata':{'request_id':'exa-request-6'}},
+    ]
+    recovered=_recover_fixture(experiment,audit)
+    assert recovered and [d['url'] for d in recovered['documents'][1:]]==[d['url'] for d in docs[1:]]
+
+
+def test_legitimate_exa_retrieved_target_variant_is_supported():
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    docs[0]['retrieval_provider']='exa'
+    evidence['target_retrieval_status']='retrieved_by_provider'
+    evidence['target_retrieval_rank']=7
+    evidence['retrieval_results'].append({'rank':7,'url':'https://geo-ai-resume.vercel.app/',
+        'provider_metadata':{'request_id':'exa-request-6'}})
+    recovered=_recover_fixture(experiment,audit)
+    assert recovered and recovered['metadata']['status']=='recovered_persisted'
+
+
+def test_tampered_frozen_evidence_is_rejected_with_specific_reason():
+    from app.integration.research_pipeline import ResearchPipelineBlocked
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    docs[1]['content']='tampered reference content'
+    _write_frozen_docs(experiment,docs)
+    with pytest.raises(ResearchPipelineBlocked,match='content hash does not match'):
+        _recover_fixture(experiment,audit)
+
+
+def test_exa_reference_identity_must_match_retrieval_ledger():
+    from app.integration.research_pipeline import ResearchPipelineBlocked
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    docs[1]['url']='https://forged.example/'
+    evidence['source_order']=[d['url'] for d in docs]
+    _write_frozen_docs(experiment,docs)
+    with pytest.raises(ResearchPipelineBlocked,match='selected Exa references'):
+        _recover_fixture(experiment,audit)
+
+
+def test_settled_exa_search_is_never_repeated_by_budget_guard(db):
+    class SearchSpy:
+        provider_id='exa'
+        def __init__(self): self.calls=0
+        def search(self,**kwargs):
+            self.calls+=1
+            raise AssertionError('a second Exa request was attempted')
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-frozen-recovery')
+    budget.reserve_search('exa');budget.settle_search('exa',5)
+    search=SearchSpy()
+    with pytest.raises(RuntimeError,match='already reserved its only search request'):
+        from app.integration.research_pipeline import _BudgetedSearchProvider
+        _BudgetedSearchProvider(search,budget).search(query='frozen',top_k=5)
+    assert search.calls==0
+    assert budget.search_reserved is True and budget.search_settled is True
+
+
+def test_recovery_does_not_mutate_failed_experiment_or_provider_ledger(db):
+    experiment,audit,docs,evidence=_frozen_experiment_fixture()
+    before=(experiment.id,experiment.status,experiment.run_count,experiment.benchmark_queries_json)
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-frozen-recovery-counts')
+    budget.reserve_search('exa');budget.settle_search('exa',5)
+    sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'prior prompt'}],512)
+    budget.settle_model(sequence,'gpt-6-luna',type('Usage',(),{'prompt_tokens':10,'completion_tokens':2})())
+    prior_events=len(store.records('outreach_provider_budget'))
+    assert _recover_fixture(experiment,audit)
+    assert (experiment.id,experiment.status,experiment.run_count,experiment.benchmark_queries_json)==before
+    assert len(store.records('outreach_provider_budget'))==prior_events
+    assert budget.search_reserved and budget.search_settled
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_model'])==1
 
 
 def test_budget_cap_blocks_reservation_using_settled_and_reserved_cost(db, monkeypatch):
