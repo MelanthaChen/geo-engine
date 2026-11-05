@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import hashlib
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -119,9 +120,12 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
                 or item.get("retrieval_provider") != "exa"):
             reject("a reference is not an HTTPS Exa document")
     evidence = target.get("supporting_evidence") or {}
+    if any(item.get("supporting_evidence") != evidence for item in docs):
+        reject("frozen documents do not share one identical provenance manifest")
     if (int(evidence.get("audit_id") or 0) != int(audit.id)
             or int(evidence.get("recommendation_id") or 0) != int(opportunity_id)
-            or evidence.get("target_page_url") != website):
+            or evidence.get("target_page_url") != website
+            or evidence.get("retrieval_query") != query):
         reject("frozen Audit, Opportunity, or target URL links do not match")
     source_order = evidence.get("source_order")
     snapshot_hashes = evidence.get("source_snapshot_hashes")
@@ -174,6 +178,10 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
     timestamps = {item.get("retrieved_at") for item in docs}
     if len(timestamps) != 1 or not next(iter(timestamps)):
         reject("frozen documents do not share a valid retrieval timestamp")
+    try:
+        datetime.fromisoformat(next(iter(timestamps)).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        reject("frozen retrieval timestamp is not a valid ISO-8601 value")
     return {
         "query": query,
         "documents": docs,

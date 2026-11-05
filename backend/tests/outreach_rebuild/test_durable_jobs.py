@@ -216,6 +216,7 @@ def _frozen_experiment_fixture():
         'retrieval_results':retrieval_results}
     for item in docs: item['supporting_evidence']=evidence
     query='What should someone know about Build Better Resumes Faster from GeoAIResume Cloud Acceptance Fixture?'
+    evidence['retrieval_query']=query
     experiment=SimpleNamespace(status='failed',run_count=0,property_id=2,llm_model='gpt-6-luna',
         dataset_name='outreach_owner_website_research',benchmark_queries_json=json.dumps([{
             'query':query, 'documents':docs}]), strategies_json='["original","faq"]',id=6)
