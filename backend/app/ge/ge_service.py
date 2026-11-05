@@ -41,6 +41,9 @@ class GenerativeEngineService:
         response_samples: int | None = None,
         on_strategy=None,
         on_sample=None,
+        on_output=None,
+        precomputed_rewrite_artifacts=None,
+        completed_strategy_outputs=None,
     ) -> dict:
         runner = OpenAILLMRunner(provider) if provider else self.llm_runner
         rewriter = GeoRewriter(runner) if provider else self.rewriter
@@ -75,13 +78,24 @@ class GenerativeEngineService:
             if on_strategy:
                 on_strategy(strategy)
 
-            rewrite_artifact = rewriter.rewrite_artifact(
-                document_text=selected_document.plain_text,
-                query=query,
-                strategy=strategy,
-                model=model,
-                temperature=temperature,
-            )
+            recovered = (completed_strategy_outputs or {}).get(strategy)
+            if recovered is not None:
+                if len(recovered) != sample_count:
+                    raise RuntimeError(
+                        f"Strategy {strategy!r} has an incomplete durable sample checkpoint; explicit reconciliation is required"
+                    )
+                strategy_outputs.extend(recovered)
+                continue
+
+            rewrite_artifact = (precomputed_rewrite_artifacts or {}).get(strategy)
+            if rewrite_artifact is None:
+                rewrite_artifact = rewriter.rewrite_artifact(
+                    document_text=selected_document.plain_text,
+                    query=query,
+                    strategy=strategy,
+                    model=model,
+                    temperature=temperature,
+                )
             modified_document_text = rewrite_artifact.document
             source_char_limits = {
                 document.rank: (
@@ -123,8 +137,7 @@ class GenerativeEngineService:
                     purpose="answer_generation",
                 )
                 latency_ms = int((time.perf_counter() - started_at) * 1000)
-                strategy_outputs.append(
-                    {
+                output = {
                         "strategy": strategy,
                         "query": query,
                         "sample_index": sample_index,
@@ -134,7 +147,11 @@ class GenerativeEngineService:
                         "answer": answer,
                         "latency_ms": latency_ms,
                     }
-                )
+                strategy_outputs.append(output)
+                # Persist each paid answer immediately. The callback is invoked
+                # before the next strategy (and before any later stage can fail).
+                if on_output:
+                    on_output(output, documents, selected_document.rank)
 
         return {
             "query": query,

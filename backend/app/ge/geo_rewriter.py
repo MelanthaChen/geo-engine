@@ -749,7 +749,7 @@ class GeoRewriter:
         cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
 
     def _cached_rewrite(self, user_prompt: str, system_prompt: str) -> str | dict | None:
-        if os.environ.get("GEO_DISABLE_REWRITE_CACHE") == "True":
+        if self._rewrite_cache_disabled():
             return None
 
         cache = self._load_cache()
@@ -766,10 +766,28 @@ class GeoRewriter:
         system_prompt: str,
         processed: str | dict,
     ):
-        if os.environ.get("GEO_DISABLE_REWRITE_CACHE") == "True":
+        if self._rewrite_cache_disabled():
             return
 
         cache = self._load_cache()
         key = str((user_prompt, system_prompt))
         cache.setdefault(key, []).append(processed)
         self._write_cache(cache)
+
+    @staticmethod
+    def _rewrite_cache_disabled() -> bool:
+        if os.environ.get("GEO_DISABLE_REWRITE_CACHE") == "True":
+            return True
+        # Experiment 6 must use its exact durable response archive, not an
+        # unproven filesystem cache that could conceal which model output was
+        # consumed during recovery.
+        try:
+            from app.experiment.token_usage_profiler import active_outreach_budget
+            budget = active_outreach_budget()
+            return bool(
+                budget is not None
+                and budget.job_key == "outreach-v2:inv-9880a65388184eafa7c1075f7bbadb83"
+                and int(budget.experiment_id or 0) == 6
+            )
+        except ImportError:
+            return False

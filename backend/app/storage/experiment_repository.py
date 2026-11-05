@@ -328,23 +328,36 @@ class ExperimentRepository:
         selected_document_rank: int,
         strategy_outputs: list[dict],
     ) -> ExperimentQuery:
-        experiment_query = ExperimentQuery(
-            experiment_id=experiment.id,
-            query=query,
-            seed_value=seed_value,
-            selected_document_rank=selected_document_rank,
-            query_policy_version=next((d.query_policy_version for d in documents if d.query_policy_version), None),
-            source_audit_id=next((d.source_audit_id for d in documents if d.source_audit_id), None),
-            supporting_evidence_json=json.dumps(next((d.supporting_evidence for d in documents if d.supporting_evidence), {})),
-            retrieval_provider=next((d.retrieval_provider for d in documents if d.retrieval_provider), None),
-            retrieval_timestamp=next((d.retrieved_at for d in documents if d.retrieved_at), None),
+        experiment_query = (
+            self.db.query(ExperimentQuery)
+            .filter(ExperimentQuery.experiment_id == experiment.id,
+                    ExperimentQuery.query == query,
+                    ExperimentQuery.seed_value == seed_value)
+            .first()
         )
-        self.db.add(experiment_query)
-        self.db.flush()
+        if experiment_query is None:
+            experiment_query = ExperimentQuery(
+                experiment_id=experiment.id,
+                query=query,
+                seed_value=seed_value,
+                selected_document_rank=selected_document_rank,
+                query_policy_version=next((d.query_policy_version for d in documents if d.query_policy_version), None),
+                source_audit_id=next((d.source_audit_id for d in documents if d.source_audit_id), None),
+                supporting_evidence_json=json.dumps(next((d.supporting_evidence for d in documents if d.supporting_evidence), {})),
+                retrieval_provider=next((d.retrieval_provider for d in documents if d.retrieval_provider), None),
+                retrieval_timestamp=next((d.retrieved_at for d in documents if d.retrieved_at), None),
+            )
+            self.db.add(experiment_query)
+            self.db.flush()
+        elif experiment_query.selected_document_rank != selected_document_rank:
+            raise ValueError("Checkpoint documents conflict with the durable selected-document identity")
 
-        for document in documents:
-            self.db.add(
-                ExperimentDocument(
+        stored_documents = self.db.query(ExperimentDocument).filter(
+            ExperimentDocument.experiment_query_id == experiment_query.id
+        ).all()
+        if not stored_documents:
+            for document in documents:
+                self.db.add(ExperimentDocument(
                     experiment_query_id=experiment_query.id,
                     rank=document.rank,
                     title=document.title,
@@ -355,10 +368,29 @@ class ExperimentRepository:
                     retrieval_provider=document.retrieval_provider,
                     retrieval_timestamp=document.retrieved_at,
                     content_sha256=document.content_sha256,
-                )
-            )
+                ))
+        else:
+            by_rank = {row.rank: row for row in stored_documents}
+            for document in documents:
+                prior = by_rank.get(document.rank)
+                if (prior is None or prior.url != document.url or
+                        prior.content_sha256 != document.content_sha256 or
+                        prior.is_selected != (document.rank == selected_document_rank)):
+                    raise ValueError("Checkpoint source evidence differs from the durable query evidence")
 
         for output in strategy_outputs:
+            existing = self.db.query(ExperimentRun).filter(
+                ExperimentRun.experiment_id == experiment.id,
+                ExperimentRun.experiment_query_id == experiment_query.id,
+                ExperimentRun.strategy == output["strategy"],
+                ExperimentRun.sample_index == output["sample_index"],
+                ExperimentRun.status == "completed",
+            ).first()
+            if existing is not None:
+                if (existing.raw_response != output["answer"] or
+                        existing.raw_prompt != output["prompt"]):
+                    raise ValueError("A completed strategy checkpoint conflicts with the replayed output")
+                continue
             evaluation = output["evaluation"]
             now = datetime.now(timezone.utc)
             generation_parameters = json.loads(experiment.generation_params_json or "{}")
@@ -476,6 +508,38 @@ class ExperimentRepository:
             ExperimentRun.sample_index == sample_index,
             ExperimentRun.status == "completed",
         ).first() is not None
+
+    def completed_strategy_outputs(self, *, experiment_id: int, query: str, seed_value: int) -> dict[str, list[dict]]:
+        """Load completed checkpoints for an exact query/seed without rerunning providers."""
+        experiment_query = self.db.query(ExperimentQuery).filter(
+            ExperimentQuery.experiment_id == experiment_id,
+            ExperimentQuery.query == query,
+            ExperimentQuery.seed_value == seed_value,
+        ).first()
+        if experiment_query is None:
+            return {}
+        rows = self.db.query(ExperimentRun).filter(
+            ExperimentRun.experiment_id == experiment_id,
+            ExperimentRun.experiment_query_id == experiment_query.id,
+            ExperimentRun.status == "completed",
+        ).order_by(ExperimentRun.strategy, ExperimentRun.sample_index).all()
+        recovered: dict[str, list[dict]] = {}
+        for run in rows:
+            strategy_result = run.strategy_result
+            if strategy_result is None or run.raw_response is None:
+                raise ValueError("A completed strategy checkpoint is missing its result artifact")
+            params = json.loads(run.generation_params_json or "{}")
+            recovered.setdefault(run.strategy, []).append({
+                "strategy": run.strategy,
+                "query": query,
+                "sample_index": run.sample_index,
+                "modified_document_text": strategy_result.modified_document_text,
+                "rewrite_plan": params.get("rewrite_plan"),
+                "prompt": run.raw_prompt,
+                "answer": run.raw_response,
+                "latency_ms": run.latency_ms,
+            })
+        return recovered
 
     def strategy_sample_group(
         self,

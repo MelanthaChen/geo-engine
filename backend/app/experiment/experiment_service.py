@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from datetime import datetime
 from typing import Any
 
@@ -131,7 +132,7 @@ class ExperimentService:
             repetitions_per_context=repetitions_per_context,
         )
 
-    def execute_experiment(self, experiment_id: int) -> Experiment:
+    def execute_experiment(self, experiment_id: int, *, precomputed_rewrite_artifacts=None) -> Experiment:
         experiment = self.repository.get_run(experiment_id)
 
         if not experiment:
@@ -163,6 +164,7 @@ class ExperimentService:
                         completed_runs=completed_runs,
                         strategies=strategies,
                         uploaded_documents=uploaded_documents_by_query.get(query),
+                        precomputed_rewrite_artifacts=precomputed_rewrite_artifacts,
                     )
 
             self.repository.mark_completed(experiment)
@@ -180,6 +182,7 @@ class ExperimentService:
         completed_runs: int,
         strategies: list[str],
         uploaded_documents: list[RetrievedDocument] | None,
+        precomputed_rewrite_artifacts=None,
     ) -> int:
         self.repository.update_progress(
             experiment,
@@ -187,6 +190,40 @@ class ExperimentService:
             current_strategy=strategies[0],
             completed_queries=completed_runs,
         )
+        def persist_output(output, documents, selected_rank):
+            # A strategy is the smallest durable checkpoint. Evaluating and
+            # committing it here prevents a later strategy failure from erasing
+            # completed paid model work.
+            self.evaluation_pipeline.evaluate_outputs(
+                [output], selected_document=next(d for d in documents if d.rank == selected_rank)
+            )
+            self.repository.store_query_run(
+                experiment, query=query, seed_value=seed_value,
+                documents=documents, selected_document_rank=selected_rank,
+                strategy_outputs=[output],
+            )
+            try:
+                from app.experiment.token_usage_profiler import active_outreach_budget
+                budget = active_outreach_budget()
+                if budget is not None and budget.last_response_sequence is not None:
+                    budget.record_response_validation(
+                        "checkpointed",
+                        result={
+                            "experiment_id": int(experiment.id),
+                            "query_sha256": sha256(query.encode("utf-8")).hexdigest(),
+                            "strategy": output["strategy"],
+                            "sample_index": int(output["sample_index"]),
+                            "answer_sha256": sha256((output["answer"] or "").encode("utf-8")).hexdigest(),
+                        },
+                    )
+            except ImportError:
+                pass
+
+        load_completed = getattr(self.repository, "completed_strategy_outputs", None)
+        completed_outputs = load_completed(
+            experiment_id=experiment.id, query=query, seed_value=seed_value
+        ) if load_completed else {}
+
         result = self.ge_service.run_query(
             query=query,
             strategies=strategies,
@@ -215,6 +252,9 @@ class ExperimentService:
                     )
                 )
             ),
+            on_output=persist_output,
+            precomputed_rewrite_artifacts=precomputed_rewrite_artifacts,
+            completed_strategy_outputs=completed_outputs,
         )
         self.evaluation_pipeline.evaluate_outputs(
             result["strategy_outputs"],

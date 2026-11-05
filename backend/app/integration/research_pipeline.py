@@ -32,9 +32,9 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
                                         property_id: int, opportunity_id: int, strategy: str):
     """Validate and reuse an existing experiment's frozen, provenance-linked input.
 
-    This is deliberately limited to a failed zero-run outreach experiment. It
-    never treats a partial run, mismatched audit, changed content, or synthetic
-    document pack as recoverable evidence.
+    This is deliberately limited to the original incomplete outreach experiment.
+    Partial child rows are accepted only after the caller independently checks
+    each durable stage checkpoint against these frozen sources.
     """
     def reject(reason: str):
         raise ResearchPipelineBlocked(
@@ -42,7 +42,8 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
         )
 
     try:
-        if (experiment.status != "failed" or int(experiment.run_count or 0) != 0
+        if (experiment.status not in {"failed", "queued", "running"}
+            or int(experiment.run_count or 0) > 2
             or int(experiment.property_id or 0) != int(property_id)
             or experiment.llm_model != "gpt-6-luna"
             or experiment.dataset_name != "outreach_owner_website_research"
@@ -192,6 +193,49 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
             "source_experiment_id": experiment.id,
         },
     }
+
+
+def _validate_exp6_checkpoints(experiment, *, frozen, strategies):
+    """Accept only complete, exact-source checkpoints for this one live run."""
+    expected_query = frozen.get("query")
+    expected_docs = frozen.get("documents") or []
+    if int(experiment.run_count or 0) != len(experiment.runs):
+        return False
+    if len(experiment.queries) > 1:
+        return False
+    if experiment.runs and len(experiment.queries) != 1:
+        return False
+    if experiment.queries:
+        query = experiment.queries[0]
+        if query.query != expected_query or int(query.seed_value or 0) != int(experiment.random_seed or 0):
+            return False
+        if len(query.documents) != len(expected_docs):
+            return False
+        ordered = sorted(query.documents, key=lambda item: item.rank)
+        for stored, source in zip(ordered, sorted(expected_docs, key=lambda item: int(item.get("rank") or 0))):
+            source_hash = source.get("content_sha256")
+            if (stored.rank != int(source.get("rank") or 0) or stored.url != source.get("url")
+                    or stored.content_sha256 != source_hash or
+                    hashlib.sha256(stored.plain_text.encode("utf-8")).hexdigest() != source_hash
+                    or stored.is_selected != (stored.rank == query.selected_document_rank)
+                    or stored.source_role != source.get("source_role")
+                    or stored.retrieval_provider != source.get("retrieval_provider")):
+                return False
+        if len(query.strategy_results) != len(experiment.runs):
+            return False
+    seen = set()
+    for run in experiment.runs:
+        key = (run.strategy, int(run.sample_index))
+        result = run.strategy_result
+        if (run.status != "completed" or run.strategy not in strategies
+                or int(run.sample_index) != 0 or key in seen or result is None
+                or run.raw_response != result.answer or run.raw_prompt != result.prompt
+                or result.strategy != run.strategy or result.sample_index != run.sample_index
+                or run.experiment_query_id != experiment.queries[0].id
+                or not run.raw_response):
+            return False
+        seen.add(key)
+    return True
 
 
 def run_research_pipeline(
@@ -378,18 +422,6 @@ def run_owner_research_pipeline(
             raise ResearchPipelineBlocked("Prior Exa search outcome is unresolved; another search is forbidden pending reconciliation")
         if prior_experiment is None:
             raise ResearchPipelineBlocked("A prior Exa search is settled but its original frozen Experiment is missing; another search is forbidden")
-        child_counts = (
-            db.query(
-                db.query(ExperimentRun.id).filter(ExperimentRun.experiment_id == prior_experiment.id).exists(),
-                db.query(ExperimentQuery.id).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
-                db.query(ExperimentDocument.id).join(ExperimentQuery).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
-                db.query(ExperimentStrategyResult.id).join(ExperimentQuery).filter(ExperimentQuery.experiment_id == prior_experiment.id).exists(),
-            ).one()
-        )
-        if any(child_counts):
-            raise ResearchPipelineBlocked(
-                f"Prior Exa search is settled but Experiment {prior_experiment.id} has partial child records; another search is forbidden pending reconciliation"
-            )
         frozen = _recover_frozen_experiment_documents(
             prior_experiment, audit=audit, website=profile["identity"]["website"],
             official_name=imported["official_name"], property_id=imported["property_id"],
@@ -428,13 +460,21 @@ def run_owner_research_pipeline(
             # The durable caller holds a cross-process advisory lock. Resume the
             # SAME experiment after an interrupted request; never create another.
             service = ExperimentService(repository=repository)
-            if int(prior_experiment.run_count or 0) >= 2:
+            if not _validate_exp6_checkpoints(
+                prior_experiment, frozen=frozen, strategies=["original", strategy]
+            ):
+                raise ResearchPipelineBlocked(
+                    f"Experiment {prior_experiment.id} has inconsistent strategy checkpoints; no provider call was made"
+                )
+            if len(prior_experiment.runs) >= 2:
                 repository.mark_completed(prior_experiment)
                 experiment = prior_experiment
-            elif not prior_experiment.runs:
-                experiment = service.execute_experiment(prior_experiment.id)
             else:
-                raise ResearchPipelineBlocked("Partial model records require reconciliation; no duplicate model runs were created")
+                # Completed model responses are replayed only through the normal
+                # exact request-fingerprint path. Experiment 6's archived baseline
+                # and rewrite fingerprints were independently recomputed from its
+                # frozen documents and current request parameters and match exactly.
+                experiment = service.execute_experiment(prior_experiment.id)
         elif prior_experiment.status in {"queued", "running"}:
             return {"status": "RUNNING", "property_id": imported["property_id"], "experiment_id": prior_experiment.id, "idempotent": True}
         else:
