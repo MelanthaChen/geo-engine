@@ -467,11 +467,16 @@ class GeoRewriter:
                 self._record_provider_validation("rejected_anchor")
                 raise
         if not self._is_complete_rewritten_document(document_text, processed, strategy):
+            self._record_provider_validation("rejected_incomplete_document")
             raise RewriteOutputError(
                 f"{strategy} rewrite did not return a complete transformed document"
             )
         if strategy == "faq":
-            validate_faq_rewrite(document_text, processed)
+            try:
+                validate_faq_rewrite(document_text, processed)
+            except FAQGroundingError:
+                self._record_provider_validation("rejected_factual_integrity")
+                raise
         self._record_provider_validation("accepted", result={"plan": plan, "document": processed})
         artifact = RewriteArtifact(processed, plan)
         self._store_cached_rewrite(
@@ -520,6 +525,7 @@ class GeoRewriter:
             GeoRewriter._record_provider_validation("invalid_schema")
             raise RewriteOutputError("Rewrite operation plan has an unsupported schema")
         if not operations or len(operations) > 20:
+            GeoRewriter._record_provider_validation("invalid_schema")
             raise RewriteOutputError("Rewrite operation plan must contain 1 to 20 operations")
         for operation in operations:
             if not isinstance(operation, dict):
