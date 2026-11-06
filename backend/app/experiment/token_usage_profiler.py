@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import os
 import statistics
 import uuid
 from contextvars import ContextVar
@@ -74,6 +75,7 @@ class OutreachProviderBudget:
     # Exa Auto Search is $7/1k requests; this path caps results at five (below
     # the first ten-result tier, so no additional-result charge applies).
     SEARCH_COST_USD = {"exa": 0.007}
+    MAX_SEARCH_REQUESTS = 2  # One original request plus one explicitly authorized recovery.
 
     def __init__(self, durable_store, job_key: str):
         self.store = durable_store
@@ -159,8 +161,8 @@ class OutreachProviderBudget:
         ]
         model_reservations = {}
         model_settlements = {}
-        search_reservations = []
-        search_settlements = []
+        search_reservations = {}
+        search_settlements = {}
         for record in records:
             event = record.get("event")
             if event == "reserve_model":
@@ -180,23 +182,34 @@ class OutreachProviderBudget:
                     raise ProviderBudgetBlocked("Duplicate model settlement in provider ledger")
                 model_settlements[sequence] = record
             elif event == "reserve_search":
-                search_reservations.append(record)
+                try:
+                    sequence = int(record.get("sequence") or 1)
+                except (TypeError, ValueError) as exc:
+                    raise ProviderBudgetBlocked("Malformed search reservation in provider ledger") from exc
+                if sequence in search_reservations:
+                    raise ProviderBudgetBlocked("Duplicate search reservation in provider ledger")
+                search_reservations[sequence] = record
             elif event == "settle_search":
-                search_settlements.append(record)
+                try:
+                    sequence = int(record.get("sequence") or 1)
+                except (TypeError, ValueError) as exc:
+                    raise ProviderBudgetBlocked("Malformed search settlement in provider ledger") from exc
+                if sequence in search_settlements:
+                    raise ProviderBudgetBlocked("Duplicate search settlement in provider ledger")
+                search_settlements[sequence] = record
 
-        if len(search_reservations) > 1 or len(search_settlements) > 1:
-            raise ProviderBudgetBlocked("Duplicate search reservation or settlement in provider ledger")
-        if search_settlements and not search_reservations:
+        if len(search_reservations) > self.MAX_SEARCH_REQUESTS:
+            raise ProviderBudgetBlocked("Provider ledger exceeds the original plus one recovery search allowance")
+        if set(search_settlements) - set(search_reservations):
             raise ProviderBudgetBlocked("Search settlement has no matching reservation")
-        if search_reservations:
-            reserved_search = search_reservations[0]
+        for sequence, reserved_search in search_reservations.items():
             if reserved_search.get("provider") != "exa":
                 raise ProviderBudgetBlocked("Search reservation provider is outside the authorized budget")
             reserved_search_cost = self._decimal(
                 reserved_search.get("worst_case_cost_usd"), "search reservation"
             )
-            if search_settlements:
-                settled_search = search_settlements[0]
+            if sequence in search_settlements:
+                settled_search = search_settlements[sequence]
                 if settled_search.get("provider") != reserved_search.get("provider"):
                     raise ProviderBudgetBlocked("Search settlement does not match its reservation")
                 if self._decimal(settled_search.get("actual_cost_usd"), "search settlement") > reserved_search_cost:
@@ -216,7 +229,9 @@ class OutreachProviderBudget:
         self.reservations = [model_reservations[key] for key in sorted(model_reservations)]
         self.settlements = model_settlements
         self.search_reserved = bool(search_reservations)
-        self.search_settled = bool(search_settlements)
+        self.search_settled = bool(search_reservations) and set(search_reservations) == set(search_settlements)
+        self.search_reservations = search_reservations
+        self.search_settlements = search_settlements
         return records, model_reservations, model_settlements, search_reservations, search_settlements
 
     def __enter__(self):
@@ -230,11 +245,12 @@ class OutreachProviderBudget:
     def committed_and_reserved_cost(self):
         _, reservations, settlements, search_reservations, search_settlements = self._load_ledger()
         total = Decimal("0")
-        if search_reservations:
-            if search_settlements:
-                total += self._decimal(search_settlements[0].get("actual_cost_usd"), "search settlement")
+        for sequence, reservation in search_reservations.items():
+            settlement = search_settlements.get(sequence)
+            if settlement is None:
+                total += self._decimal(reservation.get("worst_case_cost_usd"), "search reservation")
             else:
-                total += self._decimal(search_reservations[0].get("worst_case_cost_usd"), "search reservation")
+                total += self._decimal(settlement.get("actual_cost_usd"), "search settlement")
         for sequence, reservation in reservations.items():
             settlement = settlements.get(sequence)
             if settlement is None:
@@ -267,42 +283,83 @@ class OutreachProviderBudget:
                 f"(settled and reserved: ${current:.6f}; requested reserve: ${additional:.6f})"
             )
 
+    def recovery_search_authorized(self) -> bool:
+        configured = {
+            item.strip() for item in os.environ.get("GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST", "").split(",")
+            if item.strip()
+        }
+        records, _, _, reservations, settlements = self._load_ledger()
+        authorized_event = any(
+            record.get("event") == "authorize_search_recovery"
+            and int(record.get("sequence") or 0) == 2
+            for record in records
+        )
+        return (
+            configured == {self.job_key}
+            and len(reservations) == 1
+            and set(reservations) == set(settlements)
+            and reservations[1].get("provider") == "exa"
+            and (not authorized_event or 2 not in reservations)
+        )
+
     def reserve_search(self, provider_name: str):
         provider = provider_name.lower()
         if provider != "exa":
-            raise ProviderBudgetBlocked("The single authorized job is restricted to one Exa search request")
-        self._load_ledger()
-        if self.search_reserved:
-            raise ProviderBudgetBlocked("This durable job has already reserved its only search request")
+            raise ProviderBudgetBlocked("This durable job is restricted to Exa search requests")
+        records, _, _, reservations, settlements = self._load_ledger()
+        if set(reservations) - set(settlements):
+            raise ProviderBudgetBlocked("A previous search has an unresolved billable outcome; recovery search is forbidden")
+        sequence = len(reservations) + 1
+        if sequence > self.MAX_SEARCH_REQUESTS:
+            raise ProviderBudgetBlocked("This durable job has exhausted its original plus one recovery search allowance")
+        if sequence > 1:
+            if not self.recovery_search_authorized():
+                raise ProviderBudgetBlocked("An additional search requires an exact-job recovery allowlist and a reconciled prior search")
+            prior = reservations[sequence - 1]
+            if sequence - 1 not in settlements:
+                raise ProviderBudgetBlocked("The previous search outcome is unresolved; recovery search is forbidden")
+            # Append explicit authorization evidence before reserving or calling Exa.
+            if not any(record.get("event") == "authorize_search_recovery" and record.get("sequence") == sequence for record in records):
+                self.store.append("outreach_provider_budget", {
+                    "record_id": f"outreach-budget:{self.job_key}:search-recovery:{sequence}:authorized",
+                    "event": "authorize_search_recovery", "job_key": self.job_key,
+                    "sequence": sequence, "prior_sequence": sequence - 1,
+                    "prior_settlement_record_id": settlements[sequence - 1].get("record_id"),
+                    "authorization_source": "GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST",
+                    "recovery_basis": "prior_search_settled_without_recoverable_payload_or_experiment",
+                })
         cost = self.SEARCH_COST_USD[provider]
         self._ensure_capacity(cost)
         self.store.append("outreach_provider_budget", {
-            "record_id": f"outreach-budget:{self.job_key}:search", "event": "reserve_search",
+            "record_id": f"outreach-budget:{self.job_key}:search:{sequence}:reserve", "event": "reserve_search",
             "job_key": self.job_key, "provider": provider, "max_results": 5,
+            "sequence": sequence,
             "worst_case_cost_usd": cost,
         })
-        self.search_reserved = True
+        self._load_ledger()
 
     def settle_search(self, provider_name: str, returned_documents: int):
         provider = provider_name.lower()
-        self._load_ledger()
-        if not self.search_reserved or self.search_settled or provider not in self.SEARCH_COST_USD:
+        _, _, _, reservations, settlements = self._load_ledger()
+        pending = [sequence for sequence in reservations if sequence not in settlements]
+        if len(pending) != 1 or provider not in self.SEARCH_COST_USD:
             raise ProviderBudgetBlocked("Search usage cannot be settled against this job's reservation")
+        sequence = pending[0]
         if int(returned_documents) < 0 or int(returned_documents) > 5:
             raise ProviderBudgetBlocked("Search response exceeded the five-document reserved limit")
         self.store.append("outreach_provider_budget", {
-            "record_id": f"outreach-budget:{self.job_key}:search:settle",
+            "record_id": f"outreach-budget:{self.job_key}:search:{sequence}:settle",
             "event": "settle_search", "job_key": self.job_key,
-            "provider": provider, "returned_documents": int(returned_documents),
+            "provider": provider, "sequence": sequence, "returned_documents": int(returned_documents),
             "actual_cost_usd": self.SEARCH_COST_USD[provider],
         })
-        self.search_settled = True
+        self._load_ledger()
 
     def reserve_model(self, model: str, messages: list[dict], max_output_tokens: int) -> int:
         _, existing_reservations, existing_settlements, search_reservations, search_settlements = self._load_ledger()
         if model != "gpt-6-luna":
             raise ProviderBudgetBlocked("Outreach research is restricted to the bounded GPT-6 Luna model path")
-        if search_reservations and not search_settlements:
+        if set(search_reservations) - set(search_settlements):
             raise ProviderBudgetBlocked("An earlier search request has an unresolved billable outcome; reconciliation is required")
         if any(sequence not in existing_settlements for sequence in existing_reservations):
             raise ProviderBudgetBlocked("An earlier model request has an unresolved billable outcome; reconciliation is required")
