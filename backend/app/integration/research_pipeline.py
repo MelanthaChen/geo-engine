@@ -20,12 +20,81 @@ from sqlalchemy.orm import Session
 from app.integration.adapter import GeoResearchIntegrationAdapter
 from app.integration.contracts import utc_now
 from app.ge.search_provider import _url_identity
+from app.ge.search_provider import RetrievedDocument
 from app.models.experiment import Experiment
 from app.services.website_audit.audit_service import run_website_audit
 
 
 class ResearchPipelineBlocked(PermissionError):
     pass
+
+
+def _recover_retrieval_checkpoint(store, *, job_key, profile, audit, opportunity_id, query):
+    """Verify and rehydrate one immutable, job/query-bound provider response."""
+    checkpoint = store.get_retrieval_checkpoint(job_key)
+    if checkpoint is None:
+        return None
+
+    def reject(reason):
+        raise ResearchPipelineBlocked(f"Persisted retrieval checkpoint rejected: {reason}")
+
+    material = dict(checkpoint)
+    digest = material.pop("checkpoint_sha256", None)
+    if not digest or hashlib.sha256(json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest() != digest:
+        reject("checkpoint integrity hash does not match")
+    identity = profile.get("identity") or {}
+    if (checkpoint.get("checkpoint_version") != 1 or checkpoint.get("job_key") != job_key
+            or checkpoint.get("profile_id") != profile.get("profile_id")
+            or checkpoint.get("profile_version") != profile.get("profile_version")
+            or checkpoint.get("website", "").rstrip("/") != str(identity.get("website") or "").rstrip("/")
+            or int(checkpoint.get("audit_id") or 0) != int(audit.id)
+            or int(checkpoint.get("opportunity_id") or 0) != int(opportunity_id)
+            or checkpoint.get("query") != query
+            or checkpoint.get("query_sha256") != hashlib.sha256(query.encode()).hexdigest()
+            or checkpoint.get("retrieval_provider") != "exa"):
+        reject("job, website, Audit, Opportunity, provider, or exact query identity differs")
+    documents = checkpoint.get("documents")
+    if not isinstance(documents, list) or not documents or len(documents) > 5:
+        reject("document set is empty or exceeds the reserved five-result limit")
+    parsed = []
+    request_ids = set()
+    retrieved_times = set()
+    prior_rank = 0
+    for item in documents:
+        if not isinstance(item, dict):
+            reject("a document entry is malformed")
+        content = item.get("plain_text")
+        url = item.get("url")
+        try:
+            rank = int(item.get("rank") or 0)
+        except (TypeError, ValueError):
+            reject("a document rank is malformed")
+        metadata = item.get("provider_metadata") or {}
+        request_id = metadata.get("request_id") if isinstance(metadata, dict) else None
+        timestamp = item.get("retrieved_at")
+        if (not isinstance(content, str) or not isinstance(url, str) or urlparse(url).scheme != "https"
+                or not urlparse(url).hostname or rank <= prior_rank
+                or item.get("retrieval_provider") != "exa"
+                or hashlib.sha256(content.encode()).hexdigest() != item.get("content_sha256")
+                or not isinstance(request_id, str) or not request_id or not timestamp):
+            reject("document URL, rank, provider, request identity, timestamp, or content hash is invalid")
+        prior_rank = rank
+        request_ids.add(request_id)
+        retrieved_times.add(timestamp)
+        try:
+            retrieved_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            reject("retrieval timestamp is invalid")
+        parsed.append(RetrievedDocument(
+            rank=rank, title=str(item.get("title") or ""), url=url, plain_text=content,
+            retrieval_provider="exa", retrieved_at=retrieved_at,
+            content_sha256=item["content_sha256"], snippet=item.get("snippet"),
+            provider_metadata=metadata,
+        ))
+    if (len(request_ids) != 1 or len(retrieved_times) != 1
+            or retrieved_times != {checkpoint.get("retrieved_at")}):
+        reject("documents do not belong to one retrieval request and checkpoint timestamp")
+    return parsed
 
 
 def _recover_frozen_experiment_documents(experiment, *, audit, website: str, official_name: str,
@@ -333,6 +402,7 @@ def run_owner_research_pipeline(
     store_root: str,
     audit_id: int,
     opportunity_id: int,
+    job_key: str,
     durable_store=None,
     resume_incomplete: bool = False,
 ) -> dict[str, Any]:
@@ -415,27 +485,58 @@ def run_owner_research_pipeline(
     budget = active_outreach_budget()
     model_for_run = "gpt-6-luna" if budget is not None else "gpt-3.5-turbo"
     frozen = None
+    validation_builder = None
+    search_provider = None
+    retrieval_query = None
     if budget is not None and budget.search_reserved:
         if not resume_incomplete:
             raise ResearchPipelineBlocked("A prior Exa search is already reserved; settled evidence recovery is required and another search is forbidden")
-        if not budget.search_settled:
-            raise ResearchPipelineBlocked("Prior Exa search outcome is unresolved; another search is forbidden pending reconciliation")
-        if prior_experiment is None:
-            raise ResearchPipelineBlocked("A prior Exa search is settled but its original frozen Experiment is missing; another search is forbidden")
-        frozen = _recover_frozen_experiment_documents(
-            prior_experiment, audit=audit, website=profile["identity"]["website"],
-            official_name=imported["official_name"], property_id=imported["property_id"],
-            opportunity_id=opportunity_id, strategy=strategy,
-        )
+        validation_builder = NewWebsiteValidationBuilder(db)
+        retrieval_query, _ = validation_builder._query(audit, opportunity)
+        checkpoint_docs = (_recover_retrieval_checkpoint(
+            durable_store, job_key=job_key, profile=profile, audit=audit,
+            opportunity_id=opportunity_id, query=retrieval_query,
+        ) if durable_store is not None else None)
+        if checkpoint_docs is not None:
+            if not budget.search_settled:
+                # The immutable payload proves the provider call returned.
+                # Reconcile the original reservation before any validation can fail.
+                budget.settle_search("exa", len(checkpoint_docs))
+            frozen = validation_builder.build(
+                property_id=imported["property_id"], audit_id=audit_id,
+                opportunity_id=opportunity_id, use_frozen_demo_pack=False,
+                retrieved_documents=checkpoint_docs,
+            )
+        elif not budget.search_settled:
+            raise ResearchPipelineBlocked("Prior Exa search outcome is unresolved and no complete retrieval checkpoint exists; another search is forbidden")
+        elif prior_experiment is not None:
+            frozen = _recover_frozen_experiment_documents(
+                prior_experiment, audit=audit, website=profile["identity"]["website"],
+                official_name=imported["official_name"], property_id=imported["property_id"],
+                opportunity_id=opportunity_id, strategy=strategy,
+            )
+        else:
+            raise ResearchPipelineBlocked("Settled Exa search has no recoverable retrieval payload or frozen Experiment; another search is forbidden")
 
     if frozen is None:
         if budget is not None and budget.search_reserved:
             raise ResearchPipelineBlocked("Prior Exa search is already reserved; live search fallback is forbidden")
         search_provider = build_search_provider()
+        def persist_before_settlement(query, retrieval_provider, retrieved_at, documents):
+            if durable_store is None:
+                return
+            if retrieval_provider != "exa":
+                raise ResearchPipelineBlocked("Only the configured Exa retrieval provider is accepted for the durable outreach checkpoint")
+            durable_store.save_retrieval_checkpoint(
+                job_key=job_key, profile=profile, audit_id=audit_id,
+                opportunity_id=opportunity_id, query=query,
+                retrieval_provider=retrieval_provider, retrieved_at=retrieved_at,
+                documents=documents,
+            )
         if budget is not None:
             if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:
                 raise ResearchPipelineBlocked("The configured search provider has no approved one-job price or credential configuration")
-            search_provider = _BudgetedSearchProvider(search_provider, budget)
+            search_provider = _BudgetedSearchProvider(search_provider, budget, persist_before_settlement)
         validation_builder = NewWebsiteValidationBuilder(db, search_provider=search_provider)
         validation_builder.result_limit = 5 if budget is not None else 10
         frozen = validation_builder.build(
@@ -443,6 +544,7 @@ def run_owner_research_pipeline(
             audit_id=audit_id,
             opportunity_id=opportunity_id,
             use_frozen_demo_pack=False,
+            checkpoint_callback=(persist_before_settlement if budget is None else None),
         )
         if frozen.get("metadata", {}).get("status") == "content_gap":
             raise NewWebsiteValidationError("live retrieval could not select the audited target page")
@@ -620,9 +722,10 @@ def run_owner_research_pipeline(
 class _BudgetedSearchProvider:
     """One priced search request for the single durable outreach job."""
 
-    def __init__(self, provider, budget):
+    def __init__(self, provider, budget, checkpoint_callback=None):
         self.provider = provider
         self.budget = budget
+        self.checkpoint_callback = checkpoint_callback
         self.provider_id = getattr(provider, "provider_id", "unknown")
 
     def search(self, query: str, top_k: int = 5):
@@ -630,5 +733,11 @@ class _BudgetedSearchProvider:
             raise RuntimeError("The outreach search result cap is five documents")
         self.budget.reserve_search(self.provider_id)
         results = self.provider.search(query=query, top_k=min(top_k, 5))
+        if self.checkpoint_callback:
+            retrieved_at = next((item.retrieved_at for item in results if item.retrieved_at), utc_now())
+            self.checkpoint_callback(
+                query=query, retrieval_provider=self.provider_id,
+                retrieved_at=retrieved_at, documents=results,
+            )
         self.budget.settle_search(self.provider_id, len(results))
         return results

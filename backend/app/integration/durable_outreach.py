@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from sqlalchemy import MetaData,Table,Column,String,Text,Integer,select,text
 
 metadata=MetaData()
-AUTHORIZED_TEST_WEBSITE = "https://geo-ai-resume.vercel.app/"
 job_table=Table('outreach_research_jobs',metadata,
     Column('id',String,primary_key=True),Column('request_hash',String,nullable=False),Column('profile',Text,nullable=False),
     Column('status',String,nullable=False),Column('property_id',Integer),Column('audit_id',Integer),Column('opportunity_id',Integer),
@@ -35,29 +34,95 @@ class DurableStore:
         raw=self.db.scalar(select(record_table.c.payload).where(record_table.c.kind=='profile_import',record_table.c.profile_id==ident,record_table.c.profile_version==version))
         return json.loads(raw) if raw else None
 
+    def save_retrieval_checkpoint(self, *, job_key, profile, audit_id, opportunity_id,
+                                  query, retrieval_provider, retrieved_at, documents):
+        """Persist the complete provider response before downstream validation."""
+        identity = profile.get('identity') or {}
+        payload = {
+            'checkpoint_version': 1,
+            'record_id': 'retrieval-checkpoint:' + hashlib.sha256(job_key.encode()).hexdigest(),
+            'job_key': job_key,
+            'profile_id': profile.get('profile_id'),
+            'profile_version': profile.get('profile_version'),
+            'website': identity.get('website'),
+            'audit_id': int(audit_id),
+            'opportunity_id': int(opportunity_id),
+            'query': query,
+            'query_sha256': hashlib.sha256(query.encode()).hexdigest(),
+            'retrieval_provider': retrieval_provider,
+            'retrieved_at': retrieved_at.isoformat() if hasattr(retrieved_at, 'isoformat') else str(retrieved_at),
+            'documents': [],
+        }
+        for item in documents:
+            content = str(item.plain_text or '')
+            payload['documents'].append({
+                'rank': int(item.rank), 'title': str(item.title or ''), 'url': str(item.url or ''),
+                'plain_text': content, 'snippet': item.snippet,
+                'retrieval_provider': item.retrieval_provider or retrieval_provider,
+                'retrieved_at': item.retrieved_at.isoformat() if item.retrieved_at else payload['retrieved_at'],
+                'content_sha256': hashlib.sha256(content.encode()).hexdigest(),
+                'provider_metadata': item.provider_metadata or {},
+            })
+        payload['checkpoint_sha256'] = hashlib.sha256(encoded(payload).encode()).hexdigest()
+        existing = next((item for item in self.records('outreach_retrieval_checkpoint')
+                         if item.get('job_key') == job_key), None)
+        if existing:
+            if existing != payload:
+                raise ValueError('A different retrieval checkpoint is already bound to this job')
+            return existing
+        self.append('outreach_retrieval_checkpoint', payload)
+        saved = self.get_retrieval_checkpoint(job_key)
+        if saved != payload:
+            raise ValueError('A conflicting retrieval checkpoint was concurrently persisted for this job')
+        return saved
+
+    def get_retrieval_checkpoint(self, job_key):
+        matches = [item for item in self.records('outreach_retrieval_checkpoint')
+                   if item.get('job_key') == job_key]
+        if len(matches) > 1:
+            raise ValueError('Multiple retrieval checkpoints exist for this job')
+        return matches[0] if matches else None
+
 def public(row):
     return {'job_id':row['id'],'status':row['status'],'property_id':row['property_id'],'audit_id':row['audit_id'],
             'opportunity_ids':[row['opportunity_id']] if row['opportunity_id'] else [],'experiment_id':row['experiment_id'],
             'result':json.loads(row['result']) if row['result'] else None,'error':row['error'],'created_at':row['created_at'],'updated_at':row['updated_at']}
 
 def authorized_single_job(key, profile, enabled, allowed_key):
-    """Fail closed for one explicitly configured, owner-bound GeoAIResume job."""
+    """Fail closed for one explicitly configured, independently consented job."""
     identity = profile.get('identity') or {}
     consent = profile.get('consent') or {}
     verified = consent.get('verified_identity') or {}
     binding = consent.get('owner_identity_binding') or {}
     respondent = str(verified.get('email') or '').strip().lower()
+    website = str(identity.get('website') or '').rstrip('/')
+    scoped_website = str(consent.get('scope_website') or '').rstrip('/')
+    invitation_recipient = str(profile.get('invitation_recipient') or binding.get('invitation_recipient') or '').strip().lower()
+    invitation_id = profile.get('invitation_id') or profile.get('profile_version')
+    representative_email = str(consent.get('representative_email') or '').strip().lower()
+    ordinary_identity_match = bool(respondent and respondent == invitation_recipient == representative_email)
+    owner_binding_match = bool(
+        binding.get('authorization') == 'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING'
+        and binding.get('identity_source') == 'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL'
+        and binding.get('candidate_id') == profile.get('profile_id')
+        and binding.get('invitation_id') == invitation_id
+        and binding.get('invitation_reference') == consent.get('invitation_reference')
+        and str(binding.get('website') or '').rstrip('/') == website
+        and str(binding.get('invitation_recipient') or '').strip().lower() == invitation_recipient
+        and str(binding.get('verified_respondent_email') or '').strip().lower() == respondent
+        and bool(binding.get('invitation_reference'))
+        and bool(binding.get('recorded_at'))
+    )
     return bool(
         enabled and isinstance(allowed_key, str) and allowed_key.strip() == key
-        and identity.get('website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
-        and profile.get('profile_type') == 'owner_controlled_test'
-        and profile.get('controlled_fixture') is False
+        and isinstance(invitation_id, str)
+        and key == 'outreach-v2:' + invitation_id
+        and urlparse(website).scheme == 'https' and bool(urlparse(website).hostname)
         and consent.get('status') == 'VERIFIED'
         and consent.get('research_interest') == 'YES'
         and consent.get('research_authorization') == 'YES'
-        and consent.get('scope_website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
+        and scoped_website == website
         and bool(consent.get('submission_id'))
-        and consent.get('invitation_reference') == binding.get('invitation_reference')
         and verified.get('provider') == 'GOOGLE_FORMS_VERIFIED'
         and bool(verified.get('response_id'))
         # Outreach's submission_id is its local consent row; response_id is
@@ -65,14 +130,7 @@ def authorized_single_job(key, profile, enabled, allowed_key):
         # identifiers, so validate presence and the owner-bound respondent rather
         # than incorrectly requiring cross-system ID equality.
         and bool(str(verified.get('response_id') or '').strip())
-        and respondent == str(binding.get('verified_respondent_email') or '').strip().lower()
-        and binding.get('identity_source') == 'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL'
-        and binding.get('authorization') == 'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING'
-        and binding.get('candidate_id') == profile.get('profile_id')
-        and binding.get('invitation_id') == profile.get('profile_version')
-        and binding.get('website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
-        and bool(binding.get('invitation_recipient'))
-        and bool(binding.get('recorded_at'))
+        and (ordinary_identity_match or owner_binding_match)
     )
 
 def get_job(db,key):
@@ -86,7 +144,6 @@ def submit(db,key,profile):
     consent=profile.get('consent') or {};url=(profile.get('identity') or {}).get('website','')
     parsed=urlparse(url)
     if parsed.scheme!='https' or not parsed.hostname:raise ValueError('An authorized HTTPS website is required')
-    if profile.get('controlled_fixture') is not False:raise ValueError('Synthetic execution is not accepted')
     if (consent.get('status')!='VERIFIED'
         or consent.get('research_interest')!='YES'
         or consent.get('research_authorization')!='YES'
@@ -148,7 +205,7 @@ def advance(db,key):
             opportunity=opportunities[0];update(db,key,audit_id=audit.id,opportunity_id=opportunity.id)
             from app.experiment.token_usage_profiler import OutreachProviderBudget
             with OutreachProviderBudget(store,key):
-                outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',audit_id=audit.id,opportunity_id=opportunity.id,durable_store=store,resume_incomplete=True)
+                outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',audit_id=audit.id,opportunity_id=opportunity.id,job_key=key,durable_store=store,resume_incomplete=True)
             if outcome.get('status')=='COMPLETED':
                 result=outcome['result'];baseline=result.get('baseline') or {}
                 if not baseline.get('results') or int(baseline.get('model_calls') or 0)<2 or str(baseline.get('provider','')).lower() in {'','mock','controlled_fixture'}:

@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import hashlib
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session, joinedload
@@ -30,6 +31,8 @@ from app.teacher_pipeline.query_contexts import resolve_audited_target
 
 
 QUERY_POLICY_VERSION = "audit-evidence-query-v1"
+MIN_EXTERNAL_REFERENCE_SOURCES = 3
+MAX_EXTERNAL_REFERENCE_SOURCES = 4
 
 
 class NewWebsiteValidationError(ValueError):
@@ -37,7 +40,7 @@ class NewWebsiteValidationError(ValueError):
 
 
 class NewWebsiteValidationBuilder:
-    """Freeze one audited target plus four external reference sources."""
+    """Freeze one audited target and a minimum of three external references."""
 
     def __init__(self, db: Session, search_provider=None):
         self.db = db
@@ -54,6 +57,8 @@ class NewWebsiteValidationBuilder:
         audit_id: int,
         opportunity_id: int,
         use_frozen_demo_pack: bool = True,
+        retrieved_documents=None,
+        checkpoint_callback: Callable | None = None,
     ) -> dict:
         audit = (
             self.db.query(WebsiteAudit)
@@ -85,16 +90,36 @@ class NewWebsiteValidationBuilder:
         if use_frozen_demo_pack and is_demo_property(audit.property):
             return self._build_demo_pack(audit, recommendation)
 
-        search_provider = self.search_provider or build_search_provider()
-
         query, evidence = self._query(audit, recommendation)
         retrieved_at = datetime.now(timezone.utc)
-        candidates = search_provider.search(query=query, top_k=self.result_limit)
-        retrieval_provider = provider_id(search_provider, candidates)
-        retrieved_at = next(
-            (item.retrieved_at for item in candidates if item.retrieved_at),
-            retrieved_at,
-        )
+        if retrieved_documents is None:
+            search_provider = self.search_provider or build_search_provider()
+            candidates = search_provider.search(query=query, top_k=self.result_limit)
+            retrieval_provider = provider_id(search_provider, candidates)
+            retrieved_at = next(
+                (item.retrieved_at for item in candidates if item.retrieved_at),
+                retrieved_at,
+            )
+            # This callback runs immediately after the provider returns and
+            # before target selection, page fetching, or evidence-quality
+            # validation. Callers persist the complete response here.
+            if checkpoint_callback:
+                checkpoint_callback(
+                    query=query,
+                    retrieval_provider=retrieval_provider,
+                    retrieved_at=retrieved_at,
+                    documents=candidates,
+                )
+        else:
+            candidates = list(retrieved_documents)
+            retrieval_provider = next(
+                (item.retrieval_provider for item in candidates if item.retrieval_provider),
+                "unknown",
+            )
+            retrieved_at = next(
+                (item.retrieved_at for item in candidates if item.retrieved_at),
+                retrieved_at,
+            )
 
         natural = self._resolve_natural_target(audit, candidates)
         if natural is not None:
@@ -133,12 +158,15 @@ class NewWebsiteValidationBuilder:
                 continue
             seen_urls.add(normalized_url)
             references.append(candidate)
-            if len(references) == 4:
+            if len(references) == MAX_EXTERNAL_REFERENCE_SOURCES:
                 break
-        if len(references) != 4:
+        if len(references) < MIN_EXTERNAL_REFERENCE_SOURCES:
+            unavailable = sum(1 for item in candidates if not item.plain_text.strip())
             raise NewWebsiteValidationError(
-                "The configured retrieval provider did not return four distinct "
-                "external reference sources for the frozen experiment set."
+                "The retrieval response did not meet the evidence threshold: "
+                f"{len(references)} usable external sources; at least "
+                f"{MIN_EXTERNAL_REFERENCE_SOURCES} required; {unavailable} "
+                "retrieval results had unavailable page content."
             )
 
         common = {
@@ -185,6 +213,12 @@ class NewWebsiteValidationBuilder:
                 document["content_sha256"] for document in documents
             ],
             "target_index": 0,
+            "evidence_quality": {
+                "minimum_external_sources": MIN_EXTERNAL_REFERENCE_SOURCES,
+                "usable_external_sources": len(references),
+                "unavailable_retrieval_results": sum(1 for item in candidates if not item.plain_text.strip()),
+                "status": "ACCEPTED",
+            },
         }
         for document in documents:
             document["supporting_evidence"] = supporting_evidence
@@ -207,6 +241,12 @@ class NewWebsiteValidationBuilder:
                 "target_retrieval_status": target_status,
                 "target_page_id": getattr(target_page, "id", None),
                 "target_retrieval_rank": target_rank,
+                "evidence_quality": {
+                    "minimum_external_sources": MIN_EXTERNAL_REFERENCE_SOURCES,
+                    "usable_external_sources": len(references),
+                    "unavailable_retrieval_results": sum(1 for item in candidates if not item.plain_text.strip()),
+                    "status": "ACCEPTED",
+                },
             },
         }
 

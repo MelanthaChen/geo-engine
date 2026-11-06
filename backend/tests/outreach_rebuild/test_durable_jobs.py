@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from decimal import Decimal
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import Session
-from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job,AUTHORIZED_TEST_WEBSITE
+from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job
 from app.experiment.token_usage_profiler import OutreachProviderBudget
 
 @pytest.fixture
@@ -399,17 +399,18 @@ def test_cumulative_budget_counts_existing_legacy_settlements_conservatively(db,
 
 def test_single_job_guard_requires_exact_key_verified_yes_yes_and_exact_website():
     key='outreach-v2:inv-owner-bound-test'
-    binding={'candidate_id':'owner-test','invitation_id':'inv-owner-test',
-        'invitation_reference':'GEO-OWNER-TEST','website':AUTHORIZED_TEST_WEBSITE,
+    binding={'candidate_id':'owner-test','invitation_id':'inv-owner-bound-test',
+        'invitation_reference':'GEO-OWNER-TEST','website':'https://geo-ai-resume.vercel.app/',
         'invitation_recipient':'owner@outlook.com','verified_respondent_email':'owner@gmail.com',
         'identity_source':'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL',
         'authorization':'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING','recorded_at':'2026-11-05T00:00:00Z'}
     profile={'profile_id':'owner-test','profile_version':'inv-owner-test',
+        'invitation_id':'inv-owner-bound-test','invitation_recipient':'owner@outlook.com',
         'profile_type':'owner_controlled_test','controlled_fixture':False,
-        'identity':{'website':AUTHORIZED_TEST_WEBSITE},
+        'identity':{'website':'https://geo-ai-resume.vercel.app/'},
         'consent':{'status':'VERIFIED','research_interest':'YES','research_authorization':'YES',
-            'scope_website':AUTHORIZED_TEST_WEBSITE,'submission_id':'outreach-submission-9',
-            'invitation_reference':'GEO-OWNER-TEST',
+            'scope_website':'https://geo-ai-resume.vercel.app/','submission_id':'outreach-submission-9',
+            'invitation_reference':'GEO-OWNER-TEST','representative_email':'owner@gmail.com',
             'verified_identity':{'provider':'GOOGLE_FORMS_VERIFIED','email':'owner@gmail.com',
                 'response_id':'google-response-23'},'owner_identity_binding':binding}}
     assert authorized_single_job(key,profile,True,key)
@@ -418,3 +419,56 @@ def test_single_job_guard_requires_exact_key_verified_yes_yes_and_exact_website(
     assert not authorized_single_job(key,{**profile,'identity':{'website':'https://other.example/'}},True,key)
     bad_consent={**profile,'consent':{**profile['consent'],'research_authorization':'NO'}}
     assert not authorized_single_job(key,bad_consent,True,key)
+
+
+@pytest.mark.parametrize(('candidate_id','invitation_id','website','email'),[
+    ('sim-company-one','inv-sim-one','https://one.example/','contact@one.example'),
+    ('sim-company-two','inv-sim-two','https://two.example/','contact@two.example'),
+])
+def test_distinct_consenting_websites_use_the_same_generic_job_contract(candidate_id,invitation_id,website,email):
+    key='outreach-v2:'+invitation_id
+    profile={'profile_id':candidate_id,'profile_version':invitation_id,'invitation_id':invitation_id,
+        'invitation_recipient':email,'identity':{'name':candidate_id,'website':website},
+        'consent':{'status':'VERIFIED','submission_id':'submission-'+candidate_id,
+            'invitation_reference':'REF-'+candidate_id,'scope_website':website,
+            'research_interest':'YES','research_authorization':'YES','representative_email':email,
+            'verified_identity':{'provider':'GOOGLE_FORMS_VERIFIED','email':email,'response_id':'forms-'+candidate_id}}}
+    assert authorized_single_job(key,profile,True,key)
+    assert not authorized_single_job(key,profile,True,'outreach-v2:inv-another')
+
+
+def test_durable_retrieval_checkpoint_is_idempotent_and_rejects_tampering(db):
+    from datetime import datetime,timezone
+    from app.ge.search_provider import RetrievedDocument
+    from app.integration.research_pipeline import _recover_retrieval_checkpoint,ResearchPipelineBlocked
+    store=DurableStore(db)
+    website='https://one.example/'
+    profile={'profile_id':'sim-one','profile_version':'inv-one','identity':{'website':website}}
+    when=datetime(2026,11,5,tzinfo=timezone.utc)
+    docs=[RetrievedDocument(rank=1,title='Source',url='https://source.example/a',plain_text='real source text',
+        retrieval_provider='exa',retrieved_at=when,provider_metadata={'request_id':'exa-req-1'})]
+    saved=store.save_retrieval_checkpoint(job_key='outreach-v2:inv-inv-one',profile=profile,
+        audit_id=3,opportunity_id=7,query='exact frozen query',retrieval_provider='exa',retrieved_at=when,documents=docs)
+    assert store.save_retrieval_checkpoint(job_key='outreach-v2:inv-inv-one',profile=profile,
+        audit_id=3,opportunity_id=7,query='exact frozen query',retrieval_provider='exa',retrieved_at=when,documents=docs)==saved
+    recovered=_recover_retrieval_checkpoint(store,job_key='outreach-v2:inv-inv-one',profile=profile,
+        audit=type('Audit',(),{'id':3})(),opportunity_id=7,query='exact frozen query')
+    assert recovered[0].plain_text=='real source text'
+    saved['documents'][0]['plain_text']='tampered'
+    db.execute(record_table.update().where(record_table.c.id==saved['record_id']).values(payload=encoded(saved)))
+    with pytest.raises(ResearchPipelineBlocked,match='integrity hash'):
+        _recover_retrieval_checkpoint(store,job_key='outreach-v2:inv-inv-one',profile=profile,
+            audit=type('Audit',(),{'id':3})(),opportunity_id=7,query='exact frozen query')
+
+
+def test_settled_search_without_payload_stays_blocked_without_search(db):
+    from app.integration.research_pipeline import _recover_retrieval_checkpoint
+    store=DurableStore(db)
+    budget=OutreachProviderBudget(store,'outreach-v2:inv-no-payload')
+    budget.reserve_search('exa');budget.settle_search('exa',5)
+    assert _recover_retrieval_checkpoint(store,job_key='outreach-v2:inv-no-payload',
+        profile={'profile_id':'x','profile_version':'inv-x','identity':{'website':'https://x.example/'}},
+        audit=type('Audit',(),{'id':1})(),opportunity_id=2,query='q') is None
+    with pytest.raises(RuntimeError,match='already reserved its only search request'):
+        budget.reserve_search('exa')
+    assert len([row for row in store.records('outreach_provider_budget') if row['event']=='reserve_search'])==1
