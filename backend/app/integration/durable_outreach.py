@@ -60,7 +60,11 @@ def authorized_single_job(key, profile, enabled, allowed_key):
         and consent.get('invitation_reference') == binding.get('invitation_reference')
         and verified.get('provider') == 'GOOGLE_FORMS_VERIFIED'
         and bool(verified.get('response_id'))
-        and str(verified.get('response_id')) == str(consent.get('submission_id'))
+        # Outreach's submission_id is its local consent row; response_id is
+        # Google's independently verified Forms response ID. They are distinct
+        # identifiers, so validate presence and the owner-bound respondent rather
+        # than incorrectly requiring cross-system ID equality.
+        and bool(str(verified.get('response_id') or '').strip())
         and respondent == str(binding.get('verified_respondent_email') or '').strip().lower()
         and binding.get('identity_source') == 'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL'
         and binding.get('authorization') == 'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING'
