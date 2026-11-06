@@ -261,7 +261,7 @@ def test_raw_retrieval_is_checkpointed_before_evidence_validation_failure(monkey
     monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
     monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda response:target)
     captured=[]
-    with pytest.raises(NewWebsiteValidationError,match='at least 3 required') as failure:
+    with pytest.raises(NewWebsiteValidationError,match='at least 4 required') as failure:
         NewWebsiteValidationBuilder(DB(audit_row),Provider(docs)).build(
             property_id=7,audit_id=4,opportunity_id=9,
             checkpoint_callback=lambda **checkpoint:captured.append(checkpoint))
@@ -272,9 +272,9 @@ def test_raw_retrieval_is_checkpointed_before_evidence_validation_failure(monkey
     assert captured[0]['documents'][0].provider_metadata['request_id']=='exa-request-retrieval-test'
 
 
-def test_recovered_exa_documents_skip_search_and_mark_unavailable_sources(monkeypatch):
+def test_recovered_exa_documents_skip_search_and_accept_four_external_sources(monkeypatch):
     audit_row,_=audit([page(8,'https://example.com/revuelto','Revuelto')])
-    docs=_retrieval_fixture(unavailable_external=1)
+    docs=_retrieval_fixture(unavailable_external=0)
     target=_target_snapshot('https://example.com/revuelto')
     monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
     monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda response:target)
@@ -283,10 +283,71 @@ def test_recovered_exa_documents_skip_search_and_mark_unavailable_sources(monkey
         def search(self,**_kwargs):pytest.fail('recovery must not repeat Exa')
     result=NewWebsiteValidationBuilder(DB(audit_row),SearchMustNotRun()).build(
         property_id=7,audit_id=4,opportunity_id=9,retrieved_documents=docs)
-    assert len(result['documents'])==4  # audited target plus three usable external references
+    assert len(result['documents'])==5  # audited target plus four usable external references
     quality=result['metadata']['evidence_quality']
-    assert quality=={'minimum_external_sources':3,'usable_external_sources':3,
-        'unavailable_retrieval_results':1,'status':'ACCEPTED'}
-    unavailable=next(item for item in result['metadata']['retrieval_results'] if not item['content_available'])
-    assert unavailable['content_length']==0
-    assert unavailable['provider_metadata']['request_id']=='exa-request-retrieval-test'
+    assert quality=={'minimum_external_sources':4,'usable_external_sources':4,
+        'unavailable_retrieval_results':0,'status':'ACCEPTED'}
+    assert all(item['content_available'] for item in result['metadata']['retrieval_results'])
+    assert all(item['provider_metadata']['request_id']=='exa-request-retrieval-test'
+        for item in result['metadata']['retrieval_results'])
+
+
+def test_three_external_sources_are_rejected_with_stable_reason(monkeypatch):
+    audit_row,_=audit([page(8,'https://example.com/revuelto','Revuelto')])
+    docs=[candidate(1,'https://example.com/revuelto')]+[
+        candidate(rank,f'https://reference{rank}.example/source')
+        for rank in range(2,5)
+    ]
+    target=_target_snapshot('https://example.com/revuelto')
+    monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
+    monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda _response:target)
+
+    with pytest.raises(NewWebsiteValidationError,match='at least 4 required') as error:
+        NewWebsiteValidationBuilder(DB(audit_row),Provider(docs)).build(
+            property_id=7,audit_id=4,opportunity_id=9)
+    assert error.value.code=='insufficient_external_sources'
+    assert '3 usable external sources' in str(error.value)
+
+
+def test_four_external_sources_are_accepted_by_experiment_creation(monkeypatch):
+    from app.experiment.experiment_service import ExperimentService
+
+    audit_row,_=audit([page(8,'https://example.com/revuelto','Revuelto')])
+    docs=[candidate(1,'https://example.com/revuelto')]+[
+        candidate(rank,f'https://reference{rank}.example/source')
+        for rank in range(2,6)
+    ]
+    target=_target_snapshot('https://example.com/revuelto')
+    monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
+    monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda _response:target)
+    frozen=NewWebsiteValidationBuilder(DB(audit_row),Provider(docs)).build(
+        property_id=7,audit_id=4,opportunity_id=9)
+
+    class RecordingRepository:
+        def __init__(self):
+            self.created=None
+
+        def create_run(self,**kwargs):
+            self.created=kwargs
+            return SimpleNamespace(id=101,status='queued')
+
+    repository=RecordingRepository()
+    experiment=ExperimentService(repository).create_experiment(
+        property_id=7,
+        name='Threshold regression',
+        description=None,
+        llm_model='offline-test-model',
+        dataset_name='uploaded',
+        strategies=['statistics'],
+        metrics=[],
+        number_of_queries=1,
+        random_seed=1,
+        temperature=0.0,
+        queries=[frozen['query']],
+        dataset_documents=[{'query':frozen['query'],**document} for document in frozen['documents']],
+        repetitions_per_context=1,
+    )
+
+    assert experiment.id==101
+    assert len(repository.created['benchmark_queries'][0]['documents'])==5
+    assert repository.created['benchmark_queries'][0]['documents'][0]['is_optimization_target'] is True
