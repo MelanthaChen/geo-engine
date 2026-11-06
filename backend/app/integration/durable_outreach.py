@@ -35,12 +35,13 @@ class DurableStore:
         return json.loads(raw) if raw else None
 
     def save_retrieval_checkpoint(self, *, job_key, profile, audit_id, opportunity_id,
-                                  query, retrieval_provider, retrieved_at, documents):
+                                  query, retrieval_provider, retrieved_at, documents, sequence=1):
         """Persist the complete provider response before downstream validation."""
         identity = profile.get('identity') or {}
         payload = {
             'checkpoint_version': 1,
-            'record_id': 'retrieval-checkpoint:' + hashlib.sha256(job_key.encode()).hexdigest(),
+            'record_id': 'retrieval-checkpoint:' + hashlib.sha256(job_key.encode()).hexdigest() + ':' + str(int(sequence)),
+            'sequence': int(sequence),
             'job_key': job_key,
             'profile_id': profile.get('profile_id'),
             'profile_version': profile.get('profile_version'),
@@ -65,7 +66,7 @@ class DurableStore:
             })
         payload['checkpoint_sha256'] = hashlib.sha256(encoded(payload).encode()).hexdigest()
         existing = next((item for item in self.records('outreach_retrieval_checkpoint')
-                         if item.get('job_key') == job_key), None)
+                         if item.get('job_key') == job_key and int(item.get('sequence') or 1) == int(sequence)), None)
         if existing:
             if existing != payload:
                 raise ValueError('A different retrieval checkpoint is already bound to this job')
@@ -79,9 +80,13 @@ class DurableStore:
     def get_retrieval_checkpoint(self, job_key):
         matches = [item for item in self.records('outreach_retrieval_checkpoint')
                    if item.get('job_key') == job_key]
-        if len(matches) > 1:
-            raise ValueError('Multiple retrieval checkpoints exist for this job')
-        return matches[0] if matches else None
+        by_sequence = {}
+        for item in matches:
+            sequence = int(item.get('sequence') or 1)
+            if sequence in by_sequence:
+                raise ValueError('Multiple retrieval checkpoints exist for the same job and search sequence')
+            by_sequence[sequence] = item
+        return by_sequence[max(by_sequence)] if by_sequence else None
 
 def public(row):
     return {'job_id':row['id'],'status':row['status'],'property_id':row['property_id'],'audit_id':row['audit_id'],
@@ -217,7 +222,11 @@ def advance(db,key):
         except ProviderBudgetBlocked as exc:
             db.rollback();update(db,key,status='BLOCKED_CONFIGURATION',error=str(exc)[:400])
         except Exception as exc:
-            db.rollback();update(db,key,status='RETRY_PENDING',error=type(exc).__name__+' during GEO research; existing job preserved')
+            db.rollback()
+            # Preserve a concise deterministic validation reason for recovery.
+            # Do not persist arbitrary provider exception bodies or response data.
+            detail = str(exc)[:240] if isinstance(exc, ValueError) else 'details withheld'
+            update(db,key,status='RETRY_PENDING',error=f'{type(exc).__name__} during GEO research: {detail}; existing job preserved')
         finally:
             guard.execute(text('SELECT pg_advisory_unlock(:key)'),{'key':lock});guard.commit()
     return get_job(db,key)

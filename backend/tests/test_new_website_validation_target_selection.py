@@ -261,10 +261,11 @@ def test_raw_retrieval_is_checkpointed_before_evidence_validation_failure(monkey
     monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
     monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda response:target)
     captured=[]
-    with pytest.raises(NewWebsiteValidationError,match='at least 3 required'):
+    with pytest.raises(NewWebsiteValidationError,match='at least 3 required') as failure:
         NewWebsiteValidationBuilder(DB(audit_row),Provider(docs)).build(
             property_id=7,audit_id=4,opportunity_id=9,
             checkpoint_callback=lambda **checkpoint:captured.append(checkpoint))
+    assert failure.value.code == 'insufficient_external_sources'
     assert len(captured)==1
     assert len(captured[0]['documents'])==5
     assert sum(not item.plain_text for item in captured[0]['documents'])==2

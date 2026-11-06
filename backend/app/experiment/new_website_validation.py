@@ -36,7 +36,9 @@ MAX_EXTERNAL_REFERENCE_SOURCES = 4
 
 
 class NewWebsiteValidationError(ValueError):
-    pass
+    def __init__(self, message: str, *, code: str = "validation_failed"):
+        super().__init__(message)
+        self.code = code
 
 
 class NewWebsiteValidationBuilder:
@@ -166,7 +168,8 @@ class NewWebsiteValidationBuilder:
                 "The retrieval response did not meet the evidence threshold: "
                 f"{len(references)} usable external sources; at least "
                 f"{MIN_EXTERNAL_REFERENCE_SOURCES} required; {unavailable} "
-                "retrieval results had unavailable page content."
+                "retrieval results had unavailable page content.",
+                code="insufficient_external_sources",
             )
 
         common = {
