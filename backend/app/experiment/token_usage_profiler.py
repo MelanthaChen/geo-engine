@@ -72,10 +72,10 @@ class OutreachProviderBudget:
     MAX_INPUT_BYTES_PER_CALL = 48000
     MAX_INPUT_TOKENS_PER_CALL = MAX_INPUT_BYTES_PER_CALL
     MAX_OUTPUT_TOKENS_PER_CALL = 1024
-    # Exa Auto Search is $7/1k requests; this path caps results at five (below
-    # the first ten-result tier, so no additional-result charge applies).
+    # Exa Auto Search is $7/1k requests; a request may return up to ten results
+    # without additional-result charges.
     SEARCH_COST_USD = {"exa": 0.007}
-    MAX_SEARCH_REQUESTS = 2  # One original request plus one explicitly authorized recovery.
+    MAX_SEARCH_REQUESTS = 3  # Original retrieval plus two explicitly authorized recoveries.
 
     def __init__(self, durable_store, job_key: str):
         self.store = durable_store
@@ -199,7 +199,7 @@ class OutreachProviderBudget:
                 search_settlements[sequence] = record
 
         if len(search_reservations) > self.MAX_SEARCH_REQUESTS:
-            raise ProviderBudgetBlocked("Provider ledger exceeds the original plus one recovery search allowance")
+            raise ProviderBudgetBlocked("Provider ledger exceeds the three-request exact-job recovery allowance")
         if set(search_settlements) - set(search_reservations):
             raise ProviderBudgetBlocked("Search settlement has no matching reservation")
         for sequence, reserved_search in search_reservations.items():
@@ -288,18 +288,16 @@ class OutreachProviderBudget:
             item.strip() for item in os.environ.get("GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST", "").split(",")
             if item.strip()
         }
-        records, _, _, reservations, settlements = self._load_ledger()
-        authorized_event = any(
-            record.get("event") == "authorize_search_recovery"
-            and int(record.get("sequence") or 0) == 2
-            for record in records
-        )
+        _, _, _, reservations, settlements = self._load_ledger()
         return (
             configured == {self.job_key}
-            and len(reservations) == 1
+            and 1 <= len(reservations) < self.MAX_SEARCH_REQUESTS
             and set(reservations) == set(settlements)
-            and reservations[1].get("provider") == "exa"
-            and (not authorized_event or 2 not in reservations)
+            and sorted(reservations) == list(range(1, len(reservations) + 1))
+            and all(reservations[n].get("provider") == "exa" for n in reservations)
+            # An authorization event without a reservation is safe to resume:
+            # the provider call cannot start until reserve_search persists the
+            # reservation. reserve_search will reuse that event idempotently.
         )
 
     def reserve_search(self, provider_name: str):
@@ -311,10 +309,10 @@ class OutreachProviderBudget:
             raise ProviderBudgetBlocked("A previous search has an unresolved billable outcome; recovery search is forbidden")
         sequence = len(reservations) + 1
         if sequence > self.MAX_SEARCH_REQUESTS:
-            raise ProviderBudgetBlocked("This durable job has exhausted its original plus one recovery search allowance")
+            raise ProviderBudgetBlocked("This durable job has exhausted its three-request exact-job recovery allowance")
         if sequence > 1:
             if not self.recovery_search_authorized():
-                raise ProviderBudgetBlocked("An additional search requires an exact-job recovery allowlist and a reconciled prior search")
+                raise ProviderBudgetBlocked("An additional search requires an exact-job recovery allowlist and fully reconciled prior searches")
             prior = reservations[sequence - 1]
             if sequence - 1 not in settlements:
                 raise ProviderBudgetBlocked("The previous search outcome is unresolved; recovery search is forbidden")
@@ -326,13 +324,13 @@ class OutreachProviderBudget:
                     "sequence": sequence, "prior_sequence": sequence - 1,
                     "prior_settlement_record_id": settlements[sequence - 1].get("record_id"),
                     "authorization_source": "GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST",
-                    "recovery_basis": "prior_search_settled_without_recoverable_payload_or_experiment",
+                    "recovery_basis": "prior_search_settled_but_retrieval_evidence_failed_the_configured_quality_threshold",
                 })
         cost = self.SEARCH_COST_USD[provider]
         self._ensure_capacity(cost)
         self.store.append("outreach_provider_budget", {
             "record_id": f"outreach-budget:{self.job_key}:search:{sequence}:reserve", "event": "reserve_search",
-            "job_key": self.job_key, "provider": provider, "max_results": 5,
+            "job_key": self.job_key, "provider": provider, "max_results": 10,
             "sequence": sequence,
             "worst_case_cost_usd": cost,
         })
@@ -345,8 +343,9 @@ class OutreachProviderBudget:
         if len(pending) != 1 or provider not in self.SEARCH_COST_USD:
             raise ProviderBudgetBlocked("Search usage cannot be settled against this job's reservation")
         sequence = pending[0]
-        if int(returned_documents) < 0 or int(returned_documents) > 5:
-            raise ProviderBudgetBlocked("Search response exceeded the five-document reserved limit")
+        reservation = reservations[pending[0]]
+        if int(returned_documents) < 0 or int(returned_documents) > int(reservation.get("max_results") or 5):
+            raise ProviderBudgetBlocked("Search response exceeded its reserved result limit")
         self.store.append("outreach_provider_budget", {
             "record_id": f"outreach-budget:{self.job_key}:search:{sequence}:settle",
             "event": "settle_search", "job_key": self.job_key,

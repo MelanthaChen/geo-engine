@@ -54,8 +54,8 @@ def _recover_retrieval_checkpoint(store, *, job_key, profile, audit, opportunity
             or checkpoint.get("retrieval_provider") != "exa"):
         reject("job, website, Audit, Opportunity, provider, or exact query identity differs")
     documents = checkpoint.get("documents")
-    if not isinstance(documents, list) or not documents or len(documents) > 5:
-        reject("document set is empty or exceeds the reserved five-result limit")
+    if not isinstance(documents, list) or not documents or len(documents) > 10:
+        reject("document set is empty or exceeds the reserved ten-result limit")
     parsed = []
     request_ids = set()
     retrieved_times = set()
@@ -503,11 +503,23 @@ def run_owner_research_pipeline(
                 # The immutable payload proves the provider call returned.
                 # Reconcile the original reservation before any validation can fail.
                 budget.settle_search("exa", len(checkpoint_docs))
-            frozen = validation_builder.build(
-                property_id=imported["property_id"], audit_id=audit_id,
-                opportunity_id=opportunity_id, use_frozen_demo_pack=False,
-                retrieved_documents=checkpoint_docs,
-            )
+            try:
+                frozen = validation_builder.build(
+                    property_id=imported["property_id"], audit_id=audit_id,
+                    opportunity_id=opportunity_id, use_frozen_demo_pack=False,
+                    retrieved_documents=checkpoint_docs,
+                )
+            except NewWebsiteValidationError as exc:
+                # A second settled search is allowed only for a specific evidence
+                # quality failure, and only while the exact-job allowlist authorizes
+                # the next bounded request. Target identity or content failures do
+                # not get papered over with more search results.
+                if exc.code != "insufficient_external_sources" or not budget.recovery_search_authorized():
+                    raise ResearchPipelineBlocked(
+                        f"Persisted Exa evidence failed validation ({exc.code}): {exc}"
+                    ) from exc
+                recovery_search_authorized = True
+                frozen = None
         elif not budget.search_settled:
             raise ResearchPipelineBlocked("Prior Exa search outcome is unresolved and no complete retrieval checkpoint exists; another search is forbidden")
         elif prior_experiment is not None:
@@ -536,13 +548,14 @@ def run_owner_research_pipeline(
                 opportunity_id=opportunity_id, query=query,
                 retrieval_provider=retrieval_provider, retrieved_at=retrieved_at,
                 documents=documents,
+                sequence=(max(budget.search_reservations, default=1) if budget is not None else 1),
             )
         if budget is not None:
             if getattr(search_provider, "provider_id", "") not in budget.SEARCH_COST_USD:
                 raise ResearchPipelineBlocked("The configured search provider has no approved one-job price or credential configuration")
             search_provider = _BudgetedSearchProvider(search_provider, budget, persist_before_settlement)
         validation_builder = NewWebsiteValidationBuilder(db, search_provider=search_provider)
-        validation_builder.result_limit = 5 if budget is not None else 10
+        validation_builder.result_limit = 10
         frozen = validation_builder.build(
             property_id=imported["property_id"],
             audit_id=audit_id,
@@ -733,10 +746,10 @@ class _BudgetedSearchProvider:
         self.provider_id = getattr(provider, "provider_id", "unknown")
 
     def search(self, query: str, top_k: int = 5):
-        if top_k > 5:
-            raise RuntimeError("The outreach search result cap is five documents")
+        if top_k > 10:
+            raise RuntimeError("The outreach search result cap is ten documents")
         self.budget.reserve_search(self.provider_id)
-        results = self.provider.search(query=query, top_k=min(top_k, 5))
+        results = self.provider.search(query=query, top_k=min(top_k, 10))
         if self.checkpoint_callback:
             retrieved_at = next((item.retrieved_at for item in results if item.retrieved_at), utc_now())
             self.checkpoint_callback(

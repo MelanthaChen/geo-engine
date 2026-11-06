@@ -463,6 +463,27 @@ def test_durable_retrieval_checkpoint_is_idempotent_and_rejects_tampering(db):
             audit=type('Audit',(),{'id':3})(),opportunity_id=7,query='exact frozen query')
 
 
+def test_retrieval_checkpoints_preserve_each_search_and_recover_latest(db):
+    from datetime import datetime,timezone
+    from app.ge.search_provider import RetrievedDocument
+    store=DurableStore(db)
+    profile={'profile_id':'sim-one','profile_version':'inv-one','identity':{'website':'https://one.example/'}}
+    when=datetime(2026,11,5,tzinfo=timezone.utc)
+    common=dict(profile=profile,audit_id=3,opportunity_id=7,query='exact frozen query',
+        retrieval_provider='exa',retrieved_at=when)
+    first=[RetrievedDocument(rank=1,title='Source A',url='https://source.example/a',plain_text='original evidence',
+        retrieval_provider='exa',retrieved_at=when,provider_metadata={'request_id':'exa-1'})]
+    second=[RetrievedDocument(rank=1,title='Source B',url='https://source.example/b',plain_text='recovery evidence',
+        retrieval_provider='exa',retrieved_at=when,provider_metadata={'request_id':'exa-2'})]
+    saved1=store.save_retrieval_checkpoint(job_key='outreach-v2:inv-one',documents=first,sequence=1,**common)
+    saved2=store.save_retrieval_checkpoint(job_key='outreach-v2:inv-one',documents=second,sequence=2,**common)
+    assert saved1['record_id'] != saved2['record_id']
+    assert len(store.records('outreach_retrieval_checkpoint')) == 2
+    latest=store.get_retrieval_checkpoint('outreach-v2:inv-one')
+    assert latest['sequence'] == 2
+    assert latest['documents'][0]['plain_text'] == 'recovery evidence'
+
+
 def test_settled_search_without_payload_stays_blocked_without_search(db):
     from app.integration.research_pipeline import _recover_retrieval_checkpoint
     store=DurableStore(db)
@@ -476,7 +497,7 @@ def test_settled_search_without_payload_stays_blocked_without_search(db):
     assert len([row for row in store.records('outreach_provider_budget') if row['event']=='reserve_search'])==1
 
 
-def test_exact_job_can_reconcile_one_additional_search_without_resetting_ledger(db, monkeypatch):
+def test_exact_job_can_reconcile_two_additional_searches_without_resetting_ledger(db, monkeypatch):
     store=DurableStore(db)
     key='outreach-v2:inv-authorized-recovery'
     # Match the persisted legacy ledger shape exactly: no sequence field and
@@ -504,6 +525,15 @@ def test_exact_job_can_reconcile_one_additional_search_without_resetting_ledger(
     with pytest.raises(RuntimeError,match='unresolved billable outcome'):
         recovery.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
     assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_search'])==2
+    recovery.settle_search('exa', 8)
+    final_recovery=OutreachProviderBudget(store,key)
+    assert final_recovery.recovery_search_authorized() is True
+    final_recovery.reserve_search('exa')
+    final_recovery.settle_search('exa', 10)
+    assert final_recovery.committed_and_reserved_cost == pytest.approx(0.021)
+    with pytest.raises(RuntimeError,match='exhausted'):
+        final_recovery.reserve_search('exa')
+    assert [r.get('sequence',1) for r in store.records('outreach_provider_budget') if r['event']=='reserve_search']==[1,2,3]
 
 
 def test_recovery_search_requires_exact_allowlist_and_preserves_cumulative_cost(db, monkeypatch):
@@ -520,6 +550,9 @@ def test_recovery_search_requires_exact_allowlist_and_preserves_cumulative_cost(
     allowed=OutreachProviderBudget(store,key)
     allowed.reserve_search('exa');allowed.settle_search('exa',4)
     assert allowed.committed_and_reserved_cost==0.014
+    assert allowed.recovery_search_authorized()
+    allowed.reserve_search('exa');allowed.settle_search('exa',7)
+    assert allowed.committed_and_reserved_cost==0.021
     with pytest.raises(RuntimeError,match='exhausted'):
         allowed.reserve_search('exa')
-    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='settle_search'])==2
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='settle_search'])==3
