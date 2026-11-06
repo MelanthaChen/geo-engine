@@ -329,6 +329,36 @@ def test_recovery_does_not_mutate_failed_experiment_or_provider_ledger(db):
     assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_model'])==1
 
 
+def test_failed_query_batch_accepts_one_valid_strategy_checkpoint_for_resume():
+    from types import SimpleNamespace
+    from app.integration.research_pipeline import _validate_exp6_checkpoints
+    experiment,audit,docs,_evidence=_frozen_experiment_fixture()
+    query=SimpleNamespace(id=17,query="frozen query",seed_value=42,selected_document_rank=1,
+        documents=[SimpleNamespace(
+            rank=item['rank'],url=item['url'],content_sha256=item['content_sha256'],
+            plain_text=item['content'],is_selected=item['rank']==1,
+            source_role=item['source_role'],retrieval_provider=item['retrieval_provider'],
+        ) for item in docs],strategy_results=[])
+    query.query=__import__('json').loads(experiment.benchmark_queries_json)[0]['query']
+    result=SimpleNamespace(strategy='original',sample_index=0,answer='persisted genuine answer',
+        prompt='persisted frozen prompt')
+    query.strategy_results=[result]
+    run=SimpleNamespace(strategy='original',sample_index=0,status='completed',
+        raw_response=result.answer,raw_prompt=result.prompt,strategy_result=result,
+        experiment_query_id=query.id)
+    experiment.random_seed=42
+    experiment.queries=[query]
+    experiment.runs=[run]
+    frozen={'query':query.query,'documents':docs}
+
+    assert experiment.run_count==0
+    assert _validate_exp6_checkpoints(experiment,frozen=frozen,strategies=['original','faq'])
+
+    # The persisted row is not enough to claim that the query batch completed.
+    experiment.run_count=1
+    assert not _validate_exp6_checkpoints(experiment,frozen=frozen,strategies=['original','faq'])
+
+
 def test_budget_cap_blocks_reservation_using_settled_and_reserved_cost(db, monkeypatch):
     store=DurableStore(db)
     budget=OutreachProviderBudget(store,'outreach-v2:inv-cap')
