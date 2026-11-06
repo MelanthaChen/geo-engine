@@ -31,7 +31,7 @@ from app.teacher_pipeline.query_contexts import resolve_audited_target
 
 
 QUERY_POLICY_VERSION = "audit-evidence-query-v1"
-MIN_EXTERNAL_REFERENCE_SOURCES = 3
+MIN_EXTERNAL_REFERENCE_SOURCES = 4
 MAX_EXTERNAL_REFERENCE_SOURCES = 4
 
 
@@ -42,7 +42,7 @@ class NewWebsiteValidationError(ValueError):
 
 
 class NewWebsiteValidationBuilder:
-    """Freeze one audited target and a minimum of three external references."""
+    """Freeze one audited target and a minimum of four external references."""
 
     def __init__(self, db: Session, search_provider=None):
         self.db = db
