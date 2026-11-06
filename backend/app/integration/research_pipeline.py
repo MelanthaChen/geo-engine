@@ -488,6 +488,7 @@ def run_owner_research_pipeline(
     validation_builder = None
     search_provider = None
     retrieval_query = None
+    recovery_search_authorized = False
     if budget is not None and budget.search_reserved:
         if not resume_incomplete:
             raise ResearchPipelineBlocked("A prior Exa search is already reserved; settled evidence recovery is required and another search is forbidden")
@@ -516,10 +517,13 @@ def run_owner_research_pipeline(
                 opportunity_id=opportunity_id, strategy=strategy,
             )
         else:
-            raise ResearchPipelineBlocked("Settled Exa search has no recoverable retrieval payload or frozen Experiment; another search is forbidden")
+            if budget.recovery_search_authorized():
+                recovery_search_authorized = True
+            else:
+                raise ResearchPipelineBlocked("Settled Exa search has no recoverable retrieval payload or frozen Experiment; exact-job recovery search is not authorized")
 
     if frozen is None:
-        if budget is not None and budget.search_reserved:
+        if budget is not None and budget.search_reserved and not recovery_search_authorized:
             raise ResearchPipelineBlocked("Prior Exa search is already reserved; live search fallback is forbidden")
         search_provider = build_search_provider()
         def persist_before_settlement(query, retrieval_provider, retrieved_at, documents):

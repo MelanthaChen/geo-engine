@@ -99,7 +99,7 @@ def test_outreach_budget_reserves_then_persists_actual_cost_and_is_idempotently_
     assert again.search_reserved is True
     assert again.search_settled is True
     assert len(again.reservations)==1
-    with pytest.raises(RuntimeError,match='only search request'):
+    with pytest.raises(RuntimeError,match='exact-job recovery allowlist'):
         again.reserve_search('exa')
     with pytest.raises(RuntimeError,match='model path'):
         again.reserve_model('retired-model',[{'role':'user','content':'x'}],512)
@@ -116,9 +116,11 @@ def test_outreach_budget_fails_closed_on_oversized_inputs_and_outputs(db):
 def test_budget_tracks_cost_and_preserves_provider_call_limits(db):
     budget=OutreachProviderBudget(DurableStore(db),'outreach-v2:inv-clean')
     budget.reserve_search('exa')
-    with pytest.raises(RuntimeError,match='only search request'):
+    with pytest.raises(RuntimeError,match='unresolved billable outcome'):
         budget.reserve_search('exa')
     budget.settle_search('exa',5)
+    with pytest.raises(RuntimeError,match='exact-job recovery allowlist'):
+        budget.reserve_search('exa')
     for _ in range(budget.MAX_MODEL_CALLS):
         sequence=budget.reserve_model('gpt-6-luna',[{'role':'user','content':'x'}],1024)
         budget.settle_model(sequence,'gpt-6-luna',type('Usage',(),{'prompt_tokens':1,'completion_tokens':1})())
@@ -303,7 +305,7 @@ def test_settled_exa_search_is_never_repeated_by_budget_guard(db):
     budget=OutreachProviderBudget(store,'outreach-v2:inv-frozen-recovery')
     budget.reserve_search('exa');budget.settle_search('exa',5)
     search=SearchSpy()
-    with pytest.raises(RuntimeError,match='already reserved its only search request'):
+    with pytest.raises(RuntimeError,match='exact-job recovery allowlist'):
         from app.integration.research_pipeline import _BudgetedSearchProvider
         _BudgetedSearchProvider(search,budget).search(query='frozen',top_k=5)
     assert search.calls==0
@@ -469,6 +471,55 @@ def test_settled_search_without_payload_stays_blocked_without_search(db):
     assert _recover_retrieval_checkpoint(store,job_key='outreach-v2:inv-no-payload',
         profile={'profile_id':'x','profile_version':'inv-x','identity':{'website':'https://x.example/'}},
         audit=type('Audit',(),{'id':1})(),opportunity_id=2,query='q') is None
-    with pytest.raises(RuntimeError,match='already reserved its only search request'):
+    with pytest.raises(RuntimeError,match='exact-job recovery allowlist'):
         budget.reserve_search('exa')
     assert len([row for row in store.records('outreach_provider_budget') if row['event']=='reserve_search'])==1
+
+
+def test_exact_job_can_reconcile_one_additional_search_without_resetting_ledger(db, monkeypatch):
+    store=DurableStore(db)
+    key='outreach-v2:inv-authorized-recovery'
+    # Match the persisted legacy ledger shape exactly: no sequence field and
+    # the original stable record IDs from the first deployment.
+    store.append('outreach_provider_budget',{
+        'record_id':f'outreach-budget:{key}:search','event':'reserve_search',
+        'job_key':key,'provider':'exa','max_results':5,'worst_case_cost_usd':0.007,
+    })
+    store.append('outreach_provider_budget',{
+        'record_id':f'outreach-budget:{key}:search:settle','event':'settle_search',
+        'job_key':key,'provider':'exa','returned_documents':5,'actual_cost_usd':0.007,
+    })
+    monkeypatch.setenv('GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST',key)
+    recovery=OutreachProviderBudget(store,key)
+    assert recovery.recovery_search_authorized() is True
+    recovery.reserve_search('exa')
+    assert recovery.search_settled is False
+    events=store.records('outreach_provider_budget')
+    assert [r.get('sequence',1) for r in events if r['event']=='reserve_search']==[1,2]
+    authorization=next(r for r in events if r['event']=='authorize_search_recovery')
+    assert authorization['prior_settlement_record_id']=='outreach-budget:'+key+':search:settle'
+    # An unresolved paid request is never repeated; it also blocks model calls.
+    with pytest.raises(RuntimeError,match='unresolved billable outcome'):
+        recovery.reserve_search('exa')
+    with pytest.raises(RuntimeError,match='unresolved billable outcome'):
+        recovery.reserve_model('gpt-6-luna',[{'role':'user','content':'prompt'}],512)
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_search'])==2
+
+
+def test_recovery_search_requires_exact_allowlist_and_preserves_cumulative_cost(db, monkeypatch):
+    store=DurableStore(db)
+    key='outreach-v2:inv-only-this-job'
+    original=OutreachProviderBudget(store,key)
+    original.reserve_search('exa');original.settle_search('exa',5)
+    monkeypatch.setenv('GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST','outreach-v2:inv-other')
+    blocked=OutreachProviderBudget(store,key)
+    with pytest.raises(RuntimeError,match='exact-job recovery allowlist'):
+        blocked.reserve_search('exa')
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='reserve_search'])==1
+    monkeypatch.setenv('GEO_OUTREACH_RECOVERY_SEARCH_ALLOWLIST',key)
+    allowed=OutreachProviderBudget(store,key)
+    allowed.reserve_search('exa');allowed.settle_search('exa',4)
+    assert allowed.committed_and_reserved_cost==0.014
+    with pytest.raises(RuntimeError,match='exhausted'):
+        allowed.reserve_search('exa')
+    assert len([r for r in store.records('outreach_provider_budget') if r['event']=='settle_search'])==2
