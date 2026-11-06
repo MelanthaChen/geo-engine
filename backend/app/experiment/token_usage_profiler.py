@@ -457,6 +457,7 @@ class OutreachProviderBudget:
             raise ProviderBudgetBlocked("Provider response has no unsettled model reservation")
         choices = sorted(getattr(response, "choices", []) or [], key=lambda choice: choice.index)
         outputs = [choice.message.content or "" for choice in choices]
+        finish_reasons = [getattr(choice, "finish_reason", None) for choice in choices]
         usage = getattr(response, "usage", None)
         usage_data = None
         if usage is not None:
@@ -481,6 +482,7 @@ class OutreachProviderBudget:
             "model": str(getattr(response, "model", None) or model),
             "usage": usage_data,
             "raw_outputs": outputs,
+            "finish_reasons": finish_reasons,
             "parser_status": "pending",
         }
         self.store.append("outreach_model_response", response_record)

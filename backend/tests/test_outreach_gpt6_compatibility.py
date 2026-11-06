@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import json
 import pytest
 
 from app.providers.chatgpt_provider import ChatGPTProvider
@@ -20,7 +21,7 @@ class FakeClient:
         return SimpleNamespace(
             model="gpt-6-luna",
             usage=SimpleNamespace(prompt_tokens=12, completion_tokens=4),
-            choices=[SimpleNamespace(index=0, message=SimpleNamespace(content="answer"))],
+            choices=[SimpleNamespace(index=0, finish_reason="stop", message=SimpleNamespace(content="answer"))],
         )
 
 
@@ -74,7 +75,7 @@ def test_raw_response_is_archived_before_budget_settlement(monkeypatch):
     assert events == ["reserve", "persist", "settle"]
 
 
-def test_outreach_rewrite_has_one_transport_attempt_and_640_token_cap():
+def test_outreach_rewrite_has_one_transport_attempt_and_budget_maximum_token_cap():
     class FailingRunner:
         def __init__(self):
             self.calls = []
@@ -88,4 +89,35 @@ def test_outreach_rewrite_has_one_transport_attempt_and_640_token_cap():
         GeoRewriter(runner)._generate_with_official_retry("prompt", model="gpt-6-luna")
     assert len(runner.calls) == 1
     assert runner.calls[0]["model"] == "gpt-6-luna"
-    assert runner.calls[0]["max_tokens"] == 640
+    assert runner.calls[0]["max_tokens"] == 1024
+
+
+def test_luna_rewrite_plan_completes_with_the_budget_maximum_output_cap(monkeypatch):
+    monkeypatch.setenv("GEO_DISABLE_REWRITE_CACHE", "True")
+    source = "Our software checks resumes for ATS compatibility and highlights missing keywords."
+    treatment = (
+        "How does the software help with ATS compatibility?\n\n"
+        "It checks resumes for ATS compatibility and highlights missing keywords."
+    )
+
+    class Runner:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, **request):
+            self.calls.append(request)
+            assert request["max_tokens"] == 1024
+            assert request["response_format"] == {"type": "json_object"}
+            return json.dumps({
+                "version": "rewrite-plan-v1",
+                "operations": [{"anchor": source, "replacement": treatment}],
+            })
+
+    runner = Runner()
+    artifact = GeoRewriter(runner).rewrite_artifact(
+        source, "How does the software help?", "faq", "gpt-6-luna", 0.2,
+    )
+    assert len(runner.calls) == 1
+    assert artifact.document == treatment
+    assert artifact.plan["version"] == "rewrite-plan-v1"
+    assert artifact.plan["operations"][0]["anchor"] == source

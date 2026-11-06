@@ -148,11 +148,12 @@ def test_paid_model_response_is_durable_before_parser_status_and_keeps_attempt_i
     response=SimpleNamespace(
         id='resp-test-123', model='gpt-6-luna',
         usage=SimpleNamespace(prompt_tokens=10,completion_tokens=4,total_tokens=14),
-        choices=[SimpleNamespace(index=0,message=SimpleNamespace(content='{malformed}'))],
+        choices=[SimpleNamespace(index=0,finish_reason='length',message=SimpleNamespace(content='{malformed}'))],
     )
     budget.persist_model_response(sequence,response,'gpt-6-luna',[{'role':'user','content':'test prompt'}],'strategy_rewrite')
     archived=store.records('outreach_model_response')[0]
     assert archived['raw_outputs']==['{malformed}']
+    assert archived['finish_reasons']==['length']
     assert archived['provider_request_id']=='resp-test-123'
     assert archived['job_key']=='outreach-v2:inv-clean'
     assert archived['attempt_id']==budget.attempt_id

@@ -659,7 +659,12 @@ class GeoRewriter:
                     model=model if outreach_luna else OFFICIAL_REWRITE_MODEL,
                     temperature=OFFICIAL_REWRITE_TEMPERATURE,
                     top_p=OFFICIAL_REWRITE_TOP_P,
-                    max_tokens=640 if outreach_luna else OFFICIAL_REWRITE_MAX_TOKENS,
+                    # Outreach rewrite plans can contain several exact-anchor
+                    # replacements. The previous 640-token ceiling truncated
+                    # valid JSON plans for the five-document live workflow.
+                    # Keep this aligned with OutreachProviderBudget's enforced
+                    # per-call output limit.
+                    max_tokens=1024 if outreach_luna else OFFICIAL_REWRITE_MAX_TOKENS,
                     purpose="strategy_rewrite",
                     response_format={"type": "json_object"} if outreach_luna else None,
                 )
