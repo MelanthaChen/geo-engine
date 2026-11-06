@@ -265,10 +265,17 @@ def _recover_frozen_experiment_documents(experiment, *, audit, website: str, off
 
 
 def _validate_exp6_checkpoints(experiment, *, frozen, strategies):
-    """Accept only complete, exact-source checkpoints for this one live run."""
+    """Accept only exact-source checkpoints for this one live run."""
     expected_query = frozen.get("query")
     expected_docs = frozen.get("documents") or []
-    if int(experiment.run_count or 0) != len(experiment.runs):
+    # run_count records completed query batches, while runs are persisted one
+    # strategy at a time. A failed batch may therefore have run_count == 0 and
+    # a valid original-strategy checkpoint already stored.
+    completed_batches = int(experiment.run_count or 0)
+    expected_strategy_runs = len(strategies)
+    if (completed_batches not in {0, 1}
+            or len(experiment.runs) > expected_strategy_runs
+            or (completed_batches == 1 and len(experiment.runs) != expected_strategy_runs)):
         return False
     if len(experiment.queries) > 1:
         return False
