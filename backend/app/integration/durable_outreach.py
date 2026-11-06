@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from sqlalchemy import MetaData,Table,Column,String,Text,Integer,select,text
 
 metadata=MetaData()
-AUTHORIZED_TEST_JOB_ID = "outreach-v2:inv-9880a65388184eafa7c1075f7bbadb83"
 AUTHORIZED_TEST_WEBSITE = "https://geo-ai-resume.vercel.app/"
 job_table=Table('outreach_research_jobs',metadata,
     Column('id',String,primary_key=True),Column('request_hash',String,nullable=False),Column('profile',Text,nullable=False),
@@ -42,19 +41,34 @@ def public(row):
             'result':json.loads(row['result']) if row['result'] else None,'error':row['error'],'created_at':row['created_at'],'updated_at':row['updated_at']}
 
 def authorized_single_job(key, profile, enabled, allowed_key):
-    """Fail closed unless the exact consented GeoAIResume job is enabled."""
-    identity=profile.get('identity') or {}; consent=profile.get('consent') or {}
+    """Fail closed for one explicitly configured, owner-bound GeoAIResume job."""
+    identity = profile.get('identity') or {}
+    consent = profile.get('consent') or {}
+    verified = consent.get('verified_identity') or {}
+    binding = consent.get('owner_identity_binding') or {}
+    respondent = str(verified.get('email') or '').strip().lower()
     return bool(
-        enabled and allowed_key==AUTHORIZED_TEST_JOB_ID and key==allowed_key
-        and identity.get('website')==AUTHORIZED_TEST_WEBSITE
-        and profile.get('profile_type')=='owner_controlled_test'
+        enabled and isinstance(allowed_key, str) and allowed_key.strip() == key
+        and identity.get('website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
+        and profile.get('profile_type') == 'owner_controlled_test'
         and profile.get('controlled_fixture') is False
-        and consent.get('status')=='VERIFIED'
-        and consent.get('research_interest')=='YES'
-        and consent.get('research_authorization')=='YES'
-        and consent.get('scope_website')==AUTHORIZED_TEST_WEBSITE
-        and bool(consent.get('submission_id') or consent.get('consent_id'))
-        and bool(consent.get('invitation_reference'))
+        and consent.get('status') == 'VERIFIED'
+        and consent.get('research_interest') == 'YES'
+        and consent.get('research_authorization') == 'YES'
+        and consent.get('scope_website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
+        and bool(consent.get('submission_id'))
+        and consent.get('invitation_reference') == binding.get('invitation_reference')
+        and verified.get('provider') == 'GOOGLE_FORMS_VERIFIED'
+        and bool(verified.get('response_id'))
+        and str(verified.get('response_id')) == str(consent.get('submission_id'))
+        and respondent == str(binding.get('verified_respondent_email') or '').strip().lower()
+        and binding.get('identity_source') == 'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL'
+        and binding.get('authorization') == 'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING'
+        and binding.get('candidate_id') == profile.get('profile_id')
+        and binding.get('invitation_id') == profile.get('profile_version')
+        and binding.get('website', '').rstrip('/') == AUTHORIZED_TEST_WEBSITE.rstrip('/')
+        and bool(binding.get('invitation_recipient'))
+        and bool(binding.get('recorded_at'))
     )
 
 def get_job(db,key):
@@ -103,38 +117,34 @@ def advance(db,key):
             row=db.execute(select(job_table).where(job_table.c.id==key)).mappings().first()
             if not row:raise LookupError('Research job not found')
             if row['status']=='COMPLETED':return public(row)
-            allowed_key=os.environ.get('GEO_OUTREACH_RESEARCH_JOB_ID','').strip()
+            allowed_keys={item.strip() for item in os.environ.get('GEO_OUTREACH_RESEARCH_JOB_ALLOWLIST','').split(',') if item.strip()}
+            allowed_key=next(iter(allowed_keys)) if len(allowed_keys)==1 else ''
             enabled=os.environ.get('GEO_OUTREACH_RESEARCH_ENABLED','').strip().lower()=='true'
             profile=json.loads(row['profile'])
             if not authorized_single_job(key,profile,enabled,allowed_key):
                 update(db,key,status='BLOCKED_CONFIGURATION',error='Single-job GEO execution is disabled or the exact job allowlist does not match');return get_job(db,key)
             store=DurableStore(db)
             update(db,key,status='RUNNING',error=None)
-            # Property creation and durable profile mapping are serialized by website
-            # identity as well, so concurrent invitations cannot create two properties.
             site_lock=int.from_bytes(hashlib.sha256(profile['identity']['website'].encode()).digest()[:8],'big',signed=True)
             guard.execute(text('SELECT pg_advisory_lock(:key)'),{'key':site_lock})
             try:
                 imported=GeoResearchIntegrationAdapter(db,'.unused',store=store).import_profile(profile)
             finally:guard.execute(text('SELECT pg_advisory_unlock(:key)'),{'key':site_lock})
             property_id=imported['property_id'];update(db,key,property_id=property_id)
-            # Reuse only a completed, recent audit for the SAME property and scope.
             audit=db.query(WebsiteAudit).filter(WebsiteAudit.property_id==property_id,WebsiteAudit.status=='completed').order_by(WebsiteAudit.id.desc()).first()
             cutoff=datetime.now(timezone.utc)-timedelta(days=30)
             audit_time=(audit.completed_at or audit.created_at) if audit else None
             if audit_time and audit_time.tzinfo is None:audit_time=audit_time.replace(tzinfo=timezone.utc)
             if not audit or not audit_time or audit_time<cutoff or urlparse(audit.base_url).hostname!=urlparse(profile['identity']['website']).hostname:
                 prop=db.get(Property,property_id)
-                audit=run_website_audit(db,prop,browser_fallback_enabled=False,
-                    max_pages=10,candidate_pages=10,sample_pages=10)
+                audit=run_website_audit(db,prop,browser_fallback_enabled=False,max_pages=10,candidate_pages=10,sample_pages=10)
             if audit.status!='completed':raise RuntimeError('Website audit did not complete')
             opportunities=sorted([r for r in audit.recommendations if r.observed_evidence],key=lambda r:r.id)
             if not opportunities:raise ResearchPipelineBlocked('No evidence-backed optimization opportunity is available')
             opportunity=opportunities[0];update(db,key,audit_id=audit.id,opportunity_id=opportunity.id)
             from app.experiment.token_usage_profiler import OutreachProviderBudget
             with OutreachProviderBudget(store,key):
-                outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',
-                    audit_id=audit.id,opportunity_id=opportunity.id,durable_store=store,resume_incomplete=True)
+                outcome=run_owner_research_pipeline(db,profile={**profile,'property_id':property_id},store_root='.unused',audit_id=audit.id,opportunity_id=opportunity.id,durable_store=store,resume_incomplete=True)
             if outcome.get('status')=='COMPLETED':
                 result=outcome['result'];baseline=result.get('baseline') or {}
                 if not baseline.get('results') or int(baseline.get('model_calls') or 0)<2 or str(baseline.get('provider','')).lower() in {'','mock','controlled_fixture'}:
