@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from decimal import Decimal
 from sqlalchemy import create_engine,select,func
 from sqlalchemy.orm import Session
-from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job,AUTHORIZED_TEST_JOB_ID,AUTHORIZED_TEST_WEBSITE
+from app.integration.durable_outreach import metadata,job_table,record_table,submit,get_job,DurableStore,encoded,authorized_single_job,AUTHORIZED_TEST_WEBSITE
 from app.experiment.token_usage_profiler import OutreachProviderBudget
 
 @pytest.fixture
@@ -398,16 +398,23 @@ def test_cumulative_budget_counts_existing_legacy_settlements_conservatively(db,
 
 
 def test_single_job_guard_requires_exact_key_verified_yes_yes_and_exact_website():
-    profile={
+    key='outreach-v2:inv-owner-bound-test'
+    binding={'candidate_id':'owner-test','invitation_id':'inv-owner-test',
+        'invitation_reference':'GEO-OWNER-TEST','website':AUTHORIZED_TEST_WEBSITE,
+        'invitation_recipient':'owner@outlook.com','verified_respondent_email':'owner@gmail.com',
+        'identity_source':'GOOGLE_FORMS_VERIFIED_RESPONDENT_EMAIL',
+        'authorization':'EXPLICIT_OWNER_CONTROLLED_STAGING_BINDING','recorded_at':'2026-11-05T00:00:00Z'}
+    profile={'profile_id':'owner-test','profile_version':'inv-owner-test',
         'profile_type':'owner_controlled_test','controlled_fixture':False,
         'identity':{'website':AUTHORIZED_TEST_WEBSITE},
         'consent':{'status':'VERIFIED','research_interest':'YES','research_authorization':'YES',
-                   'scope_website':AUTHORIZED_TEST_WEBSITE,'submission_id':'existing-consent',
-                   'invitation_reference':'existing-invitation'},
-    }
-    assert authorized_single_job(AUTHORIZED_TEST_JOB_ID,profile,True,AUTHORIZED_TEST_JOB_ID)
-    assert not authorized_single_job('outreach-v2:inv-other',profile,True,AUTHORIZED_TEST_JOB_ID)
-    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,profile,False,AUTHORIZED_TEST_JOB_ID)
-    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,{**profile,'identity':{'website':'https://other.example/'}},True,AUTHORIZED_TEST_JOB_ID)
+            'scope_website':AUTHORIZED_TEST_WEBSITE,'submission_id':'outreach-submission-9',
+            'invitation_reference':'GEO-OWNER-TEST',
+            'verified_identity':{'provider':'GOOGLE_FORMS_VERIFIED','email':'owner@gmail.com',
+                'response_id':'google-response-23'},'owner_identity_binding':binding}}
+    assert authorized_single_job(key,profile,True,key)
+    assert not authorized_single_job('outreach-v2:inv-other',profile,True,key)
+    assert not authorized_single_job(key,profile,False,key)
+    assert not authorized_single_job(key,{**profile,'identity':{'website':'https://other.example/'}},True,key)
     bad_consent={**profile,'consent':{**profile['consent'],'research_authorization':'NO'}}
-    assert not authorized_single_job(AUTHORIZED_TEST_JOB_ID,bad_consent,True,AUTHORIZED_TEST_JOB_ID)
+    assert not authorized_single_job(key,bad_consent,True,key)
