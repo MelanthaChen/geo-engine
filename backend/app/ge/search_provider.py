@@ -60,6 +60,11 @@ def retrieval_result_ledger(results: list[RetrievedDocument]) -> list[dict]:
             "url": result.url,
             "snippet": result.snippet,
             "provider_metadata": result.provider_metadata,
+            "retrieval_provider": result.retrieval_provider,
+            "retrieved_at": result.retrieved_at.isoformat() if result.retrieved_at else None,
+            "content_available": bool(result.plain_text.strip()),
+            "content_length": len(result.plain_text),
+            "content_sha256": result.content_sha256,
         }
         for result in results
     ]

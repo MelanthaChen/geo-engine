@@ -232,3 +232,60 @@ def test_build_returns_content_gap_without_a_real_target(monkeypatch):
     )
     assert result["metadata"]["status"] == "content_gap"
     assert result["documents"] == []
+
+
+def _retrieval_fixture(unavailable_external=1):
+    from hashlib import sha256
+    site='https://example.com/revuelto'
+    docs=[candidate(1,site,'Audited target')]
+    for rank in range(2,6):
+        text='' if rank >= 6-unavailable_external else f'Public source text {rank}'
+        doc=RetrievedDocument(rank=rank,title=f'Source {rank}',url=f'https://source{rank}.example/page',
+            plain_text=text,snippet=f'Provider snippet {rank}',retrieval_provider='exa',
+            retrieved_at=datetime(2026,11,5,tzinfo=timezone.utc),
+            provider_metadata={'request_id':'exa-request-retrieval-test'})
+        doc.content_sha256=sha256(text.encode()).hexdigest()
+        docs.append(doc)
+    docs[0].provider_metadata={'request_id':'exa-request-retrieval-test'}
+    return docs
+
+
+def _target_snapshot(url):
+    return SimpleNamespace(status_code=200,body_text='Audited company content',page_title='Revuelto SV',h1='Revuelto SV',url=url)
+
+
+def test_raw_retrieval_is_checkpointed_before_evidence_validation_failure(monkeypatch):
+    audit_row,_=audit([page(8,'https://example.com/revuelto','Revuelto')])
+    docs=_retrieval_fixture(unavailable_external=2)  # only two external pages contain content
+    target=_target_snapshot('https://example.com/revuelto')
+    monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
+    monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda response:target)
+    captured=[]
+    with pytest.raises(NewWebsiteValidationError,match='at least 3 required'):
+        NewWebsiteValidationBuilder(DB(audit_row),Provider(docs)).build(
+            property_id=7,audit_id=4,opportunity_id=9,
+            checkpoint_callback=lambda **checkpoint:captured.append(checkpoint))
+    assert len(captured)==1
+    assert len(captured[0]['documents'])==5
+    assert sum(not item.plain_text for item in captured[0]['documents'])==2
+    assert captured[0]['documents'][0].provider_metadata['request_id']=='exa-request-retrieval-test'
+
+
+def test_recovered_exa_documents_skip_search_and_mark_unavailable_sources(monkeypatch):
+    audit_row,_=audit([page(8,'https://example.com/revuelto','Revuelto')])
+    docs=_retrieval_fixture(unavailable_external=1)
+    target=_target_snapshot('https://example.com/revuelto')
+    monkeypatch.setattr('app.experiment.new_website_validation.fetch_page',lambda url,**_kwargs:url)
+    monkeypatch.setattr('app.experiment.new_website_validation.extract_page',lambda response:target)
+    class SearchMustNotRun:
+        provider_id='exa'
+        def search(self,**_kwargs):pytest.fail('recovery must not repeat Exa')
+    result=NewWebsiteValidationBuilder(DB(audit_row),SearchMustNotRun()).build(
+        property_id=7,audit_id=4,opportunity_id=9,retrieved_documents=docs)
+    assert len(result['documents'])==4  # audited target plus three usable external references
+    quality=result['metadata']['evidence_quality']
+    assert quality=={'minimum_external_sources':3,'usable_external_sources':3,
+        'unavailable_retrieval_results':1,'status':'ACCEPTED'}
+    unavailable=next(item for item in result['metadata']['retrieval_results'] if not item['content_available'])
+    assert unavailable['content_length']==0
+    assert unavailable['provider_metadata']['request_id']=='exa-request-retrieval-test'
