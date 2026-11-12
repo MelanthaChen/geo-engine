@@ -680,16 +680,23 @@ def run_owner_research_pipeline(
         "provenance": {"source_system": "geo-engine", "audit_id": audit.id, "property_id": audit.property_id},
     }
     target_strategy = next((item for item in details if item.get("strategy") == strategy), details[-1])
+    proposed_revision = target_strategy.get("proposedRevision") or target_strategy.get("proposed_revision")
+    if not isinstance(proposed_revision, str) or not proposed_revision.strip() or len(proposed_revision.strip()) > 400:
+        proposed_revision = None
+    source_excerpt = opportunity.observed_evidence
+    if isinstance(source_excerpt, str) and len(source_excerpt) > 500:
+        source_excerpt = None
     recommendation = {
         "rank": 1,
         "title": opportunity.title,
         "page_url": target["url"],
-        "original_quote": opportunity.observed_evidence or "No exact quote was stored by the Audit.",
-        "proposed_revision": target_strategy.get("modifiedDocument") or opportunity.description,
-        "rationale": opportunity.why_it_matters or opportunity.description,
+        "original_quote": source_excerpt,
+        "proposed_revision": proposed_revision,
+        "rationale": opportunity.why_it_matters or "Not established in the opportunity record.",
         "audit_id": audit.id,
         "opportunity_id": opportunity.id,
         "strategy": strategy,
+        "supporting_evidence_ids": [f"experiment:{experiment.id}:document:1"],
     }
     research_details = {
         "experiment_id": experiment.id,
@@ -703,12 +710,20 @@ def run_owner_research_pipeline(
             "url": target["url"],
             "title": target.get("title") or imported["official_name"],
             "headings": [],
-            "exact_quotes": [opportunity.observed_evidence] if opportunity.observed_evidence else [],
+            "exact_quotes": [source_excerpt] if source_excerpt else [],
             "content_sha256": target.get("content_sha256"),
             "retrieval_provider": target.get("retrieval_provider"),
             "source_audit_id": audit.id,
         }],
         "recommendations": [recommendation],
+        "research_sources": [{
+            "rank": item.get("rank"), "title": item.get("title"), "url": item.get("url"),
+            "source_type": "target website" if item.get("source_role") == "audited_target" else "external reference",
+            "content_sha256": item.get("content_sha256"),
+            "retrieval_provider": item.get("retrieval_provider"),
+            "retrieved_at": item.get("retrieved_at"),
+            "evidence_id": f"experiment:{experiment.id}:document:{item.get('rank')}",
+        } for item in documents],
         "baseline": baseline_results,
         "limitations": [
             "The response archive records GEO Engine model-generated answers from the frozen query and live retrieved documents; it does not measure ranking or citations in external commercial AI search products.",
