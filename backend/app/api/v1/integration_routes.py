@@ -2,6 +2,8 @@
 
 import hmac
 import os
+import hashlib
+import re
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from app.core.database import SessionLocal
@@ -9,6 +11,70 @@ from app.integration.adapter import GeoResearchIntegrationAdapter
 from app.integration.research_pipeline import ResearchPipelineBlocked
 from app.integration.durable_outreach import submit as submit_durable_job, advance as advance_durable_job
 from app.core.config import settings
+from app.models.experiment import ExperimentQuery, ExperimentDocument, ExperimentStrategyResult, ExperimentRun
+
+
+def _enrich_result_sources(record: dict, db) -> dict:
+    """Attach hash-verified persisted retrieval provenance to legacy/new exports."""
+    result = dict(record)
+    experiment_id = (result.get("experiment_summary") or {}).get("experiment_id")
+    if experiment_id is not None:
+        query = db.query(ExperimentQuery).filter(ExperimentQuery.experiment_id == int(experiment_id)).order_by(ExperimentQuery.id.asc()).first()
+        if query:
+            strategy_rows = db.query(ExperimentStrategyResult).filter(ExperimentStrategyResult.experiment_query_id == query.id).order_by(ExperimentStrategyResult.strategy.asc()).all()
+            run_ids = [row.run_id for row in strategy_rows if row.run_id is not None]
+            run_models = {row.id: {"model": row.model, "provider": row.provider, "status": row.status}
+                          for row in db.query(ExperimentRun).filter(ExperimentRun.id.in_(run_ids)).all()} if run_ids else {}
+            baseline = dict(result.get("baseline") or {})
+            archived_results = []
+            for strategy in strategy_rows:
+                meta = run_models.get(strategy.run_id, {})
+                archived_results.append({"strategy": strategy.strategy, "response": strategy.answer,
+                    "model": meta.get("model"), "provider": meta.get("provider"),
+                    "metrics": {"word_count": strategy.word_count, "citation_count": strategy.citation_count,
+                                "visibility_score": strategy.visibility_score, "pawc": strategy.pawc,
+                                "position": strategy.position}})
+            if archived_results:
+                baseline["results"] = archived_results
+                baseline["model"] = next((item.get("model") for item in archived_results if item.get("model")), baseline.get("model"))
+                baseline["model_calls"] = len(archived_results)
+                baseline["interpretation"] = "Persisted model-generated answers and GEO Engine evaluations. These are not third-party AI search rankings."
+                result["baseline"] = baseline
+            answers = result.get("baseline", {}).get("results", []) or []
+            cited = {}
+            for answer in answers:
+                strategy = str(answer.get("strategy") or "unknown")
+                for rank in set(int(value) for value in re.findall(r"\[(\d+)\]", str(answer.get("response") or ""))):
+                    cited.setdefault(rank, []).append(strategy)
+            sources = []
+            for document in db.query(ExperimentDocument).filter(ExperimentDocument.experiment_query_id == query.id).order_by(ExperimentDocument.rank.asc()).all():
+                actual_hash = hashlib.sha256((document.plain_text or "").encode("utf-8")).hexdigest()
+                stored_hash = document.content_sha256
+                if stored_hash and not hmac.compare_digest(actual_hash, stored_hash):
+                    raise HTTPException(status_code=409, detail=f"Persisted source integrity mismatch at document rank {document.rank}")
+                use = ("Cited in persisted strategy response(s): " + ", ".join(cited.get(document.rank, []))) if cited.get(document.rank) else "Retrieved but not cited in persisted strategy responses"
+                if len(document.plain_text or "") < 200:
+                    use += "; saved page text is limited, so no substantive finding is attributed to it"
+                sources.append({
+                    "rank": document.rank, "title": document.title, "url": document.url,
+                    "source_type": "target website" if document.source_role == "audited_target" else "external reference",
+                    "content_sha256": actual_hash, "retrieval_provider": document.retrieval_provider,
+                    "retrieved_at": document.retrieval_timestamp.isoformat() if document.retrieval_timestamp else None,
+                    "evidence_id": f"experiment:{experiment_id}:document:{document.rank}", "relevance": use,
+                })
+            result["research_sources"] = sources
+    for recommendation in result.get("recommendations", []) or []:
+        proposal = recommendation.get("proposed_revision")
+        if not isinstance(proposal, str) or not proposal.strip() or len(proposal.strip()) > 400:
+            recommendation["proposed_revision"] = None
+        excerpt = recommendation.get("original_quote")
+        if isinstance(excerpt, str) and len(excerpt) > 500:
+            recommendation["original_quote"] = None
+        recommendation.setdefault("supporting_evidence_ids", [
+            item["evidence_id"] for item in result.get("research_sources", [])
+            if item.get("source_type") == "target website"
+        ])
+    return result
 
 router = APIRouter(prefix="/api/v1/integration", tags=["Integration"])
 
@@ -61,7 +127,7 @@ async def get_research_result(
     ]
     if not matches:
         raise HTTPException(status_code=404, detail="research result not found")
-    return matches[-1]
+        return _enrich_result_sources(matches[-1], db)
 
 
 @router.post("/research-run")

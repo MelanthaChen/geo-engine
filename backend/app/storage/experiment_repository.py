@@ -328,6 +328,14 @@ class ExperimentRepository:
         selected_document_rank: int,
         strategy_outputs: list[dict],
     ) -> ExperimentQuery:
+        # Recompute from the exact response and selected-document identity at
+        # the persistence boundary so stale in-memory metrics cannot persist.
+        if strategy_outputs:
+            from app.evaluation.experiment_pipeline import ExperimentEvaluationPipeline
+            selected_document = next((doc for doc in documents if doc.rank == selected_document_rank), None)
+            if selected_document is None:
+                raise ValueError("Selected document is missing from the persisted query evidence")
+            ExperimentEvaluationPipeline().evaluate_outputs(strategy_outputs, selected_document=selected_document)
         experiment_query = (
             self.db.query(ExperimentQuery)
             .filter(ExperimentQuery.experiment_id == experiment.id,
