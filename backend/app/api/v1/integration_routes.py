@@ -117,9 +117,13 @@ async def get_research_result(
     """Return the latest persisted result envelope for Outreach retrieval."""
     if not _authorized(authorization, handoff_token):
         raise HTTPException(status_code=401, detail="authenticated result access required")
-    store_root = os.environ.get("GEO_ENGINE_INTEGRATION_STORE", ".integration-data")
     with SessionLocal() as db:
-        records = GeoResearchIntegrationAdapter(db, store_root).store.records("research_result_export")
+        # Durable outreach jobs persist result envelopes in Neon. The legacy
+        # JSONL store is instance-local and may not be present on this Render
+        # instance (or after a restart), even when the experiment is durable.
+        from app.integration.durable_outreach import DurableStore
+
+        records = DurableStore(db).records("research_result_export")
     matches = [
         record for record in records
         if record.get("source_profile_id") == source_profile_id
@@ -127,7 +131,7 @@ async def get_research_result(
     ]
     if not matches:
         raise HTTPException(status_code=404, detail="research result not found")
-        return _enrich_result_sources(matches[-1], db)
+    return _enrich_result_sources(matches[-1], db)
 
 
 @router.post("/research-run")

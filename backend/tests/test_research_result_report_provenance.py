@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -49,3 +50,51 @@ def test_result_enrichment_rejects_tampered_source_text():
         assert False,"tampered content must not be exported"
     except HTTPException as error:
         assert error.status_code==409 and "integrity mismatch" in error.detail
+
+
+def test_result_endpoint_reads_durable_neon_export_and_returns_enriched_result(monkeypatch):
+    import app.api.v1.integration_routes as routes
+    import app.integration.durable_outreach as durable
+    import app.models.experiment as models
+
+    text = "Persisted target evidence for the controlled research result."
+    doc = SimpleNamespace(
+        rank=1, title="Target page", url="https://example.test/",
+        plain_text=text, content_sha256=hashlib.sha256(text.encode()).hexdigest(),
+        source_role="audited_target", retrieval_provider="exa", retrieval_timestamp=None,
+    )
+    query = SimpleNamespace(id=8)
+    class ContextDB(DB):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    db = ContextDB({models.ExperimentQuery: [query], models.ExperimentDocument: [doc]})
+    record = {
+        "record_id": "research-result:fixture:v1",
+        "source_profile_id": "fixture", "source_profile_version": "v1",
+        "experiment_summary": {"experiment_id": 8}, "baseline": {"results": []},
+        "recommendations": [],
+    }
+
+    class FakeDurableStore:
+        def __init__(self, received_db):
+            assert received_db is db
+
+        def records(self, kind):
+            assert kind == "research_result_export"
+            return [record]
+
+    monkeypatch.setattr(routes, "SessionLocal", lambda: db)
+    monkeypatch.setattr(durable, "DurableStore", FakeDurableStore)
+    monkeypatch.setenv("GEO_ENGINE_HANDOFF_TOKEN", "test-secret")
+
+    response = asyncio.run(routes.get_research_result(
+        "fixture", source_profile_version="v1", authorization="Bearer test-secret"
+    ))
+
+    assert response["record_id"] == "research-result:fixture:v1"
+    assert response["research_sources"][0]["content_sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert response["research_sources"][0]["source_type"] == "target website"
