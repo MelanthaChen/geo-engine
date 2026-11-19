@@ -1,6 +1,12 @@
 from fastapi.testclient import TestClient
 
 from main import app
+from app.core.database import engine
+from app.integration.durable_outreach import metadata as durable_metadata
+
+# These route tests use an in-memory SQLite database; the durable integration
+# tables are managed by Alembic in deployments, so create that schema explicitly.
+durable_metadata.create_all(engine)
 
 
 def test_integration_auth_accepts_bearer_or_proxy_safe_header(monkeypatch):

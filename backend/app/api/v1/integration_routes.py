@@ -123,15 +123,18 @@ async def get_research_result(
         # instance (or after a restart), even when the experiment is durable.
         from app.integration.durable_outreach import DurableStore
 
-        records = DurableStore(db).records("research_result_export")
-    matches = [
-        record for record in records
-        if record.get("source_profile_id") == source_profile_id
-        and (source_profile_version is None or record.get("source_profile_version") == source_profile_version)
-    ]
+        store=DurableStore(db)
+        if hasattr(store,"records_for_profile"):
+            matches=store.records_for_profile("research_result_export",source_profile_id,source_profile_version)
+        else:
+            matches=[record for record in store.records("research_result_export")
+                if record.get("source_profile_id")==source_profile_id
+                and (source_profile_version is None or
+                     record.get("source_profile_version")==source_profile_version)]
     if not matches:
         raise HTTPException(status_code=404, detail="research result not found")
-    return _enrich_result_sources(matches[-1], db)
+    result=max(matches,key=lambda record:str(record.get("exported_at") or ""))
+    return _enrich_result_sources(result, db)
 
 
 @router.post("/research-run")

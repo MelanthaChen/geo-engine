@@ -64,8 +64,22 @@ def test_durable_results_do_not_depend_on_files_or_old_profile_versions(db):
     row={'record_id':'fresh-result','source_profile_id':'fresh-owner','source_profile_version':'inv-clean','baseline':{'provider':'CONTROLLED_FIXTURE'}}
     store.append('research_result_export',row);store.append('research_result_export',row)
     assert len(DurableStore(db).records('research_result_export'))==1
+    assert store.get_record('fresh-result')==row
+    assert store.records_for_profile('research_result_export','fresh-owner','inv-clean')==[row]
     assert store.find_profile('fresh-owner','old-invitation') is None
     assert get_job(db,'unknown') is None
+
+
+def test_durable_store_job_scope_does_not_scan_other_provider_records(db,monkeypatch):
+    store=DurableStore(db)
+    store.append('outreach_provider_budget',{'record_id':'outreach-budget:job-one:model:1:reserve',
+        'job_key':'job-one','event':'reserve_model','sequence':1})
+    store.append('outreach_provider_budget',{'record_id':'outreach-budget:job-two:model:1:reserve',
+        'job_key':'job-two','event':'reserve_model','sequence':1})
+    monkeypatch.setattr(store,'records',lambda kind:pytest.fail('unscoped durable record scan'))
+    records=store.records_for_job('outreach_provider_budget','job-one')
+    assert [record['job_key'] for record in records]==['job-one']
+    assert store.get_record('outreach-budget:job-one:model:1:reserve')==records[0]
 
 def test_capability_status_does_not_claim_a_paid_research_run(monkeypatch):
     monkeypatch.setenv('APP_ENV', 'test')

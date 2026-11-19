@@ -29,6 +29,15 @@ class ResearchPipelineBlocked(PermissionError):
     pass
 
 
+def _find_result_for_profile(store, source_id, source_version):
+    if hasattr(store,"records_for_profile"):
+        matches=store.records_for_profile("research_result_export",source_id,source_version)
+        return matches[0] if matches else None
+    return next((item for item in store.records("research_result_export")
+        if item.get("source_profile_id")==source_id and
+        item.get("source_profile_version")==source_version),None)
+
+
 def _recover_retrieval_checkpoint(store, *, job_key, profile, audit, opportunity_id, query):
     """Verify and rehydrate one immutable, job/query-bound provider response."""
     checkpoint = store.get_retrieval_checkpoint(job_key)
@@ -336,11 +345,7 @@ def run_research_pipeline(
     imported = adapter.import_profile(profile)
     source_id = imported["source_profile_id"]
     source_version = imported["source_profile_version"]
-    existing = next(
-        (item for item in adapter.store.records("research_result_export")
-         if item.get("source_profile_id") == source_id and item.get("source_profile_version") == source_version),
-        None,
-    )
+    existing = _find_result_for_profile(adapter.store,source_id,source_version)
     if existing:
         return {"status": "COMPLETED", "idempotent": True, "result": existing}
     if provider_executor is None and not allow_controlled_fixture:
@@ -440,12 +445,7 @@ def run_owner_research_pipeline(
         raise ResearchPipelineBlocked("consented profile does not map to its handed-off GEO property")
     source_id = imported["source_profile_id"]
     source_version = imported["source_profile_version"]
-    existing = next(
-        (item for item in adapter.store.records("research_result_export")
-         if item.get("source_profile_id") == source_id
-         and item.get("source_profile_version") == source_version),
-        None,
-    )
+    existing = _find_result_for_profile(adapter.store,source_id,source_version)
     if existing:
         baseline = existing.get("baseline") or {}
         if baseline.get("provider") in {None, "CONTROLLED_FIXTURE", "MOCK", "mock"} or int(baseline.get("model_calls") or 0) < 1:

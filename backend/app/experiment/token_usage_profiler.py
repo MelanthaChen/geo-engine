@@ -155,10 +155,10 @@ class OutreachProviderBudget:
 
     def _load_ledger(self):
         """Rebuild authoritative reservations/settlements; malformed state blocks spend."""
-        records = [
-            record for record in self.store.records("outreach_provider_budget")
-            if record.get("job_key") == self.job_key
-        ]
+        records=(self.store.records_for_job("outreach_provider_budget",self.job_key)
+            if hasattr(self.store,"records_for_job") else
+            [record for record in self.store.records("outreach_provider_budget")
+             if record.get("job_key")==self.job_key])
         model_reservations = {}
         model_settlements = {}
         search_reservations = {}
@@ -427,8 +427,10 @@ class OutreachProviderBudget:
             return None
         fingerprint = self.request_fingerprint(model, messages, purpose, parameters)
         _, reservations, settlements, _, _ = self._load_ledger()
+        response_records=(self.store.records_for_job("outreach_model_response",self.job_key)
+            if hasattr(self.store,"records_for_job") else self.store.records("outreach_model_response"))
         records = sorted(
-            (row for row in self.store.records("outreach_model_response")
+            (row for row in response_records
              if row.get("job_key") == self.job_key
              and row.get("experiment_id") == self.experiment_id
              and row.get("request_fingerprint") == fingerprint
@@ -495,9 +497,11 @@ class OutreachProviderBudget:
         if sequence is None:
             return
         from hashlib import sha256
-        raw = getattr(self, "last_response_record", None) or next((item for item in self.store.records("outreach_model_response")
-                    if item.get("job_key") == self.job_key
-                    and item.get("reservation_sequence") == sequence), None)
+        raw=getattr(self,"last_response_record",None)
+        if raw is None:
+            response_records=(self.store.records_for_job("outreach_model_response",self.job_key)
+                if hasattr(self.store,"records_for_job") else self.store.records("outreach_model_response"))
+            raw=next((item for item in response_records if item.get("reservation_sequence")==sequence),None)
         if raw is None:
             raise ProviderBudgetBlocked("The durable provider response archive is missing")
         result_text = None
