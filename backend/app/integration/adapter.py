@@ -42,7 +42,8 @@ class GeoResearchIntegrationAdapter:
         if not property_record and domain == _domain(CANONICAL_GEOAIRESUME_URL):
             property_record = self.db.query(Property).filter(Property.domain == domain).first()
         if property_record and normalized["profile_type"] == "hotel_property":
-            existing = self.store.records("profile_import")
+            existing = (self.store.records_for_profile("profile_import", normalized["source_profile_id"])
+                        if hasattr(self.store,"records_for_profile") else self.store.records("profile_import"))
             same_identity = any(item.get("property_id") == property_record.id and
                                 item.get("source_profile_id") == normalized["source_profile_id"]
                                 for item in existing)
@@ -177,7 +178,8 @@ class GeoResearchIntegrationAdapter:
                   "recorded_at": utc_now(), "provenance": {"source_system": "geo-engine"}, **fields}
         validate_record("deployment_receipt", record)
         # Duplicate receipts are retained as a replay-safe no-op at the adapter boundary.
-        if not any(item.get("record_id") == record["record_id"] for item in self.store.records("deployment_receipt")):
+        if not (self.store.get_record(record["record_id"]) if hasattr(self.store,"get_record") else
+                any(item.get("record_id") == record["record_id"] for item in self.store.records("deployment_receipt"))):
             self.store.append("deployment_receipt", record)
         return record
 
@@ -213,7 +215,8 @@ class GeoResearchIntegrationAdapter:
             "created_at": utc_now(),
             "provenance": {"source_system": "geo-engine", "provider": "CONTROLLED_FIXTURE"},
         }
-        if not any(item.get("record_id") == record["record_id"] for item in self.store.records("query_universe_reference")):
+        if not (self.store.get_record(record["record_id"]) if hasattr(self.store,"get_record") else
+                any(item.get("record_id") == record["record_id"] for item in self.store.records("query_universe_reference"))):
             self.store.append("query_universe_reference", record)
         return record
 
@@ -234,7 +237,8 @@ class GeoResearchIntegrationAdapter:
             "created_at": utc_now(),
             "provenance": {"source_system": "geo-engine", "provider": results.get("provider", "CONTROLLED_FIXTURE")},
         }
-        if not any(item.get("record_id") == record["record_id"] for item in self.store.records("baseline_experiment_reference")):
+        if not (self.store.get_record(record["record_id"]) if hasattr(self.store,"get_record") else
+                any(item.get("record_id") == record["record_id"] for item in self.store.records("baseline_experiment_reference"))):
             self.store.append("baseline_experiment_reference", record)
         return record
 
@@ -258,7 +262,9 @@ class GeoResearchIntegrationAdapter:
         }
         record.update(research_details or {})
         validate_record("research_result_export", record)
-        existing = next((item for item in self.store.records("research_result_export") if item.get("record_id") == record["record_id"]), None)
+        existing = (self.store.get_record(record["record_id"]) if hasattr(self.store,"get_record") else
+                    next((item for item in self.store.records("research_result_export")
+                          if item.get("record_id") == record["record_id"]),None))
         if existing:
             return existing
         self.store.append("research_result_export", record)

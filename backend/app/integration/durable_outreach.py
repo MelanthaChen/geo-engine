@@ -30,6 +30,26 @@ class DurableStore:
         insert_once(self.db,record_table,dict(id=record['record_id'],kind=kind,profile_id=record.get('source_profile_id'),profile_version=record.get('source_profile_version'),payload=encoded(record)))
     def records(self,kind):
         return [json.loads(r[0]) for r in self.db.execute(select(record_table.c.payload).where(record_table.c.kind==kind))]
+    def get_record(self,record_id):
+        raw=self.db.scalar(select(record_table.c.payload).where(record_table.c.id==record_id))
+        return json.loads(raw) if raw else None
+    def records_for_profile(self,kind,profile_id,profile_version=None):
+        query=select(record_table.c.payload).where(record_table.c.kind==kind,record_table.c.profile_id==profile_id)
+        if profile_version is not None:
+            query=query.where(record_table.c.profile_version==profile_version)
+        return [json.loads(row[0]) for row in self.db.execute(query.order_by(record_table.c.id))]
+    def records_for_job(self,kind,job_key):
+        prefixes={
+            'outreach_provider_budget':f'outreach-budget:{job_key}:',
+            'outreach_model_response':f'outreach-response:{job_key}:',
+            'outreach_model_response_validation':f'outreach-response:{job_key}:',
+        }
+        prefix=prefixes.get(kind)
+        if prefix is None:
+            raise ValueError(f'Job-scoped lookup is not defined for record kind: {kind}')
+        query=select(record_table.c.payload).where(record_table.c.kind==kind,
+            record_table.c.id.startswith(prefix,autoescape=True))
+        return [json.loads(row[0]) for row in self.db.execute(query.order_by(record_table.c.id))]
     def find_profile(self,ident,version):
         raw=self.db.scalar(select(record_table.c.payload).where(record_table.c.kind=='profile_import',record_table.c.profile_id==ident,record_table.c.profile_version==version))
         return json.loads(raw) if raw else None
@@ -65,21 +85,22 @@ class DurableStore:
                 'provider_metadata': item.provider_metadata or {},
             })
         payload['checkpoint_sha256'] = hashlib.sha256(encoded(payload).encode()).hexdigest()
-        existing = next((item for item in self.records('outreach_retrieval_checkpoint')
-                         if item.get('job_key') == job_key and int(item.get('sequence') or 1) == int(sequence)), None)
+        existing = self.get_record(payload['record_id'])
         if existing:
             if existing != payload:
                 raise ValueError('A different retrieval checkpoint is already bound to this job')
             return existing
         self.append('outreach_retrieval_checkpoint', payload)
-        saved = self.get_retrieval_checkpoint(job_key)
+        saved = self.get_record(payload['record_id'])
         if saved != payload:
             raise ValueError('A conflicting retrieval checkpoint was concurrently persisted for this job')
         return saved
 
     def get_retrieval_checkpoint(self, job_key):
-        matches = [item for item in self.records('outreach_retrieval_checkpoint')
-                   if item.get('job_key') == job_key]
+        prefix='retrieval-checkpoint:' + hashlib.sha256(job_key.encode()).hexdigest() + ':'
+        matches=[json.loads(row[0]) for row in self.db.execute(select(record_table.c.payload).where(
+            record_table.c.kind=='outreach_retrieval_checkpoint',
+            record_table.c.id.startswith(prefix,autoescape=True)).order_by(record_table.c.id))]
         by_sequence = {}
         for item in matches:
             sequence = int(item.get('sequence') or 1)
